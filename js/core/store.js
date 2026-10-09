@@ -11,7 +11,7 @@ import { buildDemo } from "../data/demo.js";
 import { uid, sha256, DAY, weekStart, dayKey, fold } from "./util.js";
 import { CONFIG } from "../config.js";
 
-const KEY = "vientos_db_v3";
+const KEY = "vientos_db_v4";
 export const MODE = "demo";
 void CONFIG;
 
@@ -30,7 +30,7 @@ export function save() {
 
 export async function init() {
   try { db = JSON.parse(localStorage.getItem(KEY) || "null"); } catch { db = null; }
-  if (!db || db.v !== 3) { db = await seed(); localStorage.setItem(KEY, JSON.stringify(db)); }
+  if (!db || db.v !== 4) { db = await seed(); localStorage.setItem(KEY, JSON.stringify(db)); }
   return db;
 }
 
@@ -63,7 +63,7 @@ async function seed() {
     days: normDays(t.days), order: i, createdBy: null, updated: Date.now(),
   }));
   const base = {
-    v: 3, seededAt: Date.now(),
+    v: 4, seededAt: Date.now(),
     gym: {
       name: "Vientos GYM",
       address: "Pellegrini 545",

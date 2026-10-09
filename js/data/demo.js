@@ -4,7 +4,8 @@ import { rng, DAY } from "../core/util.js";
 
 export const DEMO_PASS = "Vientos2026";
 export const DEMO_ACCOUNTS = [
-  { user: "martin", label: "Socio", hint: "Martín · Hombres 5 días" },
+  { user: "ana", label: "Socio nuevo", hint: "Ana · primer día, todo en cero" },
+  { user: "martin", label: "Socio con historial", hint: "Martín · ya entrenó 10 semanas" },
   { user: "lucia", label: "Deportista", hint: "Lucía · rutina de contraste" },
   { user: "nico", label: "Profe", hint: "Panel del entrenador" },
   { user: "admin", label: "Dueño", hint: "Panel completo" },
@@ -113,6 +114,10 @@ export async function buildDemo(D, { hashPass, uid, normDays }) {
     const r = assign(u, key, { number: 1, active: true, start: T0 - (5 + Math.floor(R() * 30)) * DAY, coach });
     history(u, r, { from: r.startedAt, to: T0 + (R() > 0.6 ? 0.9 * DAY : -DAY), perWeek: 2 + R() * 3, full: false });
   });
+
+  /* Ana: socia recién aprobada, con rutina pero sin ningún entrenamiento (todo en cero) */
+  const ana = mk({ id: "u-ana", name: "Ana Torres", user: "ana", gender: "Femenino", birth: "1999-02-20", coachId: carla.id, joined: now - 2 * DAY, fee: { planId: "p-3x", dueAt: T0 + 28 * DAY } });
+  assign(ana, "inicial-3", { number: 1, active: true, start: T0 - DAY, coach: carla, note: "¡Bienvenida! Las primeras semanas usá poco peso y enfocate en la técnica. Cualquier duda, preguntame." });
 
   /* Solicitudes de alta desde la app (esperan aprobación) */
   mk({ name: "Paula Giménez", user: "paula.gimenez", email: "paula.gimenez@demo.vientos", status: "pendiente", gender: "Femenino", joined: now - 5 * 3600000 });

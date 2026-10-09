@@ -151,7 +151,7 @@ export function exerciseView(params) {
     const reps = lg.reps ?? (parseInt(goal) || "");
     return `<div class="setrow ${lg.done ? "done" : ""}" data-set="${n}">
       <span class="setrow-n">${n + 1}</span>
-      <label class="num"><input type="number" inputmode="decimal" step="0.5" min="0" name="kg" value="${esc(kg)}" placeholder="—" ${own ? "" : "disabled"} aria-label="Peso de la serie ${n + 1}"><small>kg</small></label>
+      <label class="num"><input type="number" inputmode="decimal" step="0.5" min="0" name="kg" value="${esc(kg)}" placeholder="0" ${own ? "" : "disabled"} aria-label="Peso de la serie ${n + 1}"><small>kg</small></label>
       <label class="num"><input type="${numeric ? "number" : "text"}" inputmode="numeric" min="0" name="reps" value="${esc(numeric ? reps : i.reps)}" ${own && numeric ? "" : "disabled"} aria-label="Repeticiones de la serie ${n + 1}"><small>${numeric ? (perSet.length > 1 ? `de ${esc(goal)}` : "reps") : ""}</small></label>
       <button class="setck" type="button" data-done aria-pressed="${!!lg.done}" ${own ? "" : "disabled"} aria-label="Serie ${n + 1} hecha">${icon("check")}</button>
     </div>`;

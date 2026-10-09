@@ -1,6 +1,8 @@
 /* Sesión.
    · "Recordarme en este dispositivo": la sesión queda guardada (localStorage).
-   · Sin recordarme: dura mientras la app esté abierta (sessionStorage). */
+   · Sin recordarme: dura mientras la app esté abierta (sessionStorage).
+   · Con servidor (Supabase) la sesión la maneja Supabase Auth: contraseñas
+     cifradas en el servidor y tokens que vencen y se renuevan solos. */
 import * as S from "./store.js";
 
 const SKEY = "vientos_session";
@@ -8,8 +10,14 @@ const LKEY = "vientos_lock";
 const MAX_TRIES = 5, LOCK_MS = 60_000;
 
 let current = null;
+const server = () => S.MODE === "supabase";
 
 export function restore() {
+  if (server()) {
+    const u = S.db.me ? S.user(S.db.me) : null;
+    current = u && u.status === "activo" ? u : null;
+    return current;
+  }
   try {
     const raw = sessionStorage.getItem(SKEY) || localStorage.getItem(SKEY);
     if (!raw) return null;
@@ -32,6 +40,7 @@ function lockState() {
 export async function login(identifier, pass, remember) {
   const l = lockState();
   if (l.until > Date.now()) throw new Error(`Demasiados intentos. Probá de nuevo en ${Math.ceil((l.until - Date.now()) / 1000)} s.`);
+  if (server()) S.remote().rememberSession(remember);
   const u = await S.api.login(identifier, pass);
   if (!u) {
     l.n = (l.n || 0) + 1;
@@ -40,7 +49,10 @@ export async function login(identifier, pass, remember) {
     /* Mismo mensaje para usuario inexistente o contraseña incorrecta */
     throw new Error("Usuario o contraseña incorrectos.");
   }
-  if (u.status === "pendiente") throw new Error("Tu cuenta todavía no fue aprobada. Te avisamos apenas un profe la habilite.");
+  if (u.status !== "activo") {
+    if (server()) await S.remote().logout();
+    throw new Error(u.status === "pendiente" ? "Tu cuenta todavía no fue aprobada. Te avisamos apenas un profe la habilite." : "Tu cuenta está dada de baja. Consultá en el gimnasio.");
+  }
   localStorage.setItem(LKEY, JSON.stringify({ n: 0, until: 0 }));
   start(u, remember);
   return u;
@@ -48,12 +60,13 @@ export async function login(identifier, pass, remember) {
 
 export function start(u, remember = false) {
   current = u;
+  if (server()) { S.remote().rememberSession(remember); return; }
   const s = JSON.stringify({ uid: u.id, at: Date.now() });
   (remember ? localStorage : sessionStorage).setItem(SKEY, s);
   (remember ? sessionStorage : localStorage).removeItem(SKEY);
 }
 
-export function remembered() { return !!localStorage.getItem(SKEY); }
+export function remembered() { return server() ? S.remote().remembered() : !!localStorage.getItem(SKEY); }
 export function setRemember(on) {
   if (!current) return;
   start(current, on);
@@ -63,6 +76,7 @@ export function logout() {
   current = null;
   sessionStorage.removeItem(SKEY);
   localStorage.removeItem(SKEY);
+  if (server()) return S.remote()?.logout();
 }
 
 export function passwordIssues(p) {

@@ -44,6 +44,7 @@ export function loginView() {
         <p class="tiny muted">Datos ficticios guardados solo en este navegador. Contraseña de todas: ${DEMO_PASS}</p>
       </section>` : ""}
       <a class="auth-install" href="#/instalar">${icon("download", "sm")} Instalar la app en el celular</a>
+      ${S.MODE === "supabase" ? `<a class="auth-install" href="?demo#/ingresar">${icon("info", "sm")} Ver la demostración con datos de ejemplo</a>` : ""}
     </div>`,
     mount(host) {
       wireEyes(host);

@@ -2,8 +2,10 @@
    STORE — capa de datos de la app
    · Modo DEMO: todo vive en el localStorage de este navegador, con datos de
      ejemplo. Sirve para mostrar el producto; no apto para socios reales.
-   · Modo SUPABASE (próxima etapa): mismo objeto `db` y mismas funciones, con
-     los datos en el servidor.
+   · Modo SUPABASE: mismo objeto `db` y mismas funciones; cada cambio se manda
+     al servidor con push() (ver js/core/remote.js). Las reglas de quién puede
+     ver y tocar qué están en el servidor (supabase/01_esquema.sql).
+   · Con "?demo" en la dirección se fuerza la demostración (para mostrarla).
    ========================================================================= */
 import { EXERCISES } from "../data/exercises.js";
 import { TEMPLATES } from "../data/templates.js";
@@ -12,8 +14,16 @@ import { uid, sha256, DAY, weekStart, dayKey, fold } from "./util.js";
 import { CONFIG } from "../config.js";
 
 const KEY = "vientos_db_v4";
-export const MODE = "demo";
-void CONFIG;
+const forceDemo = (() => { try { return new URLSearchParams(location.search).has("demo"); } catch { return false; } })();
+export const MODE = CONFIG.mode === "supabase" && CONFIG.supabaseUrl && CONFIG.supabaseAnonKey && !forceDemo ? "supabase" : "demo";
+
+/* Adaptador del servidor (null en demostración) */
+let R = null;
+export const remote = () => R;
+function push(fn, ...args) {
+  if (!R || typeof R[fn] !== "function") return;
+  Promise.resolve().then(() => R[fn](...args)).catch((err) => R.onError(err, fn));
+}
 
 export let db = null;
 const listeners = new Set();
@@ -21,14 +31,24 @@ export const onChange = (fn) => (listeners.add(fn), () => listeners.delete(fn));
 
 let saveT = 0;
 export function save() {
-  clearTimeout(saveT);
-  saveT = setTimeout(() => {
-    try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { console.warn("No se pudo guardar", e); }
-  }, 60);
+  if (MODE === "demo") {
+    clearTimeout(saveT);
+    saveT = setTimeout(() => {
+      try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { console.warn("No se pudo guardar", e); }
+    }, 60);
+  }
   listeners.forEach((fn) => fn());
 }
 
+/* Reemplaza todos los datos (lo usa el servidor al ingresar o salir) */
+export function setDb(next) { db = next; listeners.forEach((fn) => fn()); }
+
 export async function init() {
+  if (MODE === "supabase") {
+    R = (await import("./remote.js")).remoteAdapter;
+    db = await R.boot();
+    return db;
+  }
   try { db = JSON.parse(localStorage.getItem(KEY) || "null"); } catch { db = null; }
   if (!db || db.v !== 4) { db = await seed(); localStorage.setItem(KEY, JSON.stringify(db)); }
   return db;
@@ -57,13 +77,15 @@ export function normDays(days, prefix = "d") {
 
 export async function hashPass(pass, salt) { return sha256(salt + ":" + pass); }
 
-async function seed() {
+/* Datos iniciales del gimnasio: la demostración y el primer ingreso del dueño al servidor */
+export function defaults() {
   const templates = TEMPLATES.map((t, i) => ({
     id: "t-" + t.key, key: t.key, name: t.name, level: t.level, audience: t.audience, goal: t.goal, weeks: t.weeks, desc: t.desc,
     days: normDays(t.days), order: i, createdBy: null, updated: Date.now(),
   }));
-  const base = {
-    v: 4, seededAt: Date.now(),
+  /* Las plantillas no traen peso: lo pone cada socio */
+  templates.forEach((t) => t.days.forEach((d) => d.blocks.forEach((b) => b.items.forEach((i) => (i.kg = null)))));
+  return {
     gym: {
       name: "Vientos GYM",
       address: "Pellegrini 545",
@@ -85,8 +107,17 @@ async function seed() {
       { id: "p-ciclo", name: "Ciclo indoor", price: 30000 },
       { id: "p-combo", name: "Combo musculación + ciclo", price: 55000 },
     ],
-    users: [], routines: [], logs: [], payments: [], notices: [], live: {},
   };
+}
+
+async function seed() {
+  const d = defaults();
+  /* La demo arma sus plantillas desde los datos con peso (para inventar el historial) */
+  const templates = TEMPLATES.map((t, i) => ({
+    id: "t-" + t.key, key: t.key, name: t.name, level: t.level, audience: t.audience, goal: t.goal, weeks: t.weeks, desc: t.desc,
+    days: normDays(t.days), order: i, createdBy: null, updated: Date.now(),
+  }));
+  const base = { v: 4, seededAt: Date.now(), ...d, templates, users: [], routines: [], logs: [], payments: [], notices: [], live: {} };
   return buildDemo(base, { hashPass, uid, normDays });
 }
 
@@ -221,6 +252,7 @@ export function feeStatus(u) {
 /* ------------------------------------------------------------ escrituras */
 export const api = {
   async login(identifier, pass) {
+    if (R) return R.login(identifier, pass);
     const u = findLogin(identifier);
     if (!u || u.status === "baja") return null;
     if ((await hashPass(pass, u.salt)) !== u.hash) return null;
@@ -228,6 +260,7 @@ export const api = {
   },
 
   async register({ name, email, phone, pass, code }) {
+    if (R) return R.register({ name, email, phone, pass, code });
     if (fold(code).trim() !== fold(db.gym.joinCode)) throw new Error("El código del gimnasio no es correcto. Pedilo en recepción.");
     if (findLogin(email)) throw new Error("Ya hay una cuenta con ese email.");
     const salt = uid("s");
@@ -242,6 +275,11 @@ export const api = {
 
   async createMember({ name, email, phone, pass, coachId, planId }) {
     if (findLogin(email)) throw new Error("Ya hay una cuenta con ese email o usuario.");
+    if (R) {
+      const u = await R.createAccount({ name, email, phone, pass, role: "socio", coachId: coachId || null, fee: planId ? { planId, dueAt: Date.now() + 30 * DAY } : null });
+      db.users.push(u); save();
+      return u;
+    }
     const salt = uid("s");
     const u = {
       id: uid("u"), role: "socio", status: "activo", name: name.trim(), user: email.trim().toLowerCase(), email: email.trim().toLowerCase(),
@@ -255,6 +293,11 @@ export const api = {
 
   async createCoach({ name, email, phone, pass, role }) {
     if (findLogin(email)) throw new Error("Ya hay una cuenta con ese email o usuario.");
+    if (R) {
+      const u = await R.createAccount({ name, email, phone, pass, role: role === "admin" ? "admin" : "profe" });
+      db.users.push(u); save();
+      return u;
+    }
     const salt = uid("s");
     const u = {
       id: uid("u"), role: role === "admin" ? "admin" : "profe", status: "activo", name: name.trim(), user: email.trim().toLowerCase(), email: email.trim().toLowerCase(),
@@ -271,12 +314,14 @@ export const api = {
     u.coachId = coachId || u.coachId;
     if (planId) u.fee = { planId, dueAt: Date.now() + 30 * DAY };
     save();
+    push("saveProfile", u);
   },
-  reject(userId) { db.users = db.users.filter((u) => u.id !== userId); save(); },
+  reject(userId) { db.users = db.users.filter((u) => u.id !== userId); save(); push("reject", userId); },
 
-  updateUser(userId, patch) { Object.assign(user(userId), patch); save(); },
+  updateUser(userId, patch) { Object.assign(user(userId), patch); save(); push("saveProfile", user(userId)); },
 
   async changePassword(userId, oldPass, newPass) {
+    if (R) return R.changePassword(oldPass, newPass);
     const u = user(userId);
     if ((await hashPass(oldPass, u.salt)) !== u.hash) throw new Error("La contraseña actual no es correcta.");
     u.salt = uid("s");
@@ -284,6 +329,7 @@ export const api = {
     save();
   },
   async resetPassword(userId, newPass) {
+    if (R) return R.resetPassword(userId, newPass);
     const u = user(userId);
     u.salt = uid("s");
     u.hash = await hashPass(newPass, u.salt);
@@ -291,7 +337,8 @@ export const api = {
   },
 
   /* Baja de la cuenta: se borran datos personales y registros */
-  deleteAccount(userId) {
+  async deleteAccount(userId) {
+    if (R) await R.deleteAccount();
     db.users = db.users.filter((u) => u.id !== userId);
     db.routines = db.routines.filter((r) => r.userId !== userId);
     db.logs = db.logs.filter((l) => l.userId !== userId);
@@ -313,21 +360,24 @@ export const api = {
     };
     db.routines.push(r);
     save();
+    push("saveRoutines", routinesOf(userId));
     return r;
   },
 
-  saveRoutine(r) { r.updated = Date.now(); save(); },
+  saveRoutine(r) { r.updated = Date.now(); save(); push("saveRoutines", [r]); },
   activateRoutine(id) {
     const r = routine(id);
     routinesOf(r.userId).forEach((x) => { if (x.active && x.id !== id) { x.active = false; x.endedAt = Date.now(); } });
     r.active = true; r.endedAt = null;
     save();
+    push("saveRoutines", routinesOf(r.userId));
   },
 
   newTemplate(coachId) {
     const t = { id: uid("t"), key: "", name: "Nueva plantilla", level: "Intermedio", audience: "Mixto", goal: "Hipertrofia", weeks: 6, desc: "", days: normDays([{ name: "Día 1", focus: "", blocks: [] }]), order: db.templates.length, createdBy: coachId, updated: Date.now() };
     db.templates.push(t);
     save();
+    push("saveTemplate", t);
     return t;
   },
   duplicateTemplate(id, coachId) {
@@ -336,6 +386,7 @@ export const api = {
     t.days = normDays(t.days.map(stripIds));
     db.templates.push(t);
     save();
+    push("saveTemplate", t);
     return t;
   },
   /* Guarda la rutina de un socio como plantilla nueva */
@@ -344,18 +395,20 @@ export const api = {
     const t = { id: uid("t"), key: "", name, level: r.level, audience: r.audience, goal: r.goal, weeks: 6, desc: "", days: normDays(JSON.parse(JSON.stringify(r.days)).map(stripIds)), order: db.templates.length, createdBy: coachId, updated: Date.now() };
     db.templates.push(t);
     save();
+    push("saveTemplate", t);
     return t;
   },
-  saveTemplate(t) { t.updated = Date.now(); save(); },
-  deleteTemplate(id) { db.templates = db.templates.filter((t) => t.id !== id); save(); },
+  saveTemplate(t) { t.updated = Date.now(); save(); push("saveTemplate", t); },
+  deleteTemplate(id) { db.templates = db.templates.filter((t) => t.id !== id); save(); push("deleteTemplate", id); },
 
   saveExercise(e) {
     if (!e.id) { e.id = uid("e"); db.exercises.push(e); }
     else Object.assign(exercise(e.id), e);
     save();
+    push("saveExercise", exercise(e.id));
     return e;
   },
-  deleteExercise(id) { db.exercises = db.exercises.filter((e) => e.id !== id); save(); },
+  deleteExercise(id) { db.exercises = db.exercises.filter((e) => e.id !== id); save(); push("deleteExercise", id); },
   exerciseInUse(id) {
     const inDays = (days) => days.some((d) => d.blocks.some((b) => b.items.some((i) => i.ex === id)));
     return db.templates.some((t) => inDays(t.days)) || db.routines.some((r) => r.active && inDays(r.days));
@@ -365,6 +418,7 @@ export const api = {
   startSession(userId, routineId, dayId) {
     db.live[userId] = { routineId, dayId, startedAt: Date.now(), sets: {} };
     save();
+    push("saveLive", userId, db.live[userId]);
     return db.live[userId];
   },
   session(userId) { return db.live[userId] || null; },
@@ -374,6 +428,7 @@ export const api = {
     (s.sets[itemId] ||= [])[setIdx] = { ...(s.sets[itemId]?.[setIdx] || {}), ...data };
     s.lastAt = Date.now();
     save();
+    push("saveLive", userId, s);
   },
   /* El entrenamiento no hace falta terminarlo: si quedó abierto de otro día o
      pasaron más de 3 horas sin marcar nada, se guarda solo con lo que se hizo. */
@@ -384,7 +439,7 @@ export const api = {
     if (dayKey(last) === dayKey() && Date.now() - last < 3 * 3600000) return null;
     return api.finishSession(userId, last);
   },
-  cancelSession(userId) { delete db.live[userId]; save(); },
+  cancelSession(userId) { delete db.live[userId]; save(); push("deleteLive", userId); },
   finishSession(userId, endAt = Date.now()) {
     const s = db.live[userId];
     if (!s) return null;
@@ -400,9 +455,11 @@ export const api = {
       volume: sets.reduce((a, x) => a + (x.kg || 0) * (parseInt(x.reps) || 0), 0),
     };
     delete db.live[userId];
+    push("deleteLive", userId);
     if (!sets.length) { save(); return null; }
     db.logs.push(log);
     save();
+    push("saveLog", log);
     return log;
   },
 
@@ -412,15 +469,18 @@ export const api = {
     const from = Math.max(Date.now(), u.fee?.dueAt || 0);
     const d = new Date(from); d.setMonth(d.getMonth() + months);
     u.fee = { planId, dueAt: d.getTime() };
-    db.payments.push({ id: uid("pay"), userId, planId, months, amount: amount ?? (p?.price || 0) * months, at: Date.now(), by });
+    const pay = { id: uid("pay"), userId, planId, months, amount: amount ?? (p?.price || 0) * months, at: Date.now(), by };
+    db.payments.push(pay);
     save();
+    push("saveProfile", u);
+    push("savePayment", pay);
   },
-  setDue(userId, dueAt, planId) { const u = user(userId); u.fee = { planId: planId || u.fee?.planId || db.plans[0].id, dueAt }; save(); },
+  setDue(userId, dueAt, planId) { const u = user(userId); u.fee = { planId: planId || u.fee?.planId || db.plans[0].id, dueAt }; save(); push("saveProfile", u); },
 
-  saveGym(patch) { Object.assign(db.gym, patch); save(); },
-  savePlans(plans) { db.plans = plans; save(); },
-  addNotice(n) { db.notices.unshift({ id: uid("n"), at: Date.now(), ...n }); save(); },
-  deleteNotice(id) { db.notices = db.notices.filter((n) => n.id !== id); save(); },
+  saveGym(patch) { Object.assign(db.gym, patch); save(); push("saveGym"); },
+  savePlans(plans) { db.plans = plans; save(); push("saveGym"); },
+  addNotice(n) { const x = { id: uid("n"), at: Date.now(), ...n }; db.notices.unshift(x); save(); push("saveNotice", x); },
+  deleteNotice(id) { db.notices = db.notices.filter((n) => n.id !== id); save(); push("deleteNotice", id); },
 };
 
 function stripIds(d) {

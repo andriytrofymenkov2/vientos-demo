@@ -29,7 +29,7 @@ export function profileView() {
           ${field({ label: "Género", name: "gender", value: u.gender, options: [["", "Prefiero no decir"], "Femenino", "Masculino", "No binario", "Otro"] })}
         </div>
         ${field({ label: "Teléfono", name: "phone", type: "tel", value: u.phone })}
-        ${field({ label: "Email", name: "email", type: "email", value: u.email, req: true })}
+        ${S.MODE === "supabase" ? field({ label: "Email (es tu usuario para ingresar)", name: "email", type: "email", value: u.email, attrs: "readonly", hint: "Para cambiarlo, pedilo en el gimnasio." }) : field({ label: "Email", name: "email", type: "email", value: u.email, req: true })}
         <button class="btn primary" type="submit">Guardar cambios</button>
       </form>
       <section class="card" data-form="prefs">
@@ -66,7 +66,7 @@ export function profileView() {
       });
       host.addEventListener("click", (e) => {
         const a = e.target.closest("[data-act]")?.dataset.act;
-        if (a === "logout") { logout(); go("/ingresar", { replace: true }); }
+        if (a === "logout") Promise.resolve(logout()).then(() => go("/ingresar", { replace: true }));
         if (a === "pass") changePassword(u);
         if (a === "delete") deleteAccount(u);
       });
@@ -102,12 +102,12 @@ function deleteAccount(u) {
       <form novalidate>${field({ label: 'Escribí "ELIMINAR" para confirmar', name: "ok", req: true, attrs: 'autocapitalize="characters" autocomplete="off"' })}
       <button class="btn danger block" type="submit">Eliminar definitivamente</button></form>`,
     onMount(b, close) {
-      $("form", b).addEventListener("submit", (e) => {
+      $("form", b).addEventListener("submit", async (e) => {
         e.preventDefault();
         if (formData(e.target).ok.trim().toUpperCase() !== "ELIMINAR") return toast('Escribí "ELIMINAR" para confirmar.', "err");
         close();
-        S.api.deleteAccount(u.id);
-        logout();
+        try { await S.api.deleteAccount(u.id); } catch (err) { return toast(err.message, "err"); }
+        await logout();
         toast("Tu cuenta fue eliminada");
         go("/ingresar", { replace: true });
       });

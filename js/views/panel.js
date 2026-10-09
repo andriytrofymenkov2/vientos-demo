@@ -542,7 +542,7 @@ export function moreView() {
     layout: "panel", nav: "mas", title: "Más",
     html: `${pageHead({ title: "Más" })}<section class="card">${items.map(([h, i, l]) => `<a class="lrow" href="${h}">${icon(i, "sm")}<span>${l}</span>${icon("right", "sm")}</a>`).join("")}
       <button class="lrow" type="button" data-out>${icon("logout", "sm")}<span>Cerrar sesión</span>${icon("right", "sm")}</button></section>`,
-    mount(host) { $("[data-out]", host).addEventListener("click", () => { logout(); go("/ingresar", { replace: true }); }); },
+    mount(host) { $("[data-out]", host).addEventListener("click", async () => { await logout(); go("/ingresar", { replace: true }); }); },
   };
 }
 

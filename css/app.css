@@ -877,4 +877,3 @@ a.mrow:hover, button.mrow:hover { background: var(--card2); }
 .ig-help { width: 100%; display: grid; gap: 10px; }
 .ig-why { display: flex; gap: 8px; align-items: flex-start; text-align: left; font-size: 14px; color: var(--text2); background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px; }
 .ig-why .i { color: #4ea1ff; margin-top: 3px; }
-.ig-video { width: 100%; max-width: 260px; justify-self: center; border-radius: 18px; border: 1px solid var(--line); background: #000; }

@@ -91,14 +91,11 @@ function iosGuide(p) {
     ];
   }
   const where = p.iosBrowser === "chrome" || p.ipad ? "top-right" : p.newSafari ? "bottom-right" : "bottom-center";
-  const variant = p.iosBrowser === "chrome" ? "chrome" : p.newSafari ? "ios26" : "ios18";
   /* Texto de cada paso para la guía por voz */
-  const spoken = steps.map(([t], i) => `Paso ${i + 1}. ` + t.replace(/<[^>]+>/g, "").replace(/[“”]/g, "").replace(/···/g, "los tres puntitos"));
+  const spoken = steps.map(([t], i) => `Paso ${i + 1}. ` + t.replace(/<[^>]+>/g, "").replace(/\s*\([^)]*\)/g, "").replace(/[“”]/g, "").replace(/···/g, "los tres puntitos"));
   return `<div class="ig-help">
-      <p class="ig-why">${icon("info", "xs")} Cuando abras los menús de Safari, esta pantalla queda tapada. Usá la guía flotante o la voz para no perderte.</p>
-      <button class="btn primary block lg" type="button" data-pip>${icon("video")} Ver la guía flotante</button>
-      <button class="btn ghost block" type="button" data-voice data-say="${esc(JSON.stringify(spoken))}">${icon("sound")} Guiame con voz</button>
-      <video class="ig-video" src="media/guia-${variant}.mp4" muted playsinline loop preload="metadata" hidden></video>
+      <p class="ig-why">${icon("info", "xs")} Cuando abras los menús de Safari, esta pantalla queda tapada. Activá la voz y te va diciendo cada paso.</p>
+      <button class="btn primary block lg" type="button" data-voice data-say="${esc(JSON.stringify(spoken))}">${icon("sound")} Guiame con voz</button>
     </div>
     <div class="ios-guide" data-guide>
       ${steps.map(([t, mk], i) => `<section class="ig-step ${i ? "" : "on"}" data-step="${i}">
@@ -174,20 +171,6 @@ export function installView() {
         window.__bip = null;
         if (r.outcome === "accepted") toast("¡Listo! Buscá el ícono de Vientos.");
       });
-      /* Guía flotante: el video queda encima del menú de Safari (Picture in Picture) */
-      const vid = $(".ig-video", host);
-      $("[data-pip]", host)?.addEventListener("click", () => {
-        vid.hidden = false;
-        vid.currentTime = 0;
-        const playing = vid.play();
-        try {
-          if (vid.webkitSupportsPresentationMode?.("picture-in-picture")) vid.webkitSetPresentationMode("picture-in-picture");
-          else if (document.pictureInPictureEnabled) (playing || Promise.resolve()).then(() => vid.requestPictureInPicture()).catch(() => {});
-        } catch { /* sin ventanita flotante: el video se ve en la página */ }
-        toast("Listo: la guía queda flotando. Ahora seguí los pasos en Safari.");
-        vid.scrollIntoView({ behavior: "smooth", block: "center" });
-      });
-
       /* Guía por voz: lee cada paso con una pausa para hacerlo */
       const vb = $("[data-voice]", host);
       let talking = false, timer = 0;
@@ -202,15 +185,15 @@ export function installView() {
           if (!talking) return;
           if (i >= lines.length) {
             const end = new SpeechSynthesisUtterance("Listo. Buscá el ícono de Vientos en tu pantalla de inicio y abrí la app desde ahí.");
-            end.lang = "es-AR"; end.onend = stopVoice; speechSynthesis.speak(end);
+            end.lang = "es-AR"; end.rate = 1.08; end.onend = stopVoice; speechSynthesis.speak(end);
             return;
           }
           $("[data-guide]", host)?.dispatchEvent(new CustomEvent("ig:show", { detail: i }));
           const u = new SpeechSynthesisUtterance(lines[i]);
-          u.lang = "es-AR"; u.rate = 0.92;
+          u.lang = "es-AR"; u.rate = 1.08;
           const v = speechSynthesis.getVoices().find((x) => /^es/i.test(x.lang));
           if (v) u.voice = v;
-          u.onend = () => { timer = setTimeout(() => say(i + 1), 6500); };
+          u.onend = () => { timer = setTimeout(() => say(i + 1), 3000); };
           speechSynthesis.speak(u);
         };
         say(0);

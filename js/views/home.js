@@ -4,6 +4,7 @@ import { esc, greeting, firstName, waNumber, telHref, fmtDate, weekStart, dayKey
 import * as S from "../core/store.js";
 import { me } from "../core/auth.js";
 import { avatar } from "../core/ui.js";
+import { platform } from "./install.js";
 
 const WL = ["L", "M", "M", "J", "V", "S", "D"];
 
@@ -70,6 +71,7 @@ export function homeView() {
       <h1>${greeting()},<br><b>${esc(firstName(u.name))}</b></h1>
     </section>
     ${todayCard}
+    ${installBanner()}
     ${feeCard}
     <section class="weekcard">
       <div class="weekcard-h"><h2>Esta semana</h2><span>${thisWeek} ${thisWeek === 1 ? "entrenamiento" : "entrenamientos"}</span></div>
@@ -101,6 +103,21 @@ export function homeView() {
     <p class="foot-note">${icon("wind", "xs")} Vientos GYM · Río Gallegos</p>`,
     mount(host) {
       $$("[data-count]", host).forEach((el) => countUp(el, +el.dataset.count));
+      host.querySelector("[data-insthide]")?.addEventListener("click", (e) => {
+        try { localStorage.setItem("vientos_inst_hide", String(Date.now() + 7 * 864e5)); } catch { /* sin almacenamiento */ }
+        e.currentTarget.parentElement.remove();
+      });
     },
   };
+}
+
+/* En el celular, si todavía usa la app desde el navegador, le recuerda instalarla */
+function installBanner() {
+  const p = platform();
+  let hidden = false;
+  try { hidden = Date.now() < +(localStorage.getItem("vientos_inst_hide") || 0); } catch { /* sin almacenamiento */ }
+  if (!p.mobile || p.standalone || hidden) return "";
+  return `<div class="inst-banner">${icon("download")}<div><b>Instalá la app en tu ${p.ios ? "iPhone" : "celular"}</b><small>Entrás más rápido, a pantalla completa.</small></div>
+    <a class="btn sm primary" href="#/instalar">Ver cómo</a>
+    <button class="icon-btn" type="button" aria-label="Ahora no" data-insthide>${icon("x", "sm")}</button></div>`;
 }

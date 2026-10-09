@@ -866,3 +866,6 @@ a.mrow:hover, button.mrow:hover { background: var(--card2); }
 
 .inst:has(.ios-guide) .inst-logo { display: none; }
 .inst:has(.ios-guide) { padding-top: calc(20px + env(safe-area-inset-top)); gap: 10px; }
+
+.team-add { justify-content: flex-start; margin: -4px 0 8px; }
+.team-add .btn { flex: 0 1 auto; }

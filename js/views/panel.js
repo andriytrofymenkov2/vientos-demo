@@ -475,8 +475,9 @@ export function gymView() {
           <button class="btn primary" type="submit">Guardar</button>
         </form>
         <section class="card">
-          <div class="card-h"><h2>${icon("users", "sm")} Equipo</h2><button class="btn ghost sm" type="button" data-act="coach">${icon("userplus", "sm")} Sumar profe</button></div>
-          ${team.map((c) => `<div class="mrow">${avatar(c, "sm")}<span><b>${esc(c.name)}</b><small>${c.role === "admin" ? "Administración" : "Entrenador"} · ${plural(S.membersOf(c.id).length, "socio", "socios")}</small></span></div>`).join("")}
+          <div class="card-h"><h2>${icon("users", "sm")} Equipo</h2></div>
+          <div class="row-btns team-add"><button class="btn primary sm" type="button" data-act="admin">${icon("shield", "sm")} Sumar administrador</button><button class="btn ghost sm" type="button" data-act="coach">${icon("userplus", "sm")} Sumar profe</button></div>
+          ${team.sort((a, b) => (a.role === "admin" ? 0 : 1) - (b.role === "admin" ? 0 : 1)).map((c) => `<div class="mrow">${avatar(c, "sm")}<span><b>${esc(c.name)}</b><small>${c.role === "admin" ? "Administrador · acceso total" : `Profe · ${plural(S.membersOf(c.id).length, "socio", "socios")}`}</small></span></div>`).join("")}
         </section>
         ${S.MODE === "demo" ? `<section class="card"><div class="card-h"><h2>${icon("info", "sm")} Demostración</h2></div>
           <p class="muted">Vuelve todos los datos de ejemplo a como estaban al principio.</p>
@@ -498,7 +499,8 @@ export function gymView() {
       });
       host.addEventListener("click", async (e) => {
         const a = e.target.closest("[data-act]")?.dataset.act;
-        if (a === "coach") coachSheet();
+        if (a === "coach") coachSheet("profe");
+        if (a === "admin") coachSheet("admin");
         if (a === "reset" && await confirmDialog({ title: "¿Reiniciar la demostración?", text: "Se pierden todos los cambios hechos en este navegador.", ok: "Reiniciar", danger: true })) {
           await S.resetDemo(); logout(); location.hash = "#/ingresar"; location.reload();
         }
@@ -507,13 +509,16 @@ export function gymView() {
   };
 }
 
-function coachSheet() {
+/* Sumar al equipo: administrador (acceso total) o profe */
+function coachSheet(role = "profe") {
+  const adm = role === "admin";
   sheet({
-    title: "Sumar profe",
-    html: `<form novalidate>${field({ label: "Nombre y apellido", name: "fullname", req: true })}
-      <div class="grid2">${field({ label: "Email", name: "email", type: "email", req: true })}${field({ label: "Teléfono", name: "phone", type: "tel" })}</div>
-      ${field({ label: "Permisos", name: "role", options: [["profe", "Entrenador"], ["admin", "Administración (todo)"]] })}
-      <p class="form-err" role="alert" hidden></p><button class="btn primary block" type="submit">Crear cuenta</button></form>`,
+    title: adm ? "Sumar administrador" : "Sumar profe",
+    html: `<form novalidate>
+      <p class="muted">${adm ? "Tiene acceso total: socios, rutinas, cuotas y cobros, datos del gimnasio y el equipo (puede sumar otros administradores y profes)." : "Maneja socios, rutinas, plantillas, ejercicios, cuotas y avisos. No ve los datos del gimnasio ni el equipo."}</p>
+      ${field({ label: "Nombre y apellido", name: "fullname", req: true })}
+      <div class="grid2">${field({ label: "Email (será su usuario)", name: "email", type: "email", req: true })}${field({ label: "Teléfono", name: "phone", type: "tel" })}</div>
+      <p class="form-err" role="alert" hidden></p><button class="btn primary block" type="submit">${adm ? "Crear administrador" : "Crear profe"}</button></form>`,
     onMount(b, close) {
       const f = $("form", b), err = $(".form-err", b);
       f.addEventListener("submit", async (e) => {
@@ -522,9 +527,9 @@ function coachSheet() {
         if (!d.fullname.trim() || !/^\S+@\S+\.\S+$/.test(d.email)) { err.textContent = "Completá nombre y un email válido."; err.hidden = false; return; }
         const pass = genPass();
         try {
-          const c = await S.api.createCoach({ name: d.fullname, email: d.email, phone: d.phone, pass, role: d.role });
+          const c = await S.api.createCoach({ name: d.fullname, email: d.email, phone: d.phone, pass, role });
           close(); refresh();
-          setTimeout(() => credentialsSheet(c, pass, "Cuenta de profe creada"), 300);
+          setTimeout(() => credentialsSheet(c, pass, adm ? "Administrador creado" : "Profe creado"), 300);
         } catch (e2) { err.textContent = e2.message; err.hidden = false; }
       });
     },

@@ -1,7 +1,7 @@
 /* Instalar la app: detecta el teléfono y explica el paso que corresponde.
    Es la página a la que lleva el QR del gimnasio. */
 import { icon, logo } from "../core/icons.js";
-import { $ } from "../core/util.js";
+import { $, esc } from "../core/util.js";
 import { me } from "../core/auth.js";
 import { homeOf } from "../core/router.js";
 import { toast } from "../core/ui.js";
@@ -91,7 +91,16 @@ function iosGuide(p) {
     ];
   }
   const where = p.iosBrowser === "chrome" || p.ipad ? "top-right" : p.newSafari ? "bottom-right" : "bottom-center";
-  return `<div class="ios-guide" data-guide>
+  const variant = p.iosBrowser === "chrome" ? "chrome" : p.newSafari ? "ios26" : "ios18";
+  /* Texto de cada paso para la guía por voz */
+  const spoken = steps.map(([t], i) => `Paso ${i + 1}. ` + t.replace(/<[^>]+>/g, "").replace(/[“”]/g, "").replace(/···/g, "los tres puntitos"));
+  return `<div class="ig-help">
+      <p class="ig-why">${icon("info", "xs")} Cuando abras los menús de Safari, esta pantalla queda tapada. Usá la guía flotante o la voz para no perderte.</p>
+      <button class="btn primary block lg" type="button" data-pip>${icon("video")} Ver la guía flotante</button>
+      <button class="btn ghost block" type="button" data-voice data-say="${esc(JSON.stringify(spoken))}">${icon("sound")} Guiame con voz</button>
+      <video class="ig-video" src="media/guia-${variant}.mp4" muted playsinline loop preload="metadata" hidden></video>
+    </div>
+    <div class="ios-guide" data-guide>
       ${steps.map(([t, mk], i) => `<section class="ig-step ${i ? "" : "on"}" data-step="${i}">
         <span class="ig-n">Paso ${i + 1} de ${steps.length}</span>
         <div class="mk">${mk}</div>
@@ -165,6 +174,48 @@ export function installView() {
         window.__bip = null;
         if (r.outcome === "accepted") toast("¡Listo! Buscá el ícono de Vientos.");
       });
+      /* Guía flotante: el video queda encima del menú de Safari (Picture in Picture) */
+      const vid = $(".ig-video", host);
+      $("[data-pip]", host)?.addEventListener("click", () => {
+        vid.hidden = false;
+        vid.currentTime = 0;
+        const playing = vid.play();
+        try {
+          if (vid.webkitSupportsPresentationMode?.("picture-in-picture")) vid.webkitSetPresentationMode("picture-in-picture");
+          else if (document.pictureInPictureEnabled) (playing || Promise.resolve()).then(() => vid.requestPictureInPicture()).catch(() => {});
+        } catch { /* sin ventanita flotante: el video se ve en la página */ }
+        toast("Listo: la guía queda flotando. Ahora seguí los pasos en Safari.");
+        vid.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+
+      /* Guía por voz: lee cada paso con una pausa para hacerlo */
+      const vb = $("[data-voice]", host);
+      let talking = false, timer = 0;
+      const stopVoice = () => { talking = false; clearTimeout(timer); try { speechSynthesis.cancel(); } catch { /* sin voz */ } if (vb) vb.innerHTML = `${icon("sound")} Guiame con voz`; };
+      vb?.addEventListener("click", () => {
+        if (!("speechSynthesis" in window)) return toast("Este teléfono no tiene voz disponible. Usá la guía flotante.", "err");
+        if (talking) return stopVoice();
+        const lines = JSON.parse(vb.dataset.say || "[]");
+        talking = true;
+        vb.innerHTML = `${icon("x")} Parar la voz`;
+        const say = (i) => {
+          if (!talking) return;
+          if (i >= lines.length) {
+            const end = new SpeechSynthesisUtterance("Listo. Buscá el ícono de Vientos en tu pantalla de inicio y abrí la app desde ahí.");
+            end.lang = "es-AR"; end.onend = stopVoice; speechSynthesis.speak(end);
+            return;
+          }
+          $("[data-guide]", host)?.dispatchEvent(new CustomEvent("ig:show", { detail: i }));
+          const u = new SpeechSynthesisUtterance(lines[i]);
+          u.lang = "es-AR"; u.rate = 0.92;
+          const v = speechSynthesis.getVoices().find((x) => /^es/i.test(x.lang));
+          if (v) u.voice = v;
+          u.onend = () => { timer = setTimeout(() => say(i + 1), 6500); };
+          speechSynthesis.speak(u);
+        };
+        say(0);
+      });
+
       /* Guía de iPhone: un paso a la vez */
       const g = $("[data-guide]", host);
       if (g) {
@@ -179,12 +230,13 @@ export function installView() {
           next.innerHTML = k === secs.length - 1 ? "Volver a empezar" : `Siguiente ${icon("right")}`;
           $(".ios-arrow", host)?.classList.toggle("off", k > 0);
         };
+        g.addEventListener("ig:show", (e) => show(e.detail));
         prev.addEventListener("click", () => show(k - 1));
         next.addEventListener("click", () => show(k === secs.length - 1 ? 0 : k + 1));
       }
       const q = $("[data-qr]", host);
       if (q) qrSvg(url, 5).then((svg) => (q.innerHTML = svg)).catch(() => (q.textContent = url));
-      return () => removeEventListener("vientos:installable", ready);
+      return () => { removeEventListener("vientos:installable", ready); stopVoice(); };
     },
   };
 }

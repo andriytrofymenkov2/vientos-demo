@@ -468,17 +468,35 @@ export const api = {
     return log;
   },
 
-  registerPayment(userId, { planId, months = 1, amount, by }) {
+  /* Pago de cuota: cubre de `from` a `to` (from + meses). Guarda cómo estaba la
+     cuota antes, para poder anularlo si se cargó por error. */
+  registerPayment(userId, { planId, months = 1, amount, by, from }) {
     const u = user(userId);
     const p = plan(planId);
-    const from = Math.max(Date.now(), u.fee?.dueAt || 0);
-    const d = new Date(from); d.setMonth(d.getMonth() + months);
+    const start = from ?? Math.max(Date.now(), u.fee?.dueAt || 0);
+    const d = new Date(start); d.setMonth(d.getMonth() + months);
+    const prev = u.fee ? { ...u.fee } : null;
     u.fee = { planId, dueAt: d.getTime() };
-    const pay = { id: uid("pay"), userId, planId, months, amount: amount ?? (p?.price || 0) * months, at: Date.now(), by };
+    const pay = { id: uid("pay"), userId, planId, months, amount: amount ?? (p?.price || 0) * months, at: Date.now(), by, from: start, to: d.getTime(), prev };
     db.payments.push(pay);
     save();
     push("saveProfile", u);
     push("savePayment", pay);
+  },
+  /* Anular un pago (solo el último de ese socio): la cuota vuelve a como estaba */
+  deletePayment(id) {
+    const pay = db.payments.find((x) => x.id === id);
+    if (!pay) return;
+    const u = user(pay.userId);
+    const last = db.payments.filter((x) => x.userId === pay.userId).sort((a, b) => b.at - a.at)[0];
+    if (u && last?.id === id) {
+      if (pay.prev !== undefined) u.fee = pay.prev;
+      else if (u.fee?.dueAt) { const d = new Date(u.fee.dueAt); d.setMonth(d.getMonth() - (pay.months || 1)); u.fee = { ...u.fee, dueAt: d.getTime() }; }
+      push("saveProfile", u);
+    }
+    db.payments = db.payments.filter((x) => x.id !== id);
+    save();
+    push("deletePayment", id);
   },
   setDue(userId, dueAt, planId) { const u = user(userId); u.fee = { planId: planId || u.fee?.planId || db.plans[0].id, dueAt }; save(); push("saveProfile", u); },
 

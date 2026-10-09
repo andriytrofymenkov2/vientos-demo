@@ -65,7 +65,7 @@ export function homeView() {
 
   return {
     title: "Inicio", nav: "inicio",
-    html: `<header class="mtop"><a class="mtop-logo" href="#/inicio" aria-label="Vientos GYM">${logo()}</a><a href="#/perfil" aria-label="Mi perfil">${avatar(u, "sm")}</a></header>
+    html: `<header class="mtop"><a class="mtop-logo" href="#/inicio" aria-label="Vientos GYM">${logo()}</a><span class="mtop-a">${S.MODE === "supabase" ? `<button class="icon-btn" type="button" data-sync aria-label="Actualizar">${icon("repeat")}</button>` : ""}<a href="#/perfil" aria-label="Mi perfil">${avatar(u, "sm")}</a></span></header>
     <section class="hello">
       <span class="kicker">${esc(fmtDate(Date.now()))}</span>
       <h1>${greeting()},<br><b>${esc(firstName(u.name))}</b></h1>
@@ -103,6 +103,10 @@ export function homeView() {
     <p class="foot-note">${icon("wind", "xs")} Vientos GYM · Río Gallegos</p>`,
     mount(host) {
       $$("[data-count]", host).forEach((el) => countUp(el, +el.dataset.count));
+      host.querySelector("[data-sync]")?.addEventListener("click", async (e) => {
+        e.currentTarget.classList.add("spin");
+        await window.__vientosSync?.(true);
+      });
       host.querySelector("[data-insthide]")?.addEventListener("click", (e) => {
         try { localStorage.setItem("vientos_inst_hide", String(Date.now() + 7 * 864e5)); } catch { /* sin almacenamiento */ }
         e.currentTarget.parentElement.remove();

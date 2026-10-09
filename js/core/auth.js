@@ -30,6 +30,13 @@ export function restore() {
 }
 
 export const me = () => current;
+/* Después de traer datos nuevos del servidor, apunta al usuario actualizado */
+export function refreshMe() {
+  if (!current) return null;
+  const u = S.user(current.id);
+  current = u && u.status === "activo" ? u : null;
+  return current;
+}
 export const isStaff = () => current?.role === "profe" || current?.role === "admin";
 export const isAdmin = () => current?.role === "admin";
 

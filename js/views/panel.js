@@ -1,6 +1,6 @@
 /* Panel del entrenador y del gimnasio */
 import { icon, logo } from "../core/icons.js";
-import { esc, fold, fmtDate, relDay, dayKey, plural, debounce, waNumber, telHref, firstName, DAY, $, $$, countUp } from "../core/util.js";
+import { esc, fold, fmtDate, relDay, dayKey, plural, debounce, waNumber, firstName, DAY, $, $$, countUp } from "../core/util.js";
 import * as S from "../core/store.js";
 import { me, isAdmin, logout } from "../core/auth.js";
 import { go, refresh } from "../core/router.js";
@@ -263,7 +263,7 @@ export function memberView(params) {
       <section class="mhead">${avatar(m, "xl")}
         <div><p class="muted">Usuario: <b>${esc(m.user)}</b>${realEmail(m.email) ? " · " + esc(realEmail(m.email)) : ""}${m.phone ? " · " + esc(m.phone) : ""}</p>
           <p class="muted tiny">Socio desde ${fmtDate(m.joined, { year: true })}${m.birth ? ` · ${new Date().getFullYear() - +m.birth.slice(0, 4)} años` : ""}${m.gender ? " · " + esc(m.gender) : ""}</p>
-          <div class="mhead-a">${m.phone ? `<a class="btn ghost sm" href="https://wa.me/${waNumber(m.phone)}" target="_blank" rel="noopener">${icon("whatsapp", "sm")} WhatsApp</a><a class="btn ghost sm" href="${telHref(m.phone)}">${icon("phone", "sm")} Llamar</a>` : ""}</div>
+          <div class="mhead-a">${m.phone ? `<a class="btn ghost sm" href="https://wa.me/${waNumber(m.phone)}" target="_blank" rel="noopener">${icon("whatsapp", "sm")} WhatsApp</a>` : ""}</div>
         </div>
       </section>
       <div class="pgrid">
@@ -281,7 +281,7 @@ export function memberView(params) {
         <section class="card"><div class="card-h"><h2>${icon("card", "sm")} Cuota</h2>${feePill(m)}</div>
           ${m.fee ? `<dl class="kv"><div><dt>Plan</dt><dd>${esc(p?.name || "—")}</dd></div><div><dt>Vence</dt><dd>${fmtDate(m.fee.dueAt, { year: true })}</dd></div></dl>` : `<p class="muted">Sin cuota cargada.</p>`}
           <div class="row-btns"><button class="btn primary sm" type="button" data-act="pay">${icon("check", "sm")} Registrar pago</button><button class="btn ghost sm" type="button" data-act="due">Cambiar vencimiento</button></div>
-          ${pays.length ? `<h3 class="sub">Últimos pagos</h3>${pays.map((x) => `<div class="hrow"><span><b>${money(x.amount)}</b><small>${fmtDate(x.at, { year: true })} · ${esc(S.plan(x.planId)?.name || "")}</small></span></div>`).join("")}` : ""}
+          ${pays.length ? `<h3 class="sub">Pagos</h3>${pays.map((x, i) => `<div class="hrow payrow"><span><b>${money(x.amount)} · ${plural(x.months || 1, "mes", "meses")}</b><small>${x.from ? `Cubre ${fmtDate(x.from)} al ${fmtDate(x.to, { year: true })}` : esc(S.plan(x.planId)?.name || "")} · cobrado el ${fmtDate(x.at)}</small></span>${i === 0 ? `<button class="btn ghost sm danger-t" type="button" data-unpay="${x.id}">Anular</button>` : ""}</div>`).join("")}` : ""}
         </section>
         <section class="card"><div class="card-h"><h2>${icon("settings", "sm")} Cuenta</h2></div>
           ${field({ label: "Profe a cargo", name: "coach", value: m.coachId || "", options: [["", "Sin asignar"], ...S.coaches().map((c) => [c.id, c.name])], attrs: "data-coach" })}
@@ -295,6 +295,10 @@ export function memberView(params) {
         const a = e.target.closest("[data-act]")?.dataset.act;
         if (a === "assign") assignSheet({ userId: m.id });
         if (a === "pay") paySheet(m);
+        const un = e.target.closest("[data-unpay]");
+        if (un && await confirmDialog({ title: "¿Anular este pago?", text: "Se borra el pago y la cuota vuelve a como estaba antes de registrarlo.", ok: "Anular pago", danger: true })) {
+          S.api.deletePayment(un.dataset.unpay); toast("Pago anulado"); refresh();
+        }
         if (a === "due") dueSheet(m);
         if (a === "reset" && await confirmDialog({ title: isDni(m.user) ? "¿Volver a la contraseña inicial?" : "¿Generar una contraseña nueva?", text: isDni(m.user) ? `Va a poder entrar con su DNI (${m.user}) y la app le pide elegir una nueva.` : "La anterior deja de funcionar.", ok: "Confirmar" })) {
           const pass = isDni(m.user) ? m.user : genPass();
@@ -310,23 +314,44 @@ export function memberView(params) {
   };
 }
 
+/* Registrar pago: muestra antes qué período cubre y la nueva fecha de vencimiento */
 export function paySheet(m, onDone) {
   const cur = m.fee?.planId || S.db.plans[0]?.id;
+  const st = S.feeStatus(m);
+  const day0 = new Date(); day0.setHours(12, 0, 0, 0);
+  const canChain = m.fee?.dueAt && st.state !== "late" && st.state !== "none";
+  const plusMonths = (t, n) => { const d = new Date(t); d.setMonth(d.getMonth() + n); return d.getTime(); };
   sheet({
-    title: `Registrar pago · ${m.name}`,
+    title: `Registrar pago`,
     html: `<form novalidate>
+      <div class="mrow plain">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${m.fee ? `Cuota actual: ${esc(st.label)}${m.fee.dueAt ? ` · vence ${fmtDate(m.fee.dueAt)}` : ""}` : "Sin cuota cargada"}</small></span></div>
       ${field({ label: "Plan", name: "plan", value: cur, options: S.db.plans.map((p) => [p.id, `${p.name} · ${money(p.price)}`]) })}
-      <div class="grid2">${field({ label: "Meses", name: "months", value: 1, options: [1, 2, 3, 6, 12].map((n) => [n, plural(n, "mes", "meses")]) })}${field({ label: "Monto cobrado", name: "amount", type: "number", value: S.plan(cur)?.price || "", attrs: 'inputmode="numeric" min="0"' })}</div>
-      <p class="muted tiny">El nuevo vencimiento se cuenta desde ${m.fee?.dueAt && m.fee.dueAt > Date.now() ? "el vencimiento actual" : "hoy"}.</p>
-      <button class="btn primary block" type="submit">${icon("check", "sm")} Registrar pago</button></form>`,
+      <div class="grid2">${field({ label: "Meses que paga", name: "months", value: 1, options: [1, 2, 3, 6, 12].map((n) => [n, plural(n, "mes", "meses")]) })}${field({ label: "Monto cobrado", name: "amount", type: "number", value: S.plan(cur)?.price || "", attrs: 'inputmode="numeric" min="0"' })}</div>
+      ${canChain ? `<fieldset class="radios"><legend>Desde cuándo cuenta</legend>
+        <label class="radio"><input type="radio" name="from" value="due" checked><span><b>Desde que vence la actual (${fmtDate(m.fee.dueAt)})</b><small>Pagó por adelantado: se suma al final.</small></span></label>
+        <label class="radio"><input type="radio" name="from" value="today"><span><b>Desde hoy</b><small>Arranca hoy, sin sumarse a lo que ya tenía.</small></span></label>
+      </fieldset>` : `<input type="hidden" name="from" value="today">`}
+      <div class="paypreview" data-preview></div>
+      <button class="btn primary block lg" type="submit">${icon("check", "sm")} Confirmar pago</button></form>`,
     onMount(b, close) {
-      const f = $("form", b);
-      const sync = () => { const d = formData(f); f.amount.value = (S.plan(d.plan)?.price || 0) * +d.months; };
+      const f = $("form", b), pv = $("[data-preview]", b);
+      const calc = () => {
+        const d = formData(f);
+        const from = d.from === "due" && canChain ? m.fee.dueAt : day0.getTime();
+        return { d, from, to: plusMonths(from, +d.months) };
+      };
+      const draw = () => { const { d, from, to } = calc(); pv.innerHTML = `<span>Cubre del <b>${fmtDate(from)}</b> al <b>${fmtDate(to, { year: true })}</b></span><span>Nuevo vencimiento: <b>${fmtDate(to, { year: true })}</b> · ${money(+d.amount || 0)}</span>`; };
+      const sync = () => { const d = formData(f); f.amount.value = (S.plan(d.plan)?.price || 0) * +d.months; draw(); };
       f.plan.addEventListener("change", sync); f.months.addEventListener("change", sync);
+      f.addEventListener("input", draw); f.addEventListener("change", draw);
+      draw();
+      let sent = false;
       f.addEventListener("submit", (e) => {
         e.preventDefault();
-        const d = formData(f);
-        S.api.registerPayment(m.id, { planId: d.plan, months: +d.months, amount: +d.amount, by: me().id });
+        if (sent) return;                         /* evita registrar dos veces con un doble toque */
+        sent = true; $("button[type=submit]", f).disabled = true;
+        const { d, from } = calc();
+        S.api.registerPayment(m.id, { planId: d.plan, months: +d.months, amount: +d.amount || 0, by: me().id, from });
         close(); toast(`Pago registrado. Vence el ${fmtDate(S.user(m.id).fee.dueAt)}`);
         onDone ? onDone() : refresh();
       });

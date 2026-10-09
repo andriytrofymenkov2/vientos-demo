@@ -1,7 +1,7 @@
 /* Arranque de la app de Vientos */
 import * as S from "./core/store.js";
-import { restore, me } from "./core/auth.js";
-import { route, start, setShell } from "./core/router.js";
+import { restore, me, refreshMe, logout } from "./core/auth.js";
+import { route, start, setShell, refresh, go } from "./core/router.js";
 import { shell, applyTheme, toast } from "./core/ui.js";
 import { resumeRest } from "./core/timer.js";
 import { loginView, registerView, recoverView, firstPasswordView } from "./views/auth.js";
@@ -66,6 +66,23 @@ async function boot() {
   tidy();
   addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") tidy(); });
 
+  /* Actualizar a pedido: deslizando el dedo hacia abajo o con el botón.
+     (Nada automático: los datos se traen al abrir la app y cuando el usuario lo pide.) */
+  let syncing = false;
+  window.__vientosSync = async () => {
+    if (S.MODE !== "supabase" || !me() || syncing) return;
+    syncing = true;
+    try {
+      await S.remote().reload();
+      if (!refreshMe()) { await logout(); go("/ingresar", { replace: true }); return; }
+      tidy();
+      refresh();
+      toast("Actualizado");
+    } catch (e) { console.warn(e); toast("No se pudo actualizar. Revisá internet.", "err"); }
+    finally { syncing = false; }
+  };
+  pullToRefresh(() => window.__vientosSync());
+
   start();
   if (me()) resumeRest();
   document.getElementById("boot")?.remove();
@@ -80,3 +97,33 @@ boot().catch((err) => {
   document.getElementById("app").innerHTML = `<div class="empty" style="margin:40px auto;max-width:520px"><h3>No pudimos abrir la app</h3><p>Recargá la página. Si el problema sigue, escribinos por WhatsApp.</p></div>`;
   document.getElementById("boot")?.remove();
 });
+
+/* Deslizar hacia abajo desde arriba de la pantalla para actualizar */
+function pullToRefresh(run) {
+  if (S.MODE !== "supabase") return;
+  const tip = document.createElement("div");
+  tip.className = "ptr";
+  tip.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4.5v4h-4"/></svg>';
+  document.body.appendChild(tip);
+  let y0 = null, dy = 0;
+  const can = () => me() && window.scrollY <= 0 && !document.querySelector(".sheet-wrap");
+  addEventListener("touchstart", (e) => { y0 = can() && e.touches.length === 1 ? e.touches[0].clientY : null; dy = 0; }, { passive: true });
+  addEventListener("touchmove", (e) => {
+    if (y0 === null) return;
+    dy = Math.max(0, e.touches[0].clientY - y0);
+    const d = Math.min(dy, 110);
+    tip.style.transform = `translate(-50%, ${d - 50}px) rotate(${d * 3}deg)`;
+    tip.style.opacity = Math.min(1, d / 70);
+    tip.classList.toggle("ready", dy > 80);
+  }, { passive: true });
+  addEventListener("touchend", async () => {
+    if (y0 === null) return;
+    const go = dy > 80;
+    y0 = null;
+    if (!go) { tip.style.transform = ""; tip.style.opacity = 0; return; }
+    tip.classList.add("spin");
+    await run();
+    tip.classList.remove("spin", "ready");
+    tip.style.transform = ""; tip.style.opacity = 0;
+  });
+}

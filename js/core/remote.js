@@ -143,6 +143,18 @@ export const remoteAdapter = {
     catch (e) { console.warn(e); errorHandler(friendly(e)); return emptyDb(); }
   },
 
+  /* Vuelve a traer todo del servidor (rutinas nuevas, socios, avisos...).
+     El entrenamiento en curso de este celular se conserva: es más nuevo que el del servidor. */
+  async reload() {
+    const uid = S.db.me;
+    if (!uid) return false;
+    const mine = S.db.live[uid];
+    const D = await loadAll(uid);
+    if (mine) D.live[uid] = mine;
+    S.setDb(D);
+    return true;
+  },
+
   async login(ident, pass) {
     let email = ident.trim().toLowerCase();
     if (!email.includes("@")) {
@@ -207,6 +219,7 @@ export const remoteAdapter = {
   async deleteLive(uid) { clearTimeout(liveTimers[uid]); must(await sb.from("live").delete().eq("user_id", uid)); },
   async saveLog(l) { must(await sb.from("logs").insert({ id: l.id, user_id: l.userId, at: iso(l.at), data: strip(l, "id", "userId", "at") })); },
   async savePayment(p) { must(await sb.from("payments").insert({ id: p.id, user_id: p.userId, at: iso(p.at), amount: p.amount || 0, data: strip(p, "id", "userId", "at", "amount") })); },
+  async deletePayment(id) { must(await sb.from("payments").delete().eq("id", id)); },
   async saveGym() { must(await sb.from("gym").upsert({ id: 1, data: { ...S.db.gym, plans: S.db.plans }, updated_at: iso() })); },
   async saveNotice(n) { must(await sb.from("notices").insert({ id: n.id, at: iso(n.at), data: strip(n, "id", "at") })); },
   async deleteNotice(id) { must(await sb.from("notices").delete().eq("id", id)); },

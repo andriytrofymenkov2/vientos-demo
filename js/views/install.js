@@ -54,6 +54,8 @@ const IC = {
   copy: '<svg viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V4.5h-11v11h4"/></svg>',
   star: '<svg viewBox="0 0 24 24"><path d="m12 4 2.4 5 5.4.7-4 3.8 1 5.4L12 16.3 7.2 19l1-5.4-4-3.8 5.4-.7z"/></svg>',
 };
+/* El botón Compartir, gigante: lo único que hay que buscar */
+const mockBig = () => `<div class="mk-big"><span class="hl">${IC.share}</span><small>El cuadradito con la flecha para arriba</small></div>`;
 const mockBarOld = () => `<div class="mk-bar"><span>${IC.back}</span><span>${IC.fwd}</span><span class="hl">${IC.share}</span><span>${IC.book}</span><span>${IC.tabs}</span></div>`;
 const mockBarNew = () => `<div class="mk-bar new"><span>${IC.back}</span><span class="mk-url">vientos…</span><span class="hl">${IC.dots}</span></div>`;
 const mockBarChrome = () => `<div class="mk-bar top"><span class="mk-url">vientos…</span><span class="hl">${IC.share}</span></div>`;
@@ -72,18 +74,16 @@ function iosGuide(p) {
      así que cada paso dice qué hacer en los dos casos. */
   const chrome = p.iosBrowser === "chrome";
   const steps = [
-    [chrome
-      ? `Tocá el botón <b>Compartir</b> ${icon("share", "xs")} (el cuadrado con la flecha para arriba), arriba al lado de la dirección.`
-      : `Tocá el botón <b>Compartir</b> ${icon("share", "xs")}: el cuadrado con la flecha para arriba, ${p.ipad ? "arriba a la derecha" : "abajo en la pantalla"}. <span class="ig-alt">Si no lo ves, tocá los tres puntitos <b>···</b> y ahí aparece <b>Compartir</b>.</span>`,
-      chrome ? mockBarChrome() : `${mockBarOld()}<p class="mk-or">o</p>${mockBarNew()}`],
-    [`Bajá en la lista y tocá <b>“Agregar a inicio”</b> (en algunos dice <b>“Agregar a pantalla de inicio”</b>). <span class="ig-alt">Si no aparece, tocá <b>“Ver más”</b>.</span>`, mockShare()],
-    [`Tocá <b>Agregar</b>, arriba a la derecha. <span class="ig-alt">Si aparece <b>“Abrir como app web”</b>, dejalo prendido.</span>`, mockAdd(true)],
+    [`Buscá este botón <b>${chrome || p.ipad ? "arriba" : "abajo"}</b> en la pantalla y tocalo.`, mockBig()],
+    [`Bajá y tocá <b>“Agregar a inicio”</b>. <span class="ig-alt">Si no está, tocá <b>“Ver más”</b>.</span>`, mockShare()],
+    [`Tocá <b>“Agregar”</b>.`, mockAdd(false)],
   ];
   const where = chrome || p.ipad ? "top-right" : "bottom-center";
   /* Texto de cada paso para la guía por voz */
   const spoken = steps.map(([t], i) => `Paso ${i + 1}. ` + t.replace(/<[^>]+>/g, "").replace(/[“”]/g, "").replace(/\s*···\s*/g, " ").replace(/\s+/g, " ").replace(/ ([:,.])/g, "$1").trim());
+  spoken[0] = `Paso 1. Tocá el botón del cuadradito con la flecha para arriba, ${chrome || p.ipad ? "arriba" : "abajo"} en la pantalla.`;
   return `<div class="ig-help">
-      <p class="ig-why">${icon("info", "xs")} Cuando abras los menús de Safari, esta pantalla queda tapada. Activá la voz y te va diciendo cada paso.</p>
+      <p class="ig-why">${icon("info", "xs")} Son 3 pasos. Tocá el botón rojo y una voz te los va diciendo.</p>
       <button class="btn primary block lg" type="button" data-voice data-say="${esc(JSON.stringify(spoken))}">${icon("sound")} Guiame con voz</button>
     </div>
     <div class="ios-guide" data-guide>

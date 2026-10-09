@@ -10,6 +10,7 @@ import { routineView, dayView, exerciseView, summaryView } from "./views/routine
 import { progressView } from "./views/progress.js";
 import { profileView } from "./views/profile.js";
 import { installView } from "./views/install.js";
+import { assistantView } from "./views/assistant.js";
 import { panelHome, membersView, memberView, previewView, feesView, noticesView, gymView, qrView, moreView } from "./views/panel.js";
 import { routineEditorView, templateEditorView, templatesView, exercisesView } from "./views/editor.js";
 
@@ -40,6 +41,7 @@ async function boot() {
   route("/rutina/:rid/dia/:did/ej/:iid", exerciseView);
   route("/resumen/:id", summaryView, member);
   route("/progreso", progressView, member);
+  route("/asistente", assistantView, member);
   route("/perfil", profileView, member);
 
   route("/panel", panelHome, staff);

@@ -739,6 +739,41 @@ a.mrow:hover, button.mrow:hover { background: var(--card2); }
 .poster-steps li::before { content: counter(p); font: 700 italic 16px "Barlow Condensed", sans-serif; background: var(--red); padding: 2px 8px 1px; transform: skewX(-12deg); }
 .poster-url { font-size: 13px; color: #9a9aa0; letter-spacing: .04em; }
 
+
+/* ============================================================ ASISTENTE */
+.ahead { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 0 10px; position: sticky; top: 0; z-index: 5; background: linear-gradient(var(--bg) 80%, transparent); }
+.ahead-t { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.ahead-ic { width: 44px; height: 44px; border-radius: 14px; display: grid; place-items: center; background: var(--red); color: #fff; flex: none; }
+.ahead h1 { font: 700 26px/1 "Barlow Condensed", sans-serif; text-transform: uppercase; }
+.ahead small { color: var(--muted); font-size: 12.5px; }
+.ahead .icon-btn.on { color: var(--red2); background: var(--red-soft); }
+.chat { display: flex; flex-direction: column; gap: 10px; padding: 6px 0 calc(150px + env(safe-area-inset-bottom)); }
+.msg { max-width: 88%; display: grid; gap: 8px; animation: viewin .25s ease; }
+.msg p { padding: 11px 14px; border-radius: 18px; font-size: 15.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.msg.bot { align-self: flex-start; }
+.msg.bot p { background: var(--card); border: 1px solid var(--line); border-bottom-left-radius: 6px; color: var(--text2); }
+.msg.bot p b { color: var(--text); }
+.msg.me { align-self: flex-end; }
+.msg.me p { background: var(--red); color: #fff; border-bottom-right-radius: 6px; }
+.msg-a { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn.wa { background: #1f8f4e; color: #fff; }
+.typing p { display: flex; gap: 4px; padding: 14px 16px; }
+.typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: dot 1s infinite; }
+.typing i:nth-child(2) { animation-delay: .15s; } .typing i:nth-child(3) { animation-delay: .3s; }
+@keyframes dot { 0%, 60%, 100% { opacity: .3; transform: none; } 30% { opacity: 1; transform: translateY(-3px); } }
+.chatbar { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(84px + env(safe-area-inset-bottom)); z-index: 35; width: min(100%, 560px); padding: 8px 12px 6px; background: linear-gradient(transparent, var(--bg) 22%); }
+.qchips { margin: 0 -12px; padding: 4px 12px 8px; }
+.qchips .chip { height: 34px; font-size: 13.5px; background: var(--card2); }
+.chatin { display: flex; align-items: center; gap: 8px; padding: 5px; border-radius: 18px; background: var(--card); border: 1px solid var(--line2); box-shadow: var(--shadow); }
+.chatin input { flex: 1; min-width: 0; height: 42px; border: 0; background: none; outline: none; font-size: 16px; padding: 0 6px; }
+.mic, .send { width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; flex: none; }
+.mic { background: var(--card3); color: var(--text); }
+.mic.rec { background: var(--red); color: #fff; animation: pulse 1.2s infinite; }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(209, 31, 42, .55); } 100% { box-shadow: 0 0 0 14px rgba(209, 31, 42, 0); } }
+.send { background: var(--red); color: #fff; }
+.tabbar a { font-size: 11px; }
+@media (max-width: 350px) { .tabbar a span { font-size: 10px; } .tabbar a { padding-left: 0; padding-right: 0; } }
+
 /* ------------------------------------------------- hoja inferior y toasts */
 .sheet-wrap { position: fixed; inset: 0; z-index: 80; display: flex; align-items: flex-end; justify-content: center; }
 .sheet-bg { position: absolute; inset: 0; background: rgba(0, 0, 0, .55); opacity: 0; transition: opacity .25s; backdrop-filter: blur(2px); }

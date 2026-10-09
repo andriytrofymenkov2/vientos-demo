@@ -20,6 +20,7 @@ const root = () => document.getElementById("app");
 const TABS = [
   { id: "inicio", href: "#/inicio", icon: "home", label: "Inicio" },
   { id: "rutina", href: "#/rutina", icon: "dumbbell", label: "Mi rutina" },
+  { id: "asistente", href: "#/asistente", icon: "chat", label: "Asistente" },
   { id: "progreso", href: "#/progreso", icon: "trend", label: "Progreso" },
   { id: "perfil", href: "#/perfil", icon: "user", label: "Perfil" },
 ];

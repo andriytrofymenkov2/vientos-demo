@@ -6,7 +6,7 @@ import { me, isStaff } from "../core/auth.js";
 import { go, refresh } from "../core/router.js";
 import { tag, toast, pageHead } from "../core/ui.js";
 import { startRest, stopRest } from "../core/timer.js";
-import { dayList, exTile, target, letter, restOf, emptyRoutine } from "./common.js";
+import { dayList, exTile, letter, restOf, emptyRoutine, repsList, repsText } from "./common.js";
 import { BLOCK_TYPES } from "../data/templates.js";
 
 /* Busca un ejercicio dentro de la rutina con su bloque y posición */
@@ -141,16 +141,18 @@ export function exerciseView(params) {
   const rest = restOf(b, i, ii);
   const numeric = !/\b(s|min)$/.test(i.reps.trim());
   const lastMax = last ? Math.max(0, ...last.sets.map((s) => s.kg || 0)) : 0;
+  const perSet = repsList(i.reps);
 
   const setRows = Array.from({ length: i.sets }, (_, n) => {
     const lg = logged[n] || {};
     const lastKg = last?.sets[n]?.kg ?? last?.sets[last.sets.length - 1]?.kg;
-    const kg = lg.kg ?? lastKg ?? i.kg ?? "";
-    const reps = lg.reps ?? (parseInt(i.reps) || "");
+    const kg = lg.kg ?? lastKg ?? "";
+    const goal = perSet[n] ?? perSet[perSet.length - 1] ?? i.reps;
+    const reps = lg.reps ?? (parseInt(goal) || "");
     return `<div class="setrow ${lg.done ? "done" : ""}" data-set="${n}">
       <span class="setrow-n">${n + 1}</span>
       <label class="num"><input type="number" inputmode="decimal" step="0.5" min="0" name="kg" value="${esc(kg)}" placeholder="—" ${own ? "" : "disabled"} aria-label="Peso de la serie ${n + 1}"><small>kg</small></label>
-      <label class="num"><input type="${numeric ? "number" : "text"}" inputmode="numeric" min="0" name="reps" value="${esc(numeric ? reps : i.reps)}" ${own && numeric ? "" : "disabled"} aria-label="Repeticiones de la serie ${n + 1}"><small>${numeric ? "reps" : ""}</small></label>
+      <label class="num"><input type="${numeric ? "number" : "text"}" inputmode="numeric" min="0" name="reps" value="${esc(numeric ? reps : i.reps)}" ${own && numeric ? "" : "disabled"} aria-label="Repeticiones de la serie ${n + 1}"><small>${numeric ? (perSet.length > 1 ? `de ${esc(goal)}` : "reps") : ""}</small></label>
       <button class="setck" type="button" data-done aria-pressed="${!!lg.done}" ${own ? "" : "disabled"} aria-label="Serie ${n + 1} hecha">${icon("check")}</button>
     </div>`;
   }).join("");
@@ -165,8 +167,8 @@ export function exerciseView(params) {
         <div class="tags">${tag(ex.g)}${ex.eq ? tag(ex.eq) : ""}${b.type !== "single" ? tag(`${BLOCK_TYPES[b.type].label} ${letter(bi, ii)}`, "red") : ""}</div>
         <div class="targets">
           <div><small>Series</small><b>${i.sets}</b></div>
-          <div><small>Repeticiones</small><b>${esc(i.reps)}</b></div>
-          <div><small>${i.kg ? "Sugerido" : lastMax ? "Tu última" : "Peso"}</small><b>${i.kg ? fmtKg(i.kg) : lastMax ? fmtKg(lastMax) : "El tuyo"}</b></div>
+          <div><small>Repeticiones</small><b>${esc(repsText(i.reps))}</b></div>
+          <div><small>${lastMax ? "Última" : "Peso"}</small><b>${lastMax ? fmtKg(lastMax) : "El tuyo"}</b></div>
           <div><small>Descanso</small><b>${rest ? fmtRest(rest) : "—"}</b></div>
         </div>
         ${partners.length ? `<p class="pair">${icon("swap", "xs")} ${b.type === "contrast" ? "Contraste con" : "Se hace junto con"} ${partners.map((x) => `<a href="#/rutina/${r.id}/dia/${d.id}/ej/${x.id}">${esc(S.exercise(x.ex)?.n || "")}</a>`).join(" y ")}</p>` : ""}

@@ -1,6 +1,6 @@
 /* Piezas que comparten las pantallas del socio y del panel */
 import { icon } from "../core/icons.js";
-import { esc, fmtRest, fmtKg } from "../core/util.js";
+import { esc, fmtRest } from "../core/util.js";
 import * as S from "../core/store.js";
 import { BLOCK_TYPES } from "../data/templates.js";
 
@@ -12,11 +12,14 @@ export function exTile(ex, size = "") {
   return `<span class="extile ${size}" data-g="${esc(g)}" aria-hidden="true"><b>${esc(ABBR[g] || "EJ")}</b></span>`;
 }
 
-/* "4 × 8-10 · 60 kg" */
+/* Repeticiones por serie: "12,10,8" → ["12","10","8"]; "8-10" → ["8-10"] */
+export const repsList = (reps) => String(reps || "").split(/[,;/]/).map((x) => x.trim()).filter(Boolean);
+export const repsText = (reps) => repsList(reps).join(" · ");
+
+/* "4 × 8-10" o "4 series: 12 · 10 · 8 · 8" (el peso lo pone cada socio) */
 export function target(i) {
-  const timed = /\b(s|min)$/.test(i.reps.trim());
-  const reps = /^\d/.test(i.reps) || timed ? i.reps : i.reps;
-  return `${i.sets} × ${esc(reps)}${i.kg ? ` · ${fmtKg(i.kg)}` : ""}`;
+  const l = repsList(i.reps);
+  return l.length > 1 ? `${i.sets} series: ${esc(l.join(" · "))}` : `${i.sets} × ${esc(i.reps)}`;
 }
 
 export const letter = (bi, ii) => String.fromCharCode(65 + bi) + (ii + 1);

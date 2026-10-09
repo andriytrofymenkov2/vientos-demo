@@ -77,8 +77,7 @@ function editor(obj, kind) {
       <button type="button" class="eitem-ex" data-act="swap">${exTile(ex, "sm")}<span><b>${multi ? `<em class="lt">${letter(bi, ii)}</em>` : ""}${esc(ex?.n || "Elegí un ejercicio")}</b><small>${esc(ex?.g || "")} · cambiar</small></span></button>
       <div class="eitem-f">
         <label><small>Series${multi ? "/vueltas" : ""}</small><input type="number" min="1" max="20" inputmode="numeric" data-f="sets" value="${i.sets}"></label>
-        <label><small>Reps</small><input type="text" data-f="reps" value="${esc(i.reps)}" placeholder="10-12"></label>
-        <label><small>Kg sugerido</small><input type="number" min="0" step="0.5" inputmode="decimal" data-f="kg" value="${i.kg ?? ""}" placeholder="a elección"></label>
+        <label class="wide"><small>Repeticiones</small><input type="text" data-f="reps" value="${esc(i.reps)}" placeholder="10 · 8-10 · 12,10,8"></label>
         ${multi ? "" : `<label><small>Descanso</small><select data-f="rest">${restOpts(i.rest)}</select></label>`}
       </div>
       <input class="eitem-note" type="text" data-f="note" value="${esc(i.note)}" placeholder="Indicación para el socio (opcional)">
@@ -99,7 +98,7 @@ function editor(obj, kind) {
         ${field({ label: "Nombre del día", name: "dname", value: d.name, attrs: 'data-day-f="name"' })}
         ${field({ label: "Grupos musculares / foco", name: "dfocus", value: d.focus, ph: "Ej: Espalda, bíceps y abdomen", attrs: 'data-day-f="focus"' })}
       </div>
-      <p class="muted tiny">${st.ex} ejercicios · ${st.sets} series · ~${st.min} min</p>
+      <p class="muted tiny">${st.ex} ejercicios · ${st.sets} series · ~${st.min} min · El peso lo carga cada socio. Para repeticiones distintas por serie, separalas con coma: 12,10,8.</p>
       ${d.blocks.map((b, bi) => `<div class="eblock bt-${b.type}" data-b="${bi}">
         <div class="eblock-h">
           <select data-bf="type" aria-label="Tipo de bloque">${Object.entries(BLOCK_TYPES).map(([k, v]) => `<option value="${k}" ${k === b.type ? "selected" : ""}>${v.label}</option>`).join("")}</select>

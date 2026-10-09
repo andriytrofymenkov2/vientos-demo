@@ -682,13 +682,13 @@ a.mrow:hover, button.mrow:hover { background: var(--card2); }
 .eitem-ex b { font-weight: 600; line-height: 1.2; }
 .eitem-ex small { color: var(--muted); font-size: 12.5px; }
 .eitem-a { display: flex; align-items: center; grid-row: 1; grid-column: 2; }
-.eitem-f { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.eitem-f { grid-column: 1 / -1; display: grid; grid-template-columns: 1fr 1.6fr 1.4fr; gap: 8px; }
 .eitem-f label { display: grid; gap: 3px; }
 .eitem-f small { font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
 .eitem-f input, .eitem-f select, .eitem-note { width: 100%; height: 42px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); padding: 0 10px; font-size: 16px; min-width: 0; }
 .eitem-note { grid-column: 1 / -1; }
 .eitem-f input:focus, .eitem-f select:focus, .eitem-note:focus { outline: none; border-color: var(--red); }
-@media (max-width: 480px) { .eitem-f { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 480px) { .eitem-f { grid-template-columns: 1fr 1.6fr; } .eitem-f label:nth-child(3) { grid-column: 1 / -1; } }
 .addbar, .dayops { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
 .dayops { padding-top: 14px; margin-top: 14px; border-top: 1px solid var(--line); }
 .ed-foot { display: flex; gap: 10px; flex-wrap: wrap; }

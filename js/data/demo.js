@@ -89,6 +89,7 @@ export async function buildDemo(D, { hashPass, uid, normDays }) {
   /* Lucía: deportista con rutina personalizada de contraste */
   const lucia = mk({ id: "u-lucia", name: "Lucía Fernández", user: "lucia", gender: "Femenino", birth: "2001-09-03", coachId: nico.id, joined: now - 60 * DAY, fee: { planId: "p-combo", dueAt: T0 + 19 * DAY } });
   const l1 = assign(lucia, "contraste-3", { number: 1, active: true, personal: true, start: T0 - 16 * DAY, coach: nico, name: "Contraste · vóley", note: "Pretemporada de vóley. Los saltos siempre al 100 %: si bajás la calidad, cortá la serie." });
+  l1.days[0].blocks[1].items[0].reps = "6,5,4,4";
   /* Ajustes personales: cargas de Lucía y un bloque propio */
   l1.days[0].blocks[1].items[0].kg = 55;
   l1.days[0].blocks[2].items[0].kg = 70;
@@ -127,10 +128,10 @@ export async function buildDemo(D, { hashPass, uid, normDays }) {
     { id: uid("n"), at: now - 2 * DAY, title: "Nuevos horarios de ciclo indoor", body: "Sumamos una clase a las 7:00 de lunes a viernes. Reservá tu lugar por WhatsApp." },
     { id: uid("n"), at: now - 9 * DAY, title: "Sábado de puertas abiertas", body: "Traé a un amigo a entrenar gratis este sábado de 10 a 14." },
   ];
-  /* Las plantillas no traen peso: cada socio carga el suyo y la app lo recuerda.
-     Solo las rutinas personalizadas llevan un peso sugerido por el profe. */
+  /* Las rutinas no traen peso: cada socio carga el suyo y la app lo recuerda
+     (las cargas de arriba solo sirven para inventar el historial de prueba). */
   const clearKg = (days) => days.forEach((d) => d.blocks.forEach((b) => b.items.forEach((i) => (i.kg = null))));
   D.templates.forEach((t) => clearKg(t.days));
-  D.routines.filter((r) => !r.personal).forEach((r) => clearKg(r.days));
+  D.routines.forEach((r) => clearKg(r.days));
   return D;
 }

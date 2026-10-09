@@ -159,7 +159,6 @@ const R = {
       const repsAtTop = Math.min(...last.sets.filter((s) => s.kg === top).map((s) => s.reps || 0));
       const done = target && repsAtTop >= target;
       text = `En <b>${esc(ex.n)}</b> la última vez (${esc(relDay(last.at))}) hiciste <b>${fmtKg(top)}${repsAtTop ? ` × ${repsAtTop}` : ""}</b>.`;
-      if (it?.i.kg) text += ` Tu profe te sugiere ${fmtKg(it.i.kg)}.`;
       text += done
         ? `<br><br>Completaste las repeticiones: <b>probá con ${fmtKg(top + 2.5)}</b>. Si la técnica se rompe, volvé al peso anterior.`
         : `<br><br>Mantené <b>${fmtKg(top)}</b> hasta completar ${target ? `las ${target} repeticiones` : "todas las repeticiones"} en todas las series; después subí 2,5 kg.`;

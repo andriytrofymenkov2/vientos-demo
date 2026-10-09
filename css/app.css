@@ -869,3 +869,7 @@ a.mrow:hover, button.mrow:hover { background: var(--card2); }
 
 .team-add { justify-content: flex-start; margin: -4px 0 8px; }
 .team-add .btn { flex: 0 1 auto; }
+
+.mk-apps { display: flex; gap: 12px; padding: 12px 14px; border-bottom: 1px solid #ececf0; }
+.mk-apps i { width: 40px; height: 40px; border-radius: 10px; background: #dcdce2; }
+.mk-more { color: #0a84ff; font-weight: 600; }

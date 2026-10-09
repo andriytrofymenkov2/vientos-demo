@@ -58,6 +58,7 @@ const mockBarOld = () => `<div class="mk-bar"><span>${IC.back}</span><span>${IC.
 const mockBarNew = () => `<div class="mk-bar new"><span>${IC.back}</span><span class="mk-url">vientos…</span><span class="hl">${IC.dots}</span></div>`;
 const mockBarChrome = () => `<div class="mk-bar top"><span class="mk-url">vientos…</span><span class="hl">${IC.share}</span></div>`;
 const mockMenu = () => `<div class="mk-sheet"><div class="mk-row">${IC.copy}<span>Copiar</span></div><div class="mk-row hl">${IC.share}<span>Compartir</span></div><div class="mk-row">${IC.star}<span>Agregar a favoritos</span></div></div>`;
+const mockMore = () => `<div class="mk-sheet"><div class="mk-apps"><i></i><i></i><i></i><i></i></div><div class="mk-row">${IC.copy}<span>Copiar</span></div><div class="mk-row">${IC.book}<span>Agregar a la lista de lectura</span></div><div class="mk-row hl"><span class="mk-more">Ver más</span>${IC.fwd}</div></div>`;
 const mockShare = () => `<div class="mk-sheet"><div class="mk-row">${IC.copy}<span>Copiar</span></div><div class="mk-row">${IC.book}<span>Agregar a la lista de lectura</span></div><div class="mk-row hl">${IC.add}<span>Agregar a inicio</span></div></div>`;
 const mockAdd = (toggle) => `<div class="mk-sheet"><div class="mk-top"><span>Cancelar</span><b>Agregar a inicio</b><span class="hl-t">Agregar</span></div><div class="mk-app"><img src="img/icon-192.png" alt=""><span>Vientos</span></div>${toggle ? `<div class="mk-row"><span>Abrir como app web</span><i class="mk-sw"></i></div>` : ""}</div>`;
 
@@ -70,20 +71,22 @@ function iosGuide(p) {
   if (p.iosBrowser === "chrome") {
     steps = [
       [`Tocá el botón <b>Compartir</b> ${icon("share", "xs")} arriba, al lado de la dirección.`, mockBarChrome()],
-      [`Bajá y tocá <b>“Agregar a pantalla de inicio”</b>.`, mockShare()],
+      [`Si no ves <b>“Agregar a pantalla de inicio”</b>, bajá y tocá <b>“Ver más”</b>.`, mockMore()],
+      [`Tocá <b>“Agregar a pantalla de inicio”</b>.`, mockShare()],
       [`Tocá <b>Agregar</b>, arriba a la derecha.`, mockAdd(false)],
     ];
   } else if (p.newSafari) {
     steps = [
       [`Tocá el botón <b>···</b> (tres puntitos) ${p.ipad ? "arriba a la derecha" : "abajo a la derecha"}.`, mockBarNew()],
       [`Tocá <b>Compartir</b>.`, mockMenu()],
-      [`Bajá y tocá <b>“Agregar a inicio”</b>.`, mockShare()],
+      [`Bajá hasta el final de la lista y tocá <b>“Ver más”</b>.`, mockMore()],
+      [`Tocá <b>“Agregar a inicio”</b>.`, mockShare()],
       [`Dejá prendido <b>“Abrir como app web”</b> y tocá <b>Agregar</b>.`, mockAdd(true)],
     ];
   } else {
     steps = [
       [`Tocá el botón <b>Compartir</b> ${icon("share", "xs")} ${p.ipad ? "arriba a la derecha" : "abajo, en el medio"}.`, mockBarOld()],
-      [`Bajá y tocá <b>“Agregar a inicio”</b>.`, mockShare()],
+      [`Bajá y tocá <b>“Agregar a inicio”</b>. Si no aparece, tocá antes <b>“Ver más”</b> o <b>“Editar acciones”</b>.`, mockShare()],
       [`Tocá <b>Agregar</b>, arriba a la derecha.`, mockAdd(false)],
     ];
   }

@@ -131,6 +131,8 @@ create trigger on_auth_user_created after insert on auth.users for each row exec
 create or replace function private.protect_profile() returns trigger
 language plpgsql security definer set search_path = public as $$
 begin
+  -- Desde el SQL Editor de Supabase (sin usuario de la app) se permite todo: lo usa make_admin
+  if auth.uid() is null then return new; end if;
   if not public.is_staff() then
     new.role := old.role; new.status := old.status; new.coach_id := old.coach_id; new.fee := old.fee;
   elsif not public.is_admin() then

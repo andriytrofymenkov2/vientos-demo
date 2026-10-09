@@ -63,36 +63,25 @@ const mockShare = () => `<div class="mk-sheet"><div class="mk-row">${IC.copy}<sp
 const mockAdd = (toggle) => `<div class="mk-sheet"><div class="mk-top"><span>Cancelar</span><b>Agregar a inicio</b><span class="hl-t">Agregar</span></div><div class="mk-app"><img src="img/icon-192.png" alt=""><span>Vientos</span></div>${toggle ? `<div class="mk-row"><span>Abrir como app web</span><i class="mk-sw"></i></div>` : ""}</div>`;
 
 function iosGuide(p) {
-  let steps;
   if (p.iosBrowser !== "safari" && p.iosBrowser !== "chrome") {
     return `<div class="inst-warn">${icon("alert")}<div><h2>Abrí este link en Safari</h2><p>Para instalar la app en iPhone, copiá el link y pegalo en <b>Safari</b>.</p></div></div>
       <button class="btn primary block lg" type="button" data-copy>${icon("copy")} Copiar el link</button>`;
   }
-  if (p.iosBrowser === "chrome") {
-    steps = [
-      [`Tocá el botón <b>Compartir</b> ${icon("share", "xs")} arriba, al lado de la dirección.`, mockBarChrome()],
-      [`Si no ves <b>“Agregar a pantalla de inicio”</b>, bajá y tocá <b>“Ver más”</b>.`, mockMore()],
-      [`Tocá <b>“Agregar a pantalla de inicio”</b>.`, mockShare()],
-      [`Tocá <b>Agregar</b>, arriba a la derecha.`, mockAdd(false)],
-    ];
-  } else if (p.newSafari) {
-    steps = [
-      [`Tocá el botón <b>···</b> (tres puntitos) ${p.ipad ? "arriba a la derecha" : "abajo a la derecha"}.`, mockBarNew()],
-      [`Tocá <b>Compartir</b>.`, mockMenu()],
-      [`Bajá hasta el final de la lista y tocá <b>“Ver más”</b>.`, mockMore()],
-      [`Tocá <b>“Agregar a inicio”</b>.`, mockShare()],
-      [`Dejá prendido <b>“Abrir como app web”</b> y tocá <b>Agregar</b>.`, mockAdd(true)],
-    ];
-  } else {
-    steps = [
-      [`Tocá el botón <b>Compartir</b> ${icon("share", "xs")} ${p.ipad ? "arriba a la derecha" : "abajo, en el medio"}.`, mockBarOld()],
-      [`Bajá y tocá <b>“Agregar a inicio”</b>. Si no aparece, tocá antes <b>“Ver más”</b> o <b>“Editar acciones”</b>.`, mockShare()],
-      [`Tocá <b>Agregar</b>, arriba a la derecha.`, mockAdd(false)],
-    ];
-  }
-  const where = p.iosBrowser === "chrome" || p.ipad ? "top-right" : p.newSafari ? "bottom-right" : "bottom-center";
+  /* Una sola guía para cualquier iPhone: Safari puede mostrar el botón Compartir
+     directo o escondido en "···" según la versión y cómo lo configuró cada uno,
+     así que cada paso dice qué hacer en los dos casos. */
+  const chrome = p.iosBrowser === "chrome";
+  const steps = [
+    [chrome
+      ? `Tocá el botón <b>Compartir</b> ${icon("share", "xs")} (el cuadrado con la flecha para arriba), arriba al lado de la dirección.`
+      : `Tocá el botón <b>Compartir</b> ${icon("share", "xs")}: el cuadrado con la flecha para arriba, ${p.ipad ? "arriba a la derecha" : "abajo en la pantalla"}. <span class="ig-alt">Si no lo ves, tocá los tres puntitos <b>···</b> y ahí aparece <b>Compartir</b>.</span>`,
+      chrome ? mockBarChrome() : `${mockBarOld()}<p class="mk-or">o</p>${mockBarNew()}`],
+    [`Bajá en la lista y tocá <b>“Agregar a inicio”</b> (en algunos dice <b>“Agregar a pantalla de inicio”</b>). <span class="ig-alt">Si no aparece, tocá <b>“Ver más”</b>.</span>`, mockShare()],
+    [`Tocá <b>Agregar</b>, arriba a la derecha. <span class="ig-alt">Si aparece <b>“Abrir como app web”</b>, dejalo prendido.</span>`, mockAdd(true)],
+  ];
+  const where = chrome || p.ipad ? "top-right" : "bottom-center";
   /* Texto de cada paso para la guía por voz */
-  const spoken = steps.map(([t], i) => `Paso ${i + 1}. ` + t.replace(/<[^>]+>/g, "").replace(/\s*\([^)]*\)/g, "").replace(/[“”]/g, "").replace(/···/g, "los tres puntitos"));
+  const spoken = steps.map(([t], i) => `Paso ${i + 1}. ` + t.replace(/<[^>]+>/g, "").replace(/[“”]/g, "").replace(/\s*···\s*/g, " ").replace(/\s+/g, " ").replace(/ ([:,.])/g, "$1").trim());
   return `<div class="ig-help">
       <p class="ig-why">${icon("info", "xs")} Cuando abras los menús de Safari, esta pantalla queda tapada. Activá la voz y te va diciendo cada paso.</p>
       <button class="btn primary block lg" type="button" data-voice data-say="${esc(JSON.stringify(spoken))}">${icon("sound")} Guiame con voz</button>
@@ -110,7 +99,7 @@ function iosGuide(p) {
       </div>
       <p class="tiny muted">Al terminar, buscá el ícono de Vientos en tu pantalla de inicio y abrila desde ahí.</p>
     </div>
-    <div class="ios-arrow ${where}" aria-hidden="true">${icon(where === "top-right" ? "up" : "down")}<span>${p.iosBrowser === "chrome" ? "Compartir" : p.newSafari ? "···" : "Compartir"}</span></div>`;
+    <div class="ios-arrow ${where}" aria-hidden="true">${icon(where === "top-right" ? "up" : "down")}<span>Compartir</span></div>`;
 }
 
 const step = (n, ic, html) => `<li><span class="stp">${n}</span><span class="stp-i">${icon(ic)}</span><p>${html}</p></li>`;

@@ -774,6 +774,10 @@ a.mrow:hover, button.mrow:hover { background: var(--card2); }
 .tabbar a { font-size: 11px; }
 @media (max-width: 350px) { .tabbar a span { font-size: 10px; } .tabbar a { padding-left: 0; padding-right: 0; } }
 
+
+.creds-ok { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.creds-ok > .i { color: var(--ok); width: 28px; height: 28px; }
+.creds-steps { margin: 4px 0 6px; padding-left: 20px; color: var(--text2); font-size: 14.5px; display: grid; gap: 4px; }
 /* ------------------------------------------------- hoja inferior y toasts */
 .sheet-wrap { position: fixed; inset: 0; z-index: 80; display: flex; align-items: flex-end; justify-content: center; }
 .sheet-bg { position: absolute; inset: 0; background: rgba(0, 0, 0, .55); opacity: 0; transition: opacity .25s; backdrop-filter: blur(2px); }

@@ -54,6 +54,16 @@ function emptyDb() {
   return { v: 4, gym: d.gym, plans: d.plans, exercises: [], templates: [], users: [], routines: [], logs: [], payments: [], notices: [], live: {}, me: null };
 }
 
+/* Sin sesión: datos de contacto y horarios del gimnasio (sin código ni precios) */
+async function publicDb() {
+  const D = emptyDb();
+  try {
+    const { data } = await sb.rpc("public_gym");
+    if (data && typeof data === "object") D.gym = { ...D.gym, ...data, joinCode: "" };
+  } catch { /* sin conexión: quedan los datos por defecto */ }
+  return D;
+}
+
 /* ----------------------------------------------------------------- mapeos */
 const toUser = (p) => ({
   id: p.id, role: p.role, status: p.status, name: p.name, user: p.username, email: p.email, phone: p.phone || "",
@@ -128,7 +138,7 @@ export const remoteAdapter = {
       auth: { storage: authStorage, storageKey: "vientos-auth", persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
     });
     const { data } = await sb.auth.getSession();
-    if (!data.session) return emptyDb();
+    if (!data.session) return publicDb();
     try { return await loadAll(data.session.user.id); }
     catch (e) { console.warn(e); errorHandler(friendly(e)); return emptyDb(); }
   },
@@ -153,18 +163,18 @@ export const remoteAdapter = {
     const { error } = await sb.auth.signUp({ email: email.trim().toLowerCase(), password: pass, options: { data: { name: name.trim(), phone, code } } });
     if (error) throw new Error(friendly(error));
     await sb.auth.signOut();
-    S.setDb(emptyDb());
+    S.setDb(await publicDb());
     return { status: "pendiente" };
   },
 
   /* El profe o el dueño crea una cuenta sin perder su propia sesión */
-  async createAccount({ name, email, phone, pass, role, coachId = null, fee = null }) {
+  async createAccount({ name, email, username, phone, birth = "", pass, role, coachId = null, fee = null, prefs = { theme: "dark", sound: true } }) {
     const tmp = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey, { auth: { persistSession: false, autoRefreshToken: false, storageKey: "vientos-tmp" } });
-    const { data, error } = await tmp.auth.signUp({ email: email.trim().toLowerCase(), password: pass, options: { data: { name: name.trim(), phone, code: S.db.gym.joinCode } } });
-    if (error) throw new Error(friendly(error));
+    const { data, error } = await tmp.auth.signUp({ email: email.trim().toLowerCase(), password: pass, options: { data: { name: name.trim(), phone, username, code: S.db.gym.joinCode } } });
+    if (error) throw new Error(/duplicate key.*username|profiles_username/i.test(error.message) ? "Ya hay un socio con ese DNI." : friendly(error));
     const id = data.user?.id;
     if (!id) throw new Error("No se pudo crear la cuenta.");
-    const row = must(await sb.from("profiles").update({ status: "activo", role, coach_id: coachId, fee }).eq("id", id).select().single());
+    const row = must(await sb.from("profiles").update({ status: "activo", role, coach_id: coachId, fee, birth, prefs }).eq("id", id).select().single());
     return toUser(row);
   },
 
@@ -212,7 +222,7 @@ export const remoteAdapter = {
   async logout() {
     try { await sb?.auth.signOut(); } catch { /* sin conexión: igual se borra la sesión local */ }
     authStorage.removeItem("vientos-auth");
-    S.setDb(emptyDb());
+    S.setDb(await publicDb());
   },
 
   onError(err) { errorHandler(friendly(err)); },

@@ -118,7 +118,7 @@ begin
   insert into public.profiles (id, name, username, email, phone)
   values (new.id,
           coalesce(new.raw_user_meta_data ->> 'name', split_part(new.email, '@', 1)),
-          lower(new.email),
+          lower(coalesce(nullif(trim(new.raw_user_meta_data ->> 'username'), ''), new.email)),   -- el DNI del socio, o su email
           lower(new.email),
           coalesce(new.raw_user_meta_data ->> 'phone', ''))
   on conflict (id) do nothing;
@@ -263,12 +263,18 @@ begin
   return 'Listo: ' || p_email || ' ahora es dueño (administrador)';
 end $$;
 
+-- Datos públicos del gimnasio para la pantalla de ingreso (sin código ni precios).
+create or replace function public.public_gym() returns jsonb
+language sql stable security definer set search_path = public as $$
+  select coalesce((select data - 'joinCode' - 'plans' from public.gym where id = 1), '{}'::jsonb);
+$$;
+
 -- "Despertador": consulta mínima para que el proyecto gratis no se pause.
 create or replace function public.ping() returns text language sql stable as $$ select 'ok'::text $$;
 
 revoke execute on all functions in schema public from anon, public;
 revoke execute on all functions in schema private from anon, authenticated, public;
-grant execute on function public.login_email(text, text), public.ping() to anon, authenticated;
+grant execute on function public.login_email(text, text), public.ping(), public.public_gym() to anon, authenticated;
 grant execute on function public.my_role(), public.is_active(), public.is_staff(), public.is_admin(),
   public.staff_set_password(uuid, text), public.staff_reject(uuid), public.delete_my_account() to authenticated;
 revoke execute on function public.make_admin(text) from authenticated;

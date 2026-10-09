@@ -2,7 +2,7 @@
 import { icon, logo } from "../core/icons.js";
 import { esc, $, waNumber } from "../core/util.js";
 import * as S from "../core/store.js";
-import { login, passwordIssues } from "../core/auth.js";
+import { login, me, logout, passwordIssues } from "../core/auth.js";
 import { go, homeOf } from "../core/router.js";
 import { field, formData, applyTheme } from "../core/ui.js";
 import { DEMO_ACCOUNTS, DEMO_PASS } from "../data/demo.js";
@@ -31,12 +31,12 @@ export function loginView() {
     html: `<div class="auth">${hero("Tu rutina, en tu bolsillo")}
       <form class="auth-card" novalidate>
         <h1>Ingresar</h1>
-        ${field({ label: "Usuario o email", name: "ident", req: true, attrs: 'autocomplete="username" autocapitalize="none" spellcheck="false"' })}
+        ${field({ label: "Usuario (tu DNI) o email", name: "ident", req: true, attrs: 'autocomplete="username" autocapitalize="none" spellcheck="false"' })}
         ${passField()}
         <label class="check"><input type="checkbox" name="remember" checked><span>Recordarme en este dispositivo</span></label>
         <p class="form-err" role="alert" hidden></p>
         <button class="btn primary block lg" type="submit">Ingresar ${icon("arrow")}</button>
-        <div class="auth-links"><a href="#/recuperar">¿Olvidaste tu contraseña?</a><a href="#/registro">Soy nuevo · crear cuenta</a></div>
+        <div class="auth-links"><a href="#/recuperar">¿Olvidaste tu contraseña?</a>${S.db.gym.selfSignup ? `<a href="#/registro">Soy nuevo · crear cuenta</a>` : `<a href="#/recuperar?nuevo=1">¿Sos nuevo? Pedí tu usuario</a>`}</div>
       </form>
       ${S.MODE === "demo" ? `<section class="demo-box" aria-label="Cuentas de demostración">
         <h2>${icon("info", "sm")} Probar la demostración</h2>
@@ -73,6 +73,7 @@ export function loginView() {
 }
 
 export function registerView() {
+  if (!S.db.gym.selfSignup) return go("/recuperar?nuevo=1", { replace: true });
   return {
     layout: "auth", title: "Crear cuenta",
     html: `<div class="auth">${hero("Sumate a la app de Vientos")}
@@ -110,18 +111,61 @@ export function registerView() {
   };
 }
 
-export function recoverView() {
-  const g = S.db.gym;
+export function recoverView(params, query = {}) {
+  const g = S.db.gym, nuevo = !!query.nuevo;
   return {
-    layout: "auth", title: "Recuperar contraseña",
-    html: `<div class="auth">${hero("Recuperar el acceso")}
+    layout: "auth", title: nuevo ? "Soy nuevo" : "Recuperar contraseña",
+    html: `<div class="auth">${hero(nuevo ? "Bienvenido a Vientos" : "Recuperar el acceso")}
       <div class="auth-card">
         <a class="back-link" href="#/ingresar">${icon("back", "sm")} Volver</a>
-        <h1>¿Olvidaste tu contraseña?</h1>
-        <p class="muted">Pedile a tu profe o a recepción que te genere una contraseña nueva desde el panel. Después podés cambiarla en tu perfil.</p>
-        <a class="btn primary block lg" href="https://wa.me/${waNumber(g.whatsapp)}?text=${encodeURIComponent("Hola! Necesito recuperar mi contraseña de la app de Vientos.")}" target="_blank" rel="noopener">${icon("whatsapp")} Escribir por WhatsApp</a>
-        <p class="tiny muted">Con la versión final vas a poder recuperarla también por email.</p>
+        <h1>${nuevo ? "¿Sos socio nuevo?" : "¿Olvidaste tu contraseña?"}</h1>
+        <p class="muted">${nuevo
+          ? "Tu usuario te lo dan en recepción cuando te inscribís y pagás la cuota: es tu DNI, con una contraseña provisoria que te llega por WhatsApp."
+          : "Pedile a tu profe o a recepción que te genere una contraseña nueva desde el panel. Después podés cambiarla en tu perfil."}</p>
+        <a class="btn primary block lg" href="https://wa.me/${waNumber(g.whatsapp)}?text=${encodeURIComponent(nuevo ? "Hola! Quiero inscribirme en Vientos y tener la app." : "Hola! Necesito recuperar mi contraseña de la app de Vientos.")}" target="_blank" rel="noopener">${icon("whatsapp")} Escribir por WhatsApp</a>
       </div>
     </div>`,
+  };
+}
+
+/* Primer ingreso: elegir contraseña propia (la inicial es el DNI) */
+export function firstPasswordView() {
+  const u = me();
+  if (!u?.prefs?.tempPass) return go(homeOf(), { replace: true });
+  return {
+    layout: "auth", title: "Elegí tu contraseña",
+    html: `<div class="auth">${hero(`¡Hola, ${esc(u.name.split(" ")[0])}!`)}
+      <form class="auth-card" novalidate>
+        <h1>Elegí tu contraseña</h1>
+        <p class="muted">Entraste con la contraseña inicial. Elegí una propia para que nadie más pueda entrar a tu cuenta.</p>
+        ${passField("nw", "Contraseña nueva", "new-password")}
+        ${passField("nw2", "Repetila", "new-password")}
+        <p class="tiny muted">Mínimo 6 caracteres, distinta de tu DNI.</p>
+        <p class="form-err" role="alert" hidden></p>
+        <button class="btn primary block lg" type="submit">Guardar y entrar ${icon("arrow")}</button>
+        <div class="auth-links"><a href="#/ingresar" data-out>Salir</a></div>
+      </form>
+    </div>`,
+    mount(host) {
+      wireEyes(host);
+      const form = $("form", host), err = $(".form-err", host);
+      $("[data-out]", host).addEventListener("click", async (e) => { e.preventDefault(); await logout(); go("/ingresar", { replace: true }); });
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const d = formData(form);
+        const fail = (m) => { err.textContent = m; err.hidden = false; };
+        err.hidden = true;
+        if (d.nw.length < 6) return fail("Usá al menos 6 caracteres.");
+        if (d.nw === u.user || d.nw.replace(/\D/g, "") === u.user) return fail("Tiene que ser distinta de tu DNI.");
+        if (d.nw !== d.nw2) return fail("Las dos contraseñas no coinciden.");
+        const btn = $("button[type=submit]", form);
+        btn.disabled = true;
+        try {
+          await S.api.changePassword(u.id, u.user, d.nw);
+          u.prefs = { ...u.prefs, tempPass: false };
+          go(homeOf(), { replace: true });
+        } catch (e2) { fail(e2.message); btn.disabled = false; }
+      });
+    },
   };
 }

@@ -46,6 +46,8 @@ export async function render(isRefresh = false) {
   if (match.opts.staff && !isStaff()) return go("/inicio", { replace: true });
   if (match.opts.admin && !isAdmin()) return go(homeOf(), { replace: true });
   if (match.opts.member && isStaff()) return go("/panel", { replace: true });
+  /* Contraseña inicial (su DNI): antes de usar la app tiene que elegir una propia */
+  if (me()?.prefs?.tempPass && !match.opts.public && path !== "/clave") return go("/clave", { replace: true });
 
   const view = await match.handler(params, query);
   if (!view) return;

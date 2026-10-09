@@ -9,6 +9,8 @@ import { heatmap } from "./progress.js";
 import { routineView } from "./routine.js";
 import { qrSvg, installUrl } from "./install.js";
 
+/* Socios sin email: se les crea uno interno que no se muestra */
+const realEmail = (e) => (/@sin-email\.vientos\.app$/.test(e || "") ? "" : e || "");
 const money = (n) => "$ " + Math.round(n || 0).toLocaleString("es-AR");
 const lastLog = (uid) => S.logsOf(uid)[0];
 
@@ -64,7 +66,7 @@ export function panelHome() {
 export function approveSheet(m) {
   sheet({
     title: "Aprobar socio nuevo",
-    html: `<div class="mrow plain">${avatar(m)}<span><b>${esc(m.name)}</b><small>${esc(m.email)}${m.phone ? " · " + esc(m.phone) : ""}</small></span></div>
+    html: `<div class="mrow plain">${avatar(m)}<span><b>${esc(m.name)}</b><small>${esc(realEmail(m.email) || "Sin email")}${m.phone ? " · " + esc(m.phone) : ""}</small></span></div>
       <form novalidate>
         ${field({ label: "Profe a cargo", name: "coach", value: me().role === "profe" ? me().id : "", options: [["", "Sin asignar"], ...S.coaches().map((c) => [c.id, c.name])] })}
         ${field({ label: "Plan", name: "plan", options: [["", "Cargar después"], ...S.db.plans.map((p) => [p.id, p.name])] })}
@@ -132,44 +134,60 @@ function genPass() {
 }
 
 /* Muestra las credenciales para pasárselas al socio por WhatsApp */
-function credentialsSheet(m, pass, title = "Cuenta creada") {
-  const msg = `Hola ${firstName(m.name)}! Ya tenés tu acceso a la app de Vientos 💪\nIngresá en: ${installUrl()}\nUsuario: ${m.email}\nContraseña: ${pass}\nDespués podés cambiarla en tu perfil.`;
+/* Datos de ingreso: con DNI, usuario y contraseña inicial son el DNI.
+   La primera vez la app le pide elegir su propia contraseña. */
+const isDni = (x) => /^\d{7,9}$/.test(String(x || ""));
+function credentialsSheet(m, pass, title = "Socio listo") {
+  const dni = isDni(m.user) && pass === m.user;
   sheet({
     title,
-    html: `<p>Pasale estos datos a <b>${esc(m.name)}</b>. La contraseña no se vuelve a mostrar.</p>
-      <dl class="kv creds"><div><dt>Usuario</dt><dd>${esc(m.email)}</dd></div><div><dt>Contraseña</dt><dd><code>${esc(pass)}</code></dd></div></dl>
-      <div class="row-btns">${m.phone ? `<a class="btn primary" href="https://wa.me/${waNumber(m.phone)}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener">${icon("whatsapp", "sm")} Enviar por WhatsApp</a>` : ""}<button class="btn ghost" type="button" data-copy>${icon("copy", "sm")} Copiar</button></div>`,
-    onMount(b) { $("[data-copy]", b).addEventListener("click", async () => { try { await navigator.clipboard.writeText(msg); toast("Copiado"); } catch { toast("No se pudo copiar", "err"); } }); },
+    html: `<div class="creds-ok">${icon("checkc")}<p><b>${esc(m.name)}</b> ya puede entrar a la app.</p></div>
+      <dl class="kv creds"><div><dt>Usuario</dt><dd>${esc(m.user)}</dd></div><div><dt>Contraseña inicial</dt><dd><code>${esc(pass)}</code>${dni ? " (su DNI)" : ""}</dd></div></dl>
+      <ol class="creds-steps"><li>Escanea el QR de recepción e instala la app.</li><li>Entra con ${dni ? "su DNI como usuario y contraseña" : "estos datos"}.</li><li>La app le pide elegir su propia contraseña.</li></ol>
+      <div class="row-btns"><button class="btn primary" type="button" data-close>Listo</button></div>`,
   });
 }
 
+/* Alta en recepción: el socio pagó, se cargan sus datos y la app le genera
+   usuario (su DNI) y una contraseña provisoria para mandarle por WhatsApp. */
 function newMemberSheet() {
+  const p0 = S.db.plans[0];
   sheet({
     title: "Nuevo socio",
     html: `<form novalidate>
-      ${field({ label: "Nombre y apellido", name: "fullname", req: true })}
-      <div class="grid2">${field({ label: "Email", name: "email", type: "email", req: true })}${field({ label: "Teléfono (WhatsApp)", name: "phone", type: "tel", ph: "2966 …" })}</div>
-      <div class="grid2">
-        ${field({ label: "Profe a cargo", name: "coach", value: me().role === "profe" ? me().id : "", options: [["", "Sin asignar"], ...S.coaches().map((c) => [c.id, c.name])] })}
-        ${field({ label: "Plan", name: "plan", options: [["", "Cargar después"], ...S.db.plans.map((p) => [p.id, p.name])] })}
-      </div>
-      <p class="muted tiny">Se genera una contraseña provisoria para pasarle por WhatsApp.</p>
+      <div class="grid2">${field({ label: "Nombre", name: "first", req: true, attrs: 'autocomplete="off"' })}${field({ label: "Apellido", name: "last", req: true, attrs: 'autocomplete="off"' })}</div>
+      <div class="grid2">${field({ label: "DNI (será su usuario)", name: "dni", req: true, ph: "Sin puntos", attrs: 'inputmode="numeric" autocomplete="off"' })}${field({ label: "Teléfono (WhatsApp)", name: "phone", type: "tel", req: true, ph: "2966 …" })}</div>
+      <div class="grid2">${field({ label: "Fecha de nacimiento", name: "birth", type: "date" })}${field({ label: "Email (opcional)", name: "email", type: "email", ph: "Para recuperar la contraseña" })}</div>
+      ${field({ label: "Profe a cargo", name: "coach", value: me().role === "profe" ? me().id : "", options: [["", "Sin asignar"], ...S.coaches().map((c) => [c.id, c.name])] })}
+      <fieldset class="paybox"><legend>Cuota</legend>
+        <div class="grid2">${field({ label: "Plan", name: "plan", value: p0?.id, options: S.db.plans.map((p) => [p.id, p.name]) })}${field({ label: "Monto cobrado", name: "amount", type: "number", value: p0?.price || "", attrs: 'inputmode="numeric" min="0"' })}</div>
+        <label class="check"><input type="checkbox" name="paid" checked><span>Ya pagó: registrar el pago y la cuota vence en un mes</span></label>
+      </fieldset>
+      <p class="muted tiny">Va a entrar con su DNI como usuario y contraseña. La primera vez, la app le pide elegir su propia contraseña.</p>
       <p class="form-err" role="alert" hidden></p>
-      <button class="btn primary block" type="submit">Crear socio</button></form>`,
+      <button class="btn primary block" type="submit">${icon("userplus", "sm")} Crear socio</button></form>`,
     onMount(b, close) {
       const f = $("form", b), err = $(".form-err", b);
+      f.plan.addEventListener("change", () => { f.amount.value = S.plan(f.plan.value)?.price || ""; });
       f.addEventListener("submit", async (e) => {
         e.preventDefault();
         const d = formData(f);
         const fail = (m) => { err.textContent = m; err.hidden = false; };
-        if (!d.fullname.trim()) return fail("Escribí el nombre.");
-        if (!/^\S+@\S+\.\S+$/.test(d.email)) return fail("Revisá el email.");
-        const pass = genPass();
+        err.hidden = true;
+        const dni = d.dni.replace(/\D/g, "");
+        if (!d.first.trim() || !d.last.trim()) return fail("Completá nombre y apellido.");
+        if (dni.length < 7 || dni.length > 9) return fail("Revisá el DNI (solo números).");
+        if (d.phone.replace(/\D/g, "").length < 8) return fail("Revisá el teléfono.");
+        if (d.email && !/^\S+@\S+\.\S+$/.test(d.email)) return fail("Revisá el email.");
+        const pass = dni;
+        const btn = $("button[type=submit]", f);
+        btn.disabled = true;
         try {
-          const m = await S.api.createMember({ name: d.fullname, email: d.email, phone: d.phone, pass, coachId: d.coach, planId: d.plan });
+          const m = await S.api.createMember({ name: `${d.first.trim()} ${d.last.trim()}`, dni, email: d.email.trim(), phone: d.phone, birth: d.birth, pass, coachId: d.coach, planId: d.paid ? null : d.plan });
+          if (d.paid) S.api.registerPayment(m.id, { planId: d.plan, months: 1, amount: +d.amount || 0, by: me().id });
           close(); go("/panel/socios/" + m.id);
-          setTimeout(() => credentialsSheet(m, pass), 300);
-        } catch (e2) { fail(e2.message); }
+          setTimeout(() => credentialsSheet(S.user(m.id) || m, pass), 300);
+        } catch (e2) { fail(e2.message); btn.disabled = false; }
       });
     },
   });
@@ -243,7 +261,7 @@ export function memberView(params) {
     layout: "panel", nav: "socios", title: m.name,
     html: `${pageHead({ back: "#/panel/socios", kicker: "Socio", title: m.name })}
       <section class="mhead">${avatar(m, "xl")}
-        <div><p class="muted">${esc(m.email)}${m.phone ? " · " + esc(m.phone) : ""}</p>
+        <div><p class="muted">Usuario: <b>${esc(m.user)}</b>${realEmail(m.email) ? " · " + esc(realEmail(m.email)) : ""}${m.phone ? " · " + esc(m.phone) : ""}</p>
           <p class="muted tiny">Socio desde ${fmtDate(m.joined, { year: true })}${m.birth ? ` · ${new Date().getFullYear() - +m.birth.slice(0, 4)} años` : ""}${m.gender ? " · " + esc(m.gender) : ""}</p>
           <div class="mhead-a">${m.phone ? `<a class="btn ghost sm" href="https://wa.me/${waNumber(m.phone)}" target="_blank" rel="noopener">${icon("whatsapp", "sm")} WhatsApp</a><a class="btn ghost sm" href="${telHref(m.phone)}">${icon("phone", "sm")} Llamar</a>` : ""}</div>
         </div>
@@ -267,7 +285,7 @@ export function memberView(params) {
         </section>
         <section class="card"><div class="card-h"><h2>${icon("settings", "sm")} Cuenta</h2></div>
           ${field({ label: "Profe a cargo", name: "coach", value: m.coachId || "", options: [["", "Sin asignar"], ...S.coaches().map((c) => [c.id, c.name])], attrs: "data-coach" })}
-          <button class="lrow" type="button" data-act="reset">${icon("lock", "sm")}<span>Generar contraseña nueva</span>${icon("right", "sm")}</button>
+          <button class="lrow" type="button" data-act="reset">${icon("lock", "sm")}<span>${isDni(m.user) ? "Olvidó la contraseña: volver a su DNI" : "Generar contraseña nueva"}</span>${icon("right", "sm")}</button>
           <button class="lrow danger" type="button" data-act="drop">${icon("trash", "sm")}<span>Dar de baja de la app</span>${icon("right", "sm")}</button>
         </section>
       </div>`,
@@ -278,9 +296,10 @@ export function memberView(params) {
         if (a === "assign") assignSheet({ userId: m.id });
         if (a === "pay") paySheet(m);
         if (a === "due") dueSheet(m);
-        if (a === "reset" && await confirmDialog({ title: "¿Generar una contraseña nueva?", text: "La anterior deja de funcionar.", ok: "Generar" })) {
-          const pass = genPass();
+        if (a === "reset" && await confirmDialog({ title: isDni(m.user) ? "¿Volver a la contraseña inicial?" : "¿Generar una contraseña nueva?", text: isDni(m.user) ? `Va a poder entrar con su DNI (${m.user}) y la app le pide elegir una nueva.` : "La anterior deja de funcionar.", ok: "Confirmar" })) {
+          const pass = isDni(m.user) ? m.user : genPass();
           await S.api.resetPassword(m.id, pass);
+          S.api.updateUser(m.id, { prefs: { ...m.prefs, tempPass: true } });
           credentialsSheet(m, pass, "Contraseña nueva");
         }
         if (a === "drop" && await confirmDialog({ title: `¿Dar de baja a ${m.name}?`, text: "No va a poder ingresar más. Su historial queda guardado.", ok: "Dar de baja", danger: true })) {
@@ -449,7 +468,8 @@ export function gymView() {
           ${field({ label: "Nombre", name: "name", value: g.name, req: true })}
           <div class="grid2">${field({ label: "Dirección", name: "address", value: g.address })}${field({ label: "Ciudad", name: "city", value: g.city })}</div>
           <div class="grid2">${field({ label: "WhatsApp", name: "whatsapp", type: "tel", value: g.whatsapp })}${field({ label: "Instagram (usuario)", name: "instagram", value: g.instagram })}</div>
-          ${field({ label: "Código para crear cuenta", name: "joinCode", value: g.joinCode, hint: "Va impreso junto al QR. Cambialo si se difunde fuera del gimnasio." })}
+          <label class="toggle"><span><b>Permitir que se registren solos desde la app</b><small>Apagado (recomendado): los socios los da de alta recepción o el profe al pagar.</small></span><input type="checkbox" name="selfSignup" ${g.selfSignup ? "checked" : ""} role="switch"><i aria-hidden="true"></i></label>
+          ${field({ label: "Código para registrarse solos", name: "joinCode", value: g.joinCode, hint: "Solo se usa si el registro desde la app está permitido." })}
           <h3 class="sub">Horarios</h3>
           <div class="hours-ed">${[1, 2, 3, 4, 5, 6, 0].map((d) => { const [a, b] = (g.open[d] || "").split("-"); return `<div class="hrow-ed" data-d="${d}"><span>${WDN[d]}</span><label class="check"><input type="checkbox" data-closed ${g.open[d] ? "" : "checked"}><span>Cerrado</span></label><input type="time" data-a value="${a || "06:00"}" ${g.open[d] ? "" : "disabled"} aria-label="${WDN[d]} abre"><input type="time" data-b value="${b || "22:00"}" ${g.open[d] ? "" : "disabled"} aria-label="${WDN[d]} cierra"></div>`; }).join("")}</div>
           <button class="btn primary" type="submit">Guardar</button>
@@ -473,7 +493,7 @@ export function gymView() {
         if (!d.name.trim()) return toast("Escribí el nombre.", "err");
         const open = [...g.open];
         $$("[data-d]", f).forEach((r) => { open[+r.dataset.d] = r.querySelector("[data-closed]").checked ? "" : `${r.querySelector("[data-a]").value}-${r.querySelector("[data-b]").value}`; });
-        S.api.saveGym({ name: d.name.trim(), address: d.address, city: d.city, whatsapp: d.whatsapp, instagram: d.instagram.replace(/^@/, ""), joinCode: d.joinCode.trim() || g.joinCode, open });
+        S.api.saveGym({ name: d.name.trim(), address: d.address, city: d.city, whatsapp: d.whatsapp, instagram: d.instagram.replace(/^@/, ""), joinCode: d.joinCode.trim() || g.joinCode, selfSignup: !!d.selfSignup, open });
         toast("Datos guardados");
       });
       host.addEventListener("click", async (e) => {

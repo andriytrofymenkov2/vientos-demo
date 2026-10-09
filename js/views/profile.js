@@ -8,7 +8,7 @@ import { avatar, field, formData, toast, sheet, applyTheme, feePill, pageHead } 
 
 const toggle = (name, label, on, hint = "") => `<label class="toggle"><span><b>${esc(label)}</b>${hint ? `<small>${esc(hint)}</small>` : ""}</span><input type="checkbox" name="${name}" ${on ? "checked" : ""} role="switch"><i aria-hidden="true"></i></label>`;
 
-export function profileView() {
+export function profileView(params, query = {}) {
   const u = me(), staff = isStaff();
   const p = S.plan(u.fee?.planId);
   const g = S.db.gym;
@@ -29,7 +29,7 @@ export function profileView() {
           ${field({ label: "Género", name: "gender", value: u.gender, options: [["", "Prefiero no decir"], "Femenino", "Masculino", "No binario", "Otro"] })}
         </div>
         ${field({ label: "Teléfono", name: "phone", type: "tel", value: u.phone })}
-        ${S.MODE === "supabase" ? field({ label: "Email (es tu usuario para ingresar)", name: "email", type: "email", value: u.email, attrs: "readonly", hint: "Para cambiarlo, pedilo en el gimnasio." }) : field({ label: "Email", name: "email", type: "email", value: u.email, req: true })}
+        ${S.MODE === "supabase" ? field({ label: "Email", name: "email", type: "email", value: /@sin-email\.vientos\.app$/.test(u.email) ? "" : u.email, attrs: "readonly", hint: `Tu usuario para ingresar es ${u.user}. Para cambiar el email, pedilo en el gimnasio.` }) : field({ label: "Email", name: "email", type: "email", value: u.email, req: true })}
         <button class="btn primary" type="submit">Guardar cambios</button>
       </form>
       <section class="card" data-form="prefs">
@@ -47,14 +47,20 @@ export function profileView() {
       </section>
       <p class="foot-note">Vientos GYM · App de socios${S.MODE === "demo" ? " · demostración" : ""}</p>`,
     mount(host) {
+      if (query.clave) setTimeout(() => changePassword(u), 250);
       $("[data-form=info]", host).addEventListener("submit", (e) => {
         e.preventDefault();
         const d = formData(e.target);
         if (!d.fullname.trim()) return toast("Escribí tu nombre.", "err");
-        if (!/^\S+@\S+\.\S+$/.test(d.email)) return toast("Revisá el email.", "err");
-        const other = S.findLogin(d.email);
-        if (other && other.id !== u.id) return toast("Ese email ya lo usa otra cuenta.", "err");
-        S.api.updateUser(u.id, { name: d.fullname.trim(), birth: d.birth, gender: d.gender, phone: d.phone, email: d.email.trim().toLowerCase() });
+        const patch = { name: d.fullname.trim(), birth: d.birth, gender: d.gender, phone: d.phone };
+        /* Con servidor el email no se cambia desde acá; en la demostración es opcional */
+        if (S.MODE !== "supabase" && d.email.trim()) {
+          if (!/^\S+@\S+\.\S+$/.test(d.email)) return toast("Revisá el email.", "err");
+          const other = S.findLogin(d.email);
+          if (other && other.id !== u.id) return toast("Ese email ya lo usa otra cuenta.", "err");
+          patch.email = d.email.trim().toLowerCase();
+        }
+        S.api.updateUser(u.id, patch);
         toast("Datos guardados");
         refresh();
       });

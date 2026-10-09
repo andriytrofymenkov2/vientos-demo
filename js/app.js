@@ -4,7 +4,7 @@ import { restore, me } from "./core/auth.js";
 import { route, start, setShell } from "./core/router.js";
 import { shell, applyTheme, toast } from "./core/ui.js";
 import { resumeRest } from "./core/timer.js";
-import { loginView, registerView, recoverView } from "./views/auth.js";
+import { loginView, registerView, recoverView, firstPasswordView } from "./views/auth.js";
 import { homeView } from "./views/home.js";
 import { routineView, dayView, exerciseView, summaryView } from "./views/routine.js";
 import { progressView } from "./views/progress.js";
@@ -34,6 +34,7 @@ async function boot() {
   route("/registro", registerView, guest);
   route("/recuperar", recoverView, guest);
   route("/instalar", installView, pub);
+  route("/clave", firstPasswordView);
 
   route("/inicio", homeView, member);
   route("/rutina", routineView, member);

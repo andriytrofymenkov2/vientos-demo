@@ -273,18 +273,22 @@ export const api = {
     return u;
   },
 
-  async createMember({ name, email, phone, pass, coachId, planId }) {
-    if (findLogin(email)) throw new Error("Ya hay una cuenta con ese email o usuario.");
+  /* Alta en recepción: el usuario es el DNI; el email es opcional */
+  async createMember({ name, dni, email = "", phone, birth = "", pass, coachId, planId }) {
+    const username = (dni || email).trim().toLowerCase();
+    if (findLogin(username) || (email && findLogin(email))) throw new Error(dni ? "Ya hay un socio con ese DNI." : "Ya hay una cuenta con ese email.");
+    const mail = (email || `socio${dni}@sin-email.vientos.app`).trim().toLowerCase();
+    const fee = planId ? { planId, dueAt: Date.now() + 30 * DAY } : null;
+    const prefs = { theme: "dark", sound: true, tempPass: true };
     if (R) {
-      const u = await R.createAccount({ name, email, phone, pass, role: "socio", coachId: coachId || null, fee: planId ? { planId, dueAt: Date.now() + 30 * DAY } : null });
+      const u = await R.createAccount({ name, email: mail, username, phone, birth, pass, role: "socio", coachId: coachId || null, fee, prefs });
       db.users.push(u); save();
       return u;
     }
     const salt = uid("s");
     const u = {
-      id: uid("u"), role: "socio", status: "activo", name: name.trim(), user: email.trim().toLowerCase(), email: email.trim().toLowerCase(),
-      phone, birth: "", gender: "", salt, hash: await hashPass(pass, salt), coachId: coachId || null, joined: Date.now(),
-      fee: planId ? { planId, dueAt: Date.now() + 30 * DAY } : null, prefs: { theme: "dark", sound: true },
+      id: uid("u"), role: "socio", status: "activo", name: name.trim(), user: username, email: email ? mail : "",
+      phone, birth, gender: "", salt, hash: await hashPass(pass, salt), coachId: coachId || null, joined: Date.now(), fee, prefs,
     };
     db.users.push(u);
     save();
@@ -294,7 +298,7 @@ export const api = {
   async createCoach({ name, email, phone, pass, role }) {
     if (findLogin(email)) throw new Error("Ya hay una cuenta con ese email o usuario.");
     if (R) {
-      const u = await R.createAccount({ name, email, phone, pass, role: role === "admin" ? "admin" : "profe" });
+      const u = await R.createAccount({ name, email, username: email, phone, pass, role: role === "admin" ? "admin" : "profe" });
       db.users.push(u); save();
       return u;
     }
@@ -321,8 +325,9 @@ export const api = {
   updateUser(userId, patch) { Object.assign(user(userId), patch); save(); push("saveProfile", user(userId)); },
 
   async changePassword(userId, oldPass, newPass) {
-    if (R) return R.changePassword(oldPass, newPass);
+    if (R) { await R.changePassword(oldPass, newPass); api.updateUser(userId, { prefs: { ...user(userId).prefs, tempPass: false } }); return; }
     const u = user(userId);
+    u.prefs = { ...u.prefs, tempPass: false };
     if ((await hashPass(oldPass, u.salt)) !== u.hash) throw new Error("La contraseña actual no es correcta.");
     u.salt = uid("s");
     u.hash = await hashPass(newPass, u.salt);

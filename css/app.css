@@ -948,3 +948,15 @@ a.mrow:hover, button.mrow:hover { background: var(--card2); }
 :root, [data-theme="dark"] { --vl-txt: #dcdde0; --vl-black: #8e9198; --vl-red: #d11f2a; --vl-white: #ffffff; }
 [data-theme="light"] { --vl-txt: #5e5e60; --vl-black: #1c1c1e; --vl-red: #8b0f14; --vl-white: #c9cbd0; }
 .auth-brand .logo, .poster-logo .logo { --vl-txt: #ffffff; --vl-black: #a3a6ad; --vl-red: #e0202c; --vl-white: #ffffff; }
+
+/* Fotos de referencia de los ejercicios */
+.extile.photo { background: #fff; border-color: var(--line2); }
+.extile.photo::before { display: none; }
+.extile.photo img { width: 100%; height: 100%; object-fit: cover; }
+.video:has(.ex-photo) { aspect-ratio: 3 / 2; background: #fff; }
+.ex-photo { position: absolute; inset: 0; }
+.ex-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.ex-photo .f1 { animation: exframe 3.2s ease-in-out infinite; }
+@keyframes exframe { 0%, 38% { opacity: 0; } 50%, 88% { opacity: 1; } 100% { opacity: 0; } }
+.ph-tag { position: absolute; left: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 99px; background: rgba(0, 0, 0, .66); color: #fff; font-size: 12px; font-weight: 600; backdrop-filter: blur(4px); }
+@media (prefers-reduced-motion: reduce) { .ex-photo .f1 { animation: none; opacity: 0; } }

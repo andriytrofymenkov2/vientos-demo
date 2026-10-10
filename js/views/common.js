@@ -3,12 +3,18 @@ import { icon } from "../core/icons.js";
 import { esc, fmtRest } from "../core/util.js";
 import * as S from "../core/store.js";
 import { BLOCK_TYPES } from "../data/templates.js";
+import { EX_IMAGES } from "../data/ex-images.js";
+
+/* Foto de referencia del ejercicio (posición inicial/final), si existe */
+export const exPhoto = (ex, n = 0) => (ex && EX_IMAGES[ex.id] > n ? `img/ej/${ex.id}-${n}.jpg` : null);
 
 const ABBR = { "Pecho": "PEC", "Espalda": "ESP", "Hombros": "HOM", "Bíceps": "BÍC", "Tríceps": "TRÍ", "Cuádriceps": "CUÁ", "Isquiotibiales": "ISQ", "Glúteos": "GLÚ", "Pantorrillas": "PAN", "Abdomen": "ABD", "Potencia": "POT", "Cardio": "CAR" };
 
 /* Ficha cuadrada del grupo muscular */
 export function exTile(ex, size = "") {
   const g = ex?.g || "";
+  const ph = size !== "xl" && exPhoto(ex);
+  if (ph) return `<span class="extile photo ${size}" aria-hidden="true"><img src="${ph}" alt="" loading="lazy" decoding="async"></span>`;
   return `<span class="extile ${size}" data-g="${esc(g)}" aria-hidden="true"><b>${esc(ABBR[g] || "EJ")}</b></span>`;
 }
 

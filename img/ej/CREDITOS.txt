@@ -1,0 +1,58 @@
+Imágenes de referencia: Free Exercise DB (https://github.com/yuhonas/free-exercise-db), Unlicense / dominio público.
+
+press-banca: Barbell Bench Press - Medium Grip
+press-inclinado-manc: Incline Dumbbell Press
+press-maquina: Machine Bench Press
+aperturas-polea: Cable Crossover
+fondos: Dips - Chest Version
+flexiones: Pushups
+dominadas: Pullups
+jalon-pecho: Wide-Grip Lat Pulldown
+remo-polea-baja: Seated Cable Rows
+remo-barra: Bent Over Barbell Row
+remo-mancuerna: One-Arm Dumbbell Row
+pullover-polea: Straight-Arm Pulldown
+hiperextensiones: Hyperextensions (Back Extensions)
+press-militar: Standing Military Press
+press-hombro-manc: Dumbbell Shoulder Press
+vuelos-laterales: Side Lateral Raise
+face-pull: Face Pull
+pajaro: Seated Bent-Over Rear Delt Raise
+curl-barra: Barbell Curl
+curl-alterno: Dumbbell Alternate Bicep Curl
+curl-martillo: Hammer Curls
+curl-polea: Standing Biceps Cable Curl
+triceps-polea: Triceps Pushdown - Rope Attachment
+press-frances: EZ-Bar Skullcrusher
+triceps-tras-nuca: Standing Dumbbell Triceps Extension
+fondos-banco: Bench Dips
+sentadilla: Barbell Full Squat
+sentadilla-goblet: Goblet Squat
+prensa: Leg Press
+sillon-cuadriceps: Leg Extensions
+estocadas: Dumbbell Lunges
+bulgara: Split Squat with Dumbbells
+peso-muerto-rumano: Romanian Deadlift
+peso-muerto: Barbell Deadlift
+curl-femoral: Lying Leg Curls
+hip-thrust: Barbell Hip Thrust
+patada-gluteo: One-Legged Cable Kickback
+abductores: Thigh Abductor
+puente-gluteo: Butt Lift (Bridge)
+gemelos-pie: Standing Calf Raises
+gemelos-sentado: Seated Calf Raise
+plancha: Plank
+crunch-polea: Cable Crunch
+elevacion-piernas: Hanging Leg Raise
+rueda-abdominal: Ab Roller
+pallof: Pallof Press
+salto-cajon: Box Jump (Multiple Response)
+salto-vertical: Freehand Jump Squat
+lanzamiento-balon: Medicine Ball Chest Pass
+slam-balon: Overhead Slam
+swing-kettlebell: One-Arm Kettlebell Swings
+saltos-horizontales: Standing Long Jump
+dominada-explosiva: Inverted Row
+bici: Bicycling, Stationary
+cinta: Walking, Treadmill
+soga: Rope Jumping

@@ -6,7 +6,7 @@ import { me, isStaff } from "../core/auth.js";
 import { go, refresh } from "../core/router.js";
 import { tag, toast, pageHead } from "../core/ui.js";
 import { startRest, stopRest } from "../core/timer.js";
-import { dayList, exTile, letter, restOf, emptyRoutine, repsList, repsText } from "./common.js";
+import { dayList, exTile, exPhoto, letter, restOf, emptyRoutine, repsList, repsText } from "./common.js";
 import { BLOCK_TYPES } from "../data/templates.js";
 
 /* Busca un ejercicio dentro de la rutina con su bloque y posición */
@@ -162,6 +162,10 @@ export function exerciseView(params) {
     html: `${pageHead({ back: `#/rutina/${r.id}/dia/${d.id}`, kicker: `${d.name} · ${k + 1} de ${flat.length}`, title: ex.n })}
       <div class="video">${yt
         ? `<iframe src="https://www.youtube-nocookie.com/embed/${yt}?rel=0&modestbranding=1&playsinline=1" title="Video: ${esc(ex.n)}" allow="encrypted-media; picture-in-picture" allowfullscreen loading="lazy"></iframe>`
+        : exPhoto(ex) ? `<div class="ex-photo">
+            <img class="f0" src="${exPhoto(ex)}" alt="${esc(ex.n)}: posición inicial">
+            ${exPhoto(ex, 1) ? `<img class="f1" src="${exPhoto(ex, 1)}" alt="${esc(ex.n)}: posición final">` : ""}
+            <span class="ph-tag">${icon("video", "xs")} Imagen de referencia · video próximamente</span></div>`
         : `<div class="video-ph">${exTile(ex, "xl")}<span>${icon("video", "sm")} Video próximamente</span><small>Lo graba el equipo de Vientos con las máquinas del gimnasio</small>${WAVES}</div>`}</div>
       <section class="exhead">
         <div class="tags">${tag(ex.g)}${ex.eq ? tag(ex.eq) : ""}${b.type !== "single" ? tag(`${BLOCK_TYPES[b.type].label} ${letter(bi, ii)}`, "red") : ""}</div>

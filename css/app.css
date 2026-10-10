@@ -922,7 +922,8 @@ a.mrow:hover, button.mrow:hover { background: var(--card2); }
 .hb-l { color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hb-t { height: 12px; background: var(--card3); border-radius: 0 6px 6px 0; overflow: hidden; }
 .hb-t i { display: block; height: 100%; background: var(--red); border-radius: 0 4px 4px 0; }
-.hb-v { color: var(--muted); font-size: 13px; white-space: nowrap; min-width: 64px; text-align: right; }
+.hb-v { display: grid; grid-template-columns: minmax(28px, auto) 58px; align-items: baseline; gap: 12px; white-space: nowrap; text-align: right; }
+.hb-v em { font-style: normal; color: var(--muted); font-size: 13px; padding-left: 10px; border-left: 1px solid var(--line); }
 .hb-v b { color: var(--text); font-size: 14px; }
 .cols { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; align-items: end; height: 150px; }
 .col { display: grid; grid-template-rows: auto 1fr auto; justify-items: center; height: 100%; gap: 4px; }

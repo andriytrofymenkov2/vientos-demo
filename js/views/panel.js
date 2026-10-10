@@ -28,7 +28,7 @@ function hbars(rows, total, { money: isMoney = false } = {}) {
   return `<div class="hb">${rows.map((r) => `<div class="hb-row" title="${esc(r.label)}: ${isMoney ? money(r.n) : r.n} (${pct(r.n, total)} %)">
       <span class="hb-l">${esc(r.label)}</span>
       <span class="hb-t"><i style="width:${Math.max(r.n ? 3 : 0, (r.n / max) * 100)}%"></i></span>
-      <span class="hb-v"><b>${isMoney ? money(r.n) : r.n}</b> ${pct(r.n, total)} %</span></div>`).join("")}</div>`;
+      <span class="hb-v"><b>${isMoney ? money(r.n) : r.n}</b><em>${pct(r.n, total)} %</em></span></div>`).join("")}</div>`;
 }
 
 /* Columnas: altas de los últimos 6 meses */

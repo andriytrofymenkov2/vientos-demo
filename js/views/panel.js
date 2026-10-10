@@ -631,7 +631,7 @@ export function qrView() {
         <div class="poster-logo">${logo()}</div>
         <h2>Tu rutina,<br><b>en tu celular</b></h2>
         <div class="poster-qr" data-qr></div>
-        <ol class="poster-steps"><li>Escaneá el código con la cámara</li><li>Instalá la app (es gratis)</li><li>Creá tu cuenta con el código <b>${esc(g.joinCode)}</b></li></ol>
+        <ol class="poster-steps"><li>Escaneá el código con la cámara</li><li>Instalá la app (es gratis)</li><li>Entrá con tu <b>DNI</b> (usuario y contraseña)</li></ol>
         <p class="poster-url">${esc(url.replace(/^https?:\/\//, "").replace("/#/instalar", ""))}</p>
       </article>`,
     mount(host) {

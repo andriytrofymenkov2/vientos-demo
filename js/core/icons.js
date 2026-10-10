@@ -1,3 +1,4 @@
+import { LOGO_VIEWBOX, LOGO_PATHS } from "./logo-data.js";
 /* Íconos de trazo propios (24x24, currentColor) */
 
 const P = {
@@ -79,16 +80,8 @@ export function icon(name, cls = "") {
 /* Ondas de Vientos (dos trazos afinados en las puntas, rojo y grafito) */
 export const WAVES = `<svg class="waves" viewBox="0 0 120 28" aria-hidden="true"><path class="w1" d="M2 15C22 4 40 4 60 11s38 8 58-3c-18 14-38 15-58 8S22 8 2 15z"/><path class="w2" d="M8 22c20-9 36-9 54-3s34 6 52-2c-16 11-34 12-52 6S26 15 8 22z"/></svg>`;
 
-/* Logotipo: VIENTOS + ondas + GYM (redibujado para la app).
-   Cada copia lleva su propio id de degradado: si dos logos comparten id y uno
-   está oculto, el navegador no pinta el otro. */
-let logoN = 0;
+/* Logo OFICIAL de Vientos GYM (vectorizado de sus redes, ver dev/vectorizar_logo.py).
+   Los colores salen del CSS (.logo .vl-*) y cambian con el tema claro/oscuro. */
 export function logo() {
-  const id = "lgS" + ++logoN;
-  return `<svg class="logo" viewBox="0 0 320 96" role="img" aria-label="Vientos GYM">
-  <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--logo-hi)"/><stop offset="1" stop-color="var(--logo-lo)"/></linearGradient></defs>
-  <text x="160" y="50" text-anchor="middle" class="logo-word" fill="url(#${id})">VIENTOS</text>
-  <g transform="translate(70 57) scale(.92)"><path class="w1" d="M0 13C26 2 50 2 76 9s50 8 76-3c-24 14-50 15-76 8S26 6 0 13z"/><path class="w2" d="M10 21c24-8 46-8 68-2s44 6 66-2c-20 11-44 12-66 6S32 14 10 21z"/></g>
-  <text x="290" y="77" text-anchor="end" class="logo-gym">GYM</text>
-</svg>`;
+  return `<svg class="logo" viewBox="${LOGO_VIEWBOX}" role="img" aria-label="Vientos GYM">${LOGO_PATHS}</svg>`;
 }

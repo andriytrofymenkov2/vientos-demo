@@ -64,8 +64,9 @@ p { margin: 0; }
 .i.xs { width: 14px; height: 14px; display: inline-block; vertical-align: -2px; }
 
 /* Arranque */
-.boot { position: fixed; inset: 0; display: grid; place-items: center; background: var(--bg); z-index: 99; }
-.boot svg { width: 110px; animation: windy 1.1s ease-in-out infinite alternate; }
+.boot { position: fixed; inset: 0; display: grid; place-items: center; background: #0a0a0b; z-index: 99; }
+.boot img { width: min(240px, 62vw); height: auto; animation: bootin 1.2s ease-in-out infinite alternate; }
+@keyframes bootin { from { opacity: .55; transform: scale(.98); } to { opacity: 1; transform: none; } }
 @keyframes windy { from { transform: translateX(-10px); opacity: .55; } to { transform: translateX(10px); opacity: 1; } }
 
 /* ------------------------------------------------------------------ logo */
@@ -938,3 +939,12 @@ a.mrow:hover, button.mrow:hover { background: var(--card2); }
 .wd.fut { opacity: .5; }
 
 .layout-app .weekstrip:first-child { margin-top: 14px; }
+
+/* Logo oficial: colores por tema */
+.logo .vl-txt { fill: var(--vl-txt); }
+.logo .vl-w-black { fill: var(--vl-black); }
+.logo .vl-w-red { fill: var(--vl-red); }
+.logo .vl-w-white { fill: var(--vl-white); }
+:root, [data-theme="dark"] { --vl-txt: #dcdde0; --vl-black: #8e9198; --vl-red: #d11f2a; --vl-white: #ffffff; }
+[data-theme="light"] { --vl-txt: #5e5e60; --vl-black: #1c1c1e; --vl-red: #8b0f14; --vl-white: #c9cbd0; }
+.auth-brand .logo, .poster-logo .logo { --vl-txt: #ffffff; --vl-black: #a3a6ad; --vl-red: #e0202c; --vl-white: #ffffff; }

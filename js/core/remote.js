@@ -180,13 +180,13 @@ export const remoteAdapter = {
   },
 
   /* El profe o el dueño crea una cuenta sin perder su propia sesión */
-  async createAccount({ name, email, username, phone, birth = "", pass, role, coachId = null, fee = null, prefs = { theme: "dark", sound: true } }) {
+  async createAccount({ name, email, username, phone, birth = "", gender = "", pass, role, coachId = null, fee = null, prefs = { theme: "dark", sound: true } }) {
     const tmp = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey, { auth: { persistSession: false, autoRefreshToken: false, storageKey: "vientos-tmp" } });
     const { data, error } = await tmp.auth.signUp({ email: email.trim().toLowerCase(), password: pass, options: { data: { name: name.trim(), phone, username, code: S.db.gym.joinCode } } });
     if (error) throw new Error(/duplicate key.*username|profiles_username/i.test(error.message) ? "Ya hay un socio con ese DNI." : friendly(error));
     const id = data.user?.id;
     if (!id) throw new Error("No se pudo crear la cuenta.");
-    const row = must(await sb.from("profiles").update({ status: "activo", role, coach_id: coachId, fee, birth, prefs }).eq("id", id).select().single());
+    const row = must(await sb.from("profiles").update({ status: "activo", role, coach_id: coachId, fee, birth, gender, prefs }).eq("id", id).select().single());
     return toUser(row);
   },
 

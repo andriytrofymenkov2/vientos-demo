@@ -30,9 +30,9 @@ export async function buildDemo(D, { hashPass, uid, normDays }) {
   const mk = (o) => {
     const u = {
       id: o.id || uid("u"), role: o.role || "socio", status: o.status || "activo", name: o.name, user: o.user, email: o.email || `${o.user}@demo.vientos`,
-      phone: o.phone || "2966" + String(400000 + Math.floor(R() * 500000)), birth: o.birth || "", gender: o.gender || "",
+      phone: o.phone || "2966" + String(400000 + Math.floor(R() * 500000)), birth: o.birth || (o.role && o.role !== "socio" ? "" : `${1966 + Math.floor(R() * 40)}-${String(1 + Math.floor(R() * 12)).padStart(2, "0")}-${String(1 + Math.floor(R() * 28)).padStart(2, "0")}`), gender: o.gender || "",
       salt: salt0, hash: hash0, coachId: o.coachId || null, joined: o.joined || now - 200 * DAY, fee: o.fee || null,
-      prefs: { theme: "dark", sound: true },
+      prefs: { theme: "dark", sound: true, ...(o.temp ? { tempPass: true } : {}) },
     };
     D.users.push(u);
     return u;
@@ -106,7 +106,7 @@ export async function buildDemo(D, { hashPass, uid, normDays }) {
     const fem = /a$|ía$|ina$|en$|ela$|ana$/.test(name.split(" ")[0]) || ["Rocío", "Belén", "Milagros"].includes(name.split(" ")[0]);
     const coach = i % 3 === 2 ? carla : nico;
     const due = T0 + Math.round(-12 + R() * 40) * DAY;
-    const u = mk({ name, user: name.split(" ")[0].toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "") + "." + (i + 1), gender: fem ? "Femenino" : "Masculino", coachId: coach.id, joined: now - (20 + Math.floor(R() * 300)) * DAY, fee: { planId: plans[i % plans.length], dueAt: due } });
+    const u = mk({ temp: i % 5 === 3, name, user: name.split(" ")[0].toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "") + "." + (i + 1), gender: fem ? "Femenino" : "Masculino", coachId: coach.id, joined: now - (20 + Math.floor(R() * 300)) * DAY, fee: { planId: plans[i % plans.length], dueAt: due } });
     if (i % 9 === 8) return; /* algunos todavía sin rutina */
     let key = keys[i % keys.length];
     if (fem && key.startsWith("hombres")) key = "mujeres-4";

@@ -1,6 +1,6 @@
 /* Mi rutina: días, ejercicios y registro del entrenamiento */
 import { icon, WAVES } from "../core/icons.js";
-import { esc, fmtDate, fmtRest, fmtKg, relDay, ytId, waNumber, plural, weekStart, $, $$, vibrate } from "../core/util.js";
+import { esc, fmtDate, fmtRest, fmtKg, relDay, ytId, waNumber, plural, weekStart, dayKey, DAY, $, $$, vibrate } from "../core/util.js";
 import * as S from "../core/store.js";
 import { me, isStaff } from "../core/auth.js";
 import { go, refresh } from "../core/router.js";
@@ -48,7 +48,7 @@ export function routineView(params) {
 
   return {
     title: "Mi rutina", nav: "rutina",
-    html: `<section class="rhero">
+    html: `${r.active && r.userId === u.id ? weekStrip(u, r) : ""}<section class="rhero">
         <span class="kicker">${r.active ? "Mi rutina" : `Rutina anterior · ${fmtDate(r.startedAt)} al ${fmtDate(r.endedAt || Date.now())}`}</span>
         <h1>${esc(S.routineTitle(r))}</h1>
         ${r.personal ? `<p class="rhero-sub">${esc(r.name)}</p>` : ""}
@@ -265,4 +265,26 @@ export function summaryView(params) {
         <a class="btn ghost block" href="#/progreso">Ver mi progreso</a>
       </section>`,
   };
+}
+
+/* Semana de lunes a domingo con la fecha real: hoy marcado y qué día de la
+   rutina hizo cada día. Cada lunes arranca de cero (los kilos quedan guardados). */
+function weekStrip(u, r) {
+  const w0 = weekStart(), today = dayKey();
+  const L = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
+  const logs = S.logsOf(u.id).filter((l) => l.at >= w0);
+  const nameOf = (l) => (r.days.find((d) => d.id === l.dayId)?.name || l.dayName || "").replace(/^Día\s*/i, "D");
+  const cells = L.map((lab, i) => {
+    const t = w0 + i * DAY, k = dayKey(t);
+    const done = logs.filter((l) => dayKey(l.at) === k);
+    const fut = k > today;
+    return `<div class="wd ${k === today ? "is-today" : ""} ${done.length ? "on" : ""} ${fut ? "fut" : ""}">
+      <small>${lab}</small><b>${new Date(t).getDate()}</b><i>${done.length ? esc(done.map(nameOf).join(" ")) : ""}</i></div>`;
+  }).join("");
+  const n = new Set(logs.map((l) => l.dayId)).size;
+  return `<section class="weekstrip" aria-label="Esta semana">
+      <div class="weekstrip-h"><b>Esta semana</b><span>${n} de ${r.days.length} días hechos</span></div>
+      <div class="wds">${cells}</div>
+      <p class="tiny muted">${icon("repeat", "xs")} Cada lunes la semana arranca de cero. Tus kilos y récords quedan guardados.</p>
+    </section>`;
 }

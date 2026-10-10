@@ -13,7 +13,7 @@ import { buildDemo } from "../data/demo.js";
 import { uid, sha256, DAY, weekStart, dayKey, fold } from "./util.js";
 import { CONFIG } from "../config.js";
 
-const KEY = "vientos_db_v4";
+const KEY = "vientos_db_v5";
 const forceDemo = (() => { try { return new URLSearchParams(location.search).has("demo"); } catch { return false; } })();
 export const MODE = CONFIG.mode === "supabase" && CONFIG.supabaseUrl && CONFIG.supabaseAnonKey && !forceDemo ? "supabase" : "demo";
 
@@ -50,7 +50,7 @@ export async function init() {
     return db;
   }
   try { db = JSON.parse(localStorage.getItem(KEY) || "null"); } catch { db = null; }
-  if (!db || db.v !== 4) { db = await seed(); localStorage.setItem(KEY, JSON.stringify(db)); }
+  if (!db || db.v !== 5) { db = await seed(); localStorage.setItem(KEY, JSON.stringify(db)); }
   return db;
 }
 
@@ -117,7 +117,7 @@ async function seed() {
     id: "t-" + t.key, key: t.key, name: t.name, level: t.level, audience: t.audience, goal: t.goal, weeks: t.weeks, desc: t.desc,
     days: normDays(t.days), order: i, createdBy: null, updated: Date.now(),
   }));
-  const base = { v: 4, seededAt: Date.now(), ...d, templates, users: [], routines: [], logs: [], payments: [], notices: [], live: {} };
+  const base = { v: 5, seededAt: Date.now(), ...d, templates, users: [], routines: [], logs: [], payments: [], notices: [], live: {} };
   return buildDemo(base, { hashPass, uid, normDays });
 }
 
@@ -274,21 +274,21 @@ export const api = {
   },
 
   /* Alta en recepción: el usuario es el DNI; el email es opcional */
-  async createMember({ name, dni, email = "", phone, birth = "", pass, coachId, planId }) {
+  async createMember({ name, dni, email = "", phone, birth = "", gender = "", pass, coachId, planId }) {
     const username = (dni || email).trim().toLowerCase();
     if (findLogin(username) || (email && findLogin(email))) throw new Error(dni ? "Ya hay un socio con ese DNI." : "Ya hay una cuenta con ese email.");
     const mail = (email || `socio${dni}@sin-email.vientos.app`).trim().toLowerCase();
     const fee = planId ? { planId, dueAt: Date.now() + 30 * DAY } : null;
     const prefs = { theme: "dark", sound: true, tempPass: true };
     if (R) {
-      const u = await R.createAccount({ name, email: mail, username, phone, birth, pass, role: "socio", coachId: coachId || null, fee, prefs });
+      const u = await R.createAccount({ name, email: mail, username, phone, birth, gender, pass, role: "socio", coachId: coachId || null, fee, prefs });
       db.users.push(u); save();
       return u;
     }
     const salt = uid("s");
     const u = {
       id: uid("u"), role: "socio", status: "activo", name: name.trim(), user: username, email: email ? mail : "",
-      phone, birth, gender: "", salt, hash: await hashPass(pass, salt), coachId: coachId || null, joined: Date.now(), fee, prefs,
+      phone, birth, gender, salt, hash: await hashPass(pass, salt), coachId: coachId || null, joined: Date.now(), fee, prefs,
     };
     db.users.push(u);
     save();

@@ -898,3 +898,43 @@ a.mrow:hover, button.mrow:hover { background: var(--card2); }
 
 .paypreview { display: grid; gap: 4px; padding: 12px 14px; margin: 4px 0 14px; border-radius: 14px; background: var(--ok-soft); border: 1px solid rgba(60, 207, 126, .3); font-size: 14.5px; }
 .payrow > span { flex: 1; }
+
+.money { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+.money > div { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; display: grid; gap: 3px; }
+.money small { color: var(--muted); font-size: 13px; }
+.money b { font: 700 30px/1.05 "Barlow Condensed", sans-serif; }
+.money b.bad { color: var(--bad); }
+.money em { font-style: normal; font-size: 12.5px; color: var(--muted); }
+.money em.up { color: var(--ok); } .money em.down { color: var(--bad); }
+@media (max-width: 720px) { .money { grid-template-columns: 1fr; } }
+.hb { display: grid; gap: 10px; margin-bottom: 8px; }
+.hb-row { display: grid; grid-template-columns: minmax(90px, 34%) 1fr auto; align-items: center; gap: 10px; font-size: 14px; }
+.hb-l { color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hb-t { height: 12px; background: var(--card3); border-radius: 0 6px 6px 0; overflow: hidden; }
+.hb-t i { display: block; height: 100%; background: var(--red); border-radius: 0 4px 4px 0; }
+.hb-v { color: var(--muted); font-size: 13px; white-space: nowrap; min-width: 64px; text-align: right; }
+.hb-v b { color: var(--text); font-size: 14px; }
+.cols { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; align-items: end; height: 150px; }
+.col { display: grid; grid-template-rows: auto 1fr auto; justify-items: center; height: 100%; gap: 4px; }
+.col b { font-size: 14px; }
+.col-t { width: 60%; max-width: 34px; display: flex; align-items: flex-end; height: 100%; }
+.col-t i { display: block; width: 100%; background: var(--red); border-radius: 4px 4px 0 0; }
+.col small { color: var(--muted); font-size: 12px; text-transform: uppercase; }
+
+.weekstrip { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 14px; margin-bottom: 14px; display: grid; gap: 10px; }
+.weekstrip-h { display: flex; justify-content: space-between; align-items: baseline; }
+.weekstrip-h b { font: 700 18px "Barlow Condensed", sans-serif; text-transform: uppercase; }
+.weekstrip-h span { color: var(--muted); font-size: 13.5px; }
+.wds { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+.wd { display: grid; justify-items: center; gap: 2px; padding: 8px 0 7px; border-radius: 12px; background: var(--card2); border: 1px solid transparent; }
+.wd small { font-size: 11px; color: var(--muted); font-weight: 600; text-transform: uppercase; }
+.wd b { font: 700 20px/1 "Barlow Condensed", sans-serif; }
+.wd i { font-style: normal; font-size: 10.5px; font-weight: 700; min-height: 13px; color: #fff; }
+.wd.on { background: var(--red); }
+.wd.on small { color: rgba(255,255,255,.8); }
+.wd.on b { color: #fff; }
+.wd.is-today { border-color: var(--text2); }
+.wd.is-today:not(.on) small { color: var(--red2); }
+.wd.fut { opacity: .5; }
+
+.layout-app .weekstrip:first-child { margin-top: 14px; }

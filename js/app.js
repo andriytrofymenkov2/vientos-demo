@@ -24,7 +24,7 @@ addEventListener("beforeinstallprompt", (e) => {
 async function boot() {
   applyTheme();
   await S.init();
-  if (S.MODE === "supabase") S.remote().setErrorHandler((msg) => toast(msg, "err"));
+  if (S.MODE === "supabase") { S.remote().setErrorHandler((msg) => toast(msg, "err")); S.remote().setInfoHandler((msg) => toast(msg)); }
   restore();
   applyTheme();
   setShell(shell);

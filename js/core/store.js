@@ -22,7 +22,7 @@ let R = null;
 export const remote = () => R;
 function push(fn, ...args) {
   if (!R || typeof R[fn] !== "function") return;
-  Promise.resolve().then(() => R[fn](...args)).catch((err) => R.onError(err, fn));
+  R.send(fn, args);   /* pasa por la cola: si no hay señal, se reenvía solo */
 }
 
 export let db = null;

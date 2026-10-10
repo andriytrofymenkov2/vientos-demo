@@ -11,6 +11,7 @@ import * as S from "./store.js";
 const NOREM = "vientos_norem";          /* "recordarme" apagado → sesión solo mientras la app esté abierta */
 let sb = null;
 let errorHandler = (msg) => console.error(msg);
+let infoHandler = (msg) => console.info(msg);
 
 /* La sesión se guarda en localStorage (recordarme) o sessionStorage (no recordarme) */
 const store = () => (localStorage.getItem(NOREM) ? sessionStorage : localStorage);
@@ -128,8 +129,89 @@ async function firstSetup(prof, gym, exercises, templates) {
   if (!templates.length) must(await sb.from("templates").upsert(d.templates.map((t) => ({ id: t.id, data: strip(t, "id", "createdBy"), created_by: null }))));
 }
 
-/* Guardado del entrenamiento en curso: se agrupa para no mandar un pedido por cada toque */
-const liveTimers = {};
+/* ------------------------------------------------------- cola de envíos
+   Todo lo que se guarda (series, entrenamientos, pagos, rutinas...) entra
+   primero a una cola guardada en el celular y recién se borra de ahí cuando
+   el servidor confirma. Si no hay señal, se reintenta solo: al volver la
+   conexión, al abrir la app o cada tanto. No se pierde nada. */
+const OUTBOX = "vientos_outbox";
+const CACHE = "vientos_cache";
+const readBox = () => { try { return JSON.parse(localStorage.getItem(OUTBOX) || "[]"); } catch { return []; } };
+const writeBox = (b) => { try { localStorage.setItem(OUTBOX, JSON.stringify(b)); } catch (e) { console.warn("No se pudo guardar la cola", e); } };
+const pendingFor = (uid) => readBox().filter((x) => x.uid === uid).length;
+const LIVE = ["saveLive", "deleteLive"];
+
+/* Error de conexión (se reintenta) o error real (se avisa) */
+const isNetwork = (e) => !navigator.onLine || e?.status === 0 || e?.status >= 500
+  || /Failed to fetch|NetworkError|Load failed|network|timed? ?out|aborted|JWT expired/i.test(String(e?.message || e || ""));
+/* Si el servidor ya lo tenía (se mandó pero no llegó la respuesta), está bien */
+const isDuplicate = (e) => e?.code === "23505" || /duplicate key/i.test(String(e?.message || ""));
+
+let flushing = null, retryT = 0, retryN = 0, offline = false, staleLocal = false;
+
+function send(fn, args) {
+  const uid = S.db?.me;
+  if (!uid) return;
+  if (fn === "saveGym" && !args.length) args = [{ ...S.db.gym, plans: S.db.plans }];
+  let box = readBox();
+  /* del entrenamiento en curso alcanza con mandar el último estado */
+  if (LIVE.includes(fn)) box = box.filter((x) => !(LIVE.includes(x.fn) && x.uid === uid && x.args[0] === args[0]));
+  box.push({ k: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), uid, fn, args: JSON.parse(JSON.stringify(args)) });
+  writeBox(box);
+  clearTimeout(retryT);
+  retryT = setTimeout(flush, fn === "saveLive" ? 700 : 0);   /* las series se agrupan: no un pedido por toque */
+}
+
+function retryLater() {
+  clearTimeout(retryT);
+  retryN = Math.min(retryN + 1, 5);
+  retryT = setTimeout(flush, 2500 * 2 ** retryN);            /* 5 s, 10 s, 20 s... hasta 80 s */
+  if (!offline) { offline = true; infoHandler("Sin señal: lo que anotes queda guardado en el celular y se envía solo cuando vuelva la conexión."); }
+}
+
+function flush() {
+  if (flushing || !sb) return flushing || Promise.resolve();
+  flushing = (async () => {
+    clearTimeout(retryT);
+    let uid = null;
+    try { uid = (await sb.auth.getSession()).data.session?.user?.id; } catch { /* sin señal */ }
+    if (!uid) { if (pendingFor(S.db?.me)) retryLater(); return; }
+    let sent = 0;
+    for (;;) {
+      const item = readBox().find((x) => x.uid === uid);
+      if (!item) break;
+      try { await remoteAdapter[item.fn](...item.args); sent++; }
+      catch (e) {
+        if (!isDuplicate(e)) {
+          if (isNetwork(e)) { retryLater(); return; }
+          console.warn("No se guardó", item.fn, e);
+          errorHandler(friendly(e));                       /* error real (permiso, dato inválido): no se reintenta */
+        }
+      }
+      writeBox(readBox().filter((x) => x.k !== item.k));
+    }
+    retryN = 0;
+    if (offline) { offline = false; if (sent) infoHandler("Listo: ya se envió todo lo que anotaste sin señal."); }
+    if (staleLocal) { staleLocal = false; try { await remoteAdapter.reload(); } catch { /* después */ } }
+  })().finally(() => { flushing = null; });
+  return flushing;
+}
+addEventListener("online", () => flush());
+addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") flush(); });
+
+/* Copia de los datos del socio en el celular: si abre la app sin señal (o
+   quedó algo sin enviar) ve igual su rutina y sus kilos. Solo socios. */
+let cacheT = 0;
+function writeCache() {
+  clearTimeout(cacheT);
+  cacheT = setTimeout(() => {
+    const d = S.db, u = d?.me && d.users.find((x) => x.id === d.me);
+    if (!u || u.role !== "socio" || u.status !== "activo") return;
+    try { localStorage.setItem(CACHE, JSON.stringify({ uid: d.me, at: Date.now(), db: d })); } catch { /* sin espacio */ }
+  }, 400);
+}
+const readCache = (uid) => { try { const c = JSON.parse(localStorage.getItem(CACHE) || "null"); return c?.uid === uid ? c.db : null; } catch { return null; } };
+const withTimeout = (p, ms) => Promise.race([p, new Promise((r) => setTimeout(r, ms))]);
 
 export const remoteAdapter = {
   async boot() {
@@ -137,17 +219,35 @@ export const remoteAdapter = {
     sb = window.supabase.createClient(CONFIG.supabaseUrl, CONFIG.supabaseAnonKey, {
       auth: { storage: authStorage, storageKey: "vientos-auth", persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
     });
+    S.onChange(writeCache);
     const { data } = await sb.auth.getSession();
     if (!data.session) return publicDb();
-    try { return await loadAll(data.session.user.id); }
-    catch (e) { console.warn(e); errorHandler(friendly(e)); return emptyDb(); }
+    const uid = data.session.user.id;
+    await withTimeout(flush(), 6000);                    /* primero lo que quedó sin enviar */
+    const cached = readCache(uid);
+    try {
+      const D = await loadAll(uid);
+      if (pendingFor(uid) && cached) { staleLocal = true; retryLater(); return cached; }   /* lo del celular es más nuevo */
+      return D;
+    } catch (e) {
+      console.warn(e);
+      if (cached && isNetwork(e)) { retryLater(); return cached; }
+      errorHandler(friendly(e));
+      return emptyDb();
+    }
   },
+
+  send,
+  flush,
+  pending: () => pendingFor(S.db?.me),
 
   /* Vuelve a traer todo del servidor (rutinas nuevas, socios, avisos...).
      El entrenamiento en curso de este celular se conserva: es más nuevo que el del servidor. */
   async reload() {
     const uid = S.db.me;
     if (!uid) return false;
+    await flush();
+    if (pendingFor(uid)) throw new Error("Sin conexión");  /* no pisar lo que todavía no se envió */
     const mine = S.db.live[uid];
     const D = await loadAll(uid);
     if (mine) D.live[uid] = mine;
@@ -201,7 +301,14 @@ export const remoteAdapter = {
     if (r.error) throw new Error(friendly(r.error));
   },
   async resetPassword(id, pass) { const { error } = await sb.rpc("staff_set_password", { p_user: id, p_pass: pass }); if (error) throw new Error(friendly(error)); },
-  async deleteAccount() { const { error } = await sb.rpc("delete_my_account"); if (error) throw new Error(friendly(error)); await sb.auth.signOut(); },
+  async deleteAccount() {
+    const { error } = await sb.rpc("delete_my_account");
+    if (error) throw new Error(friendly(error));
+    const uid = S.db.me;
+    writeBox(readBox().filter((x) => x.uid !== uid));
+    localStorage.removeItem(CACHE);
+    await sb.auth.signOut();
+  },
 
   async saveRoutines(list) { must(await sb.from("routines").upsert(list.map((r) => ({ id: r.id, user_id: r.userId, active: !!r.active, data: strip(r, "id", "userId", "active"), updated_at: iso() })))); },
   async saveTemplate(t) { must(await sb.from("templates").upsert({ id: t.id, data: strip(t, "id", "createdBy"), created_by: t.createdBy || null, updated_at: iso() })); },
@@ -209,18 +316,12 @@ export const remoteAdapter = {
   async saveExercise(e) { must(await sb.from("exercises").upsert({ id: e.id, data: strip(e, "id"), updated_at: iso() })); },
   async deleteExercise(id) { must(await sb.from("exercises").delete().eq("id", id)); },
 
-  saveLive(uid, live) {
-    clearTimeout(liveTimers[uid]);
-    liveTimers[uid] = setTimeout(async () => {
-      try { must(await sb.from("live").upsert({ user_id: uid, data: live, updated_at: iso() })); }
-      catch (e) { remoteAdapter.onError(e); }
-    }, 700);
-  },
-  async deleteLive(uid) { clearTimeout(liveTimers[uid]); must(await sb.from("live").delete().eq("user_id", uid)); },
+  async saveLive(uid, live) { must(await sb.from("live").upsert({ user_id: uid, data: live, updated_at: iso() })); },
+  async deleteLive(uid) { must(await sb.from("live").delete().eq("user_id", uid)); },
   async saveLog(l) { must(await sb.from("logs").insert({ id: l.id, user_id: l.userId, at: iso(l.at), data: strip(l, "id", "userId", "at") })); },
   async savePayment(p) { must(await sb.from("payments").insert({ id: p.id, user_id: p.userId, at: iso(p.at), amount: p.amount || 0, data: strip(p, "id", "userId", "at", "amount") })); },
   async deletePayment(id) { must(await sb.from("payments").delete().eq("id", id)); },
-  async saveGym() { must(await sb.from("gym").upsert({ id: 1, data: { ...S.db.gym, plans: S.db.plans }, updated_at: iso() })); },
+  async saveGym(data) { must(await sb.from("gym").upsert({ id: 1, data: data || { ...S.db.gym, plans: S.db.plans }, updated_at: iso() })); },
   async saveNotice(n) { must(await sb.from("notices").insert({ id: n.id, at: iso(n.at), data: strip(n, "id", "at") })); },
   async deleteNotice(id) { must(await sb.from("notices").delete().eq("id", id)); },
 
@@ -235,9 +336,11 @@ export const remoteAdapter = {
   async logout() {
     try { await sb?.auth.signOut(); } catch { /* sin conexión: igual se borra la sesión local */ }
     authStorage.removeItem("vientos-auth");
+    localStorage.removeItem(CACHE);   /* lo pendiente queda en la cola y se envía cuando vuelva a entrar */
     S.setDb(await publicDb());
   },
 
   onError(err) { errorHandler(friendly(err)); },
   setErrorHandler(fn) { errorHandler = fn; },
+  setInfoHandler(fn) { infoHandler = fn; },
 };

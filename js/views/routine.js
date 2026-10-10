@@ -1,6 +1,6 @@
 /* Mi rutina: días, ejercicios y registro del entrenamiento */
 import { icon, WAVES } from "../core/icons.js";
-import { esc, fmtDate, fmtRest, fmtKg, relDay, ytId, waNumber, plural, weekStart, dayKey, DAY, $, $$, vibrate } from "../core/util.js";
+import { esc, fmtDate, fmtWeekday, fmtRest, fmtKg, relDay, ytId, waNumber, plural, weekStart, dayKey, DAY, $, $$, vibrate } from "../core/util.js";
 import * as S from "../core/store.js";
 import { me, isStaff } from "../core/auth.js";
 import { go, refresh } from "../core/router.js";
@@ -52,7 +52,6 @@ export function routineView(params) {
         <span class="kicker">${r.active ? "Mi rutina" : `Rutina anterior · ${fmtDate(r.startedAt)} al ${fmtDate(r.endedAt || Date.now())}`}</span>
         <h1>${esc(S.routineTitle(r))}</h1>
         ${r.personal ? `<p class="rhero-sub">${esc(r.name)}</p>` : ""}
-        <div class="tags">${tag(r.level)}${r.goal ? tag(r.goal) : ""}${tag(plural(r.days.length, "día", "días"))}${r.personal ? tag("Personalizada", "red") : ""}</div>
         ${coach ? `<p class="rhero-by">${icon("user", "xs")} Armada por ${esc(coach.name)} · desde el ${fmtDate(r.startedAt)}</p>` : ""}
         ${WAVES}
       </section>
@@ -141,6 +140,7 @@ export function exerciseView(params) {
   const rest = restOf(b, i, ii);
   const numeric = !/\b(s|min)$/.test(i.reps.trim());
   const lastMax = last ? Math.max(0, ...last.sets.map((s) => s.kg || 0)) : 0;
+  const lastTop = lastMax ? last.sets.find((s) => s.kg === lastMax) : null;
   const perSet = repsList(i.reps);
 
   const setRows = Array.from({ length: i.sets }, (_, n) => {
@@ -173,16 +173,18 @@ export function exerciseView(params) {
         <div class="targets">
           <div><small>Series</small><b>${i.sets}</b></div>
           <div><small>Repeticiones</small><b>${esc(repsText(i.reps))}</b></div>
-          <div><small>${lastMax ? "Última" : "Peso"}</small><b>${lastMax ? fmtKg(lastMax) : "El tuyo"}</b></div>
           <div><small>Descanso</small><b>${rest ? fmtRest(rest) : "—"}</b></div>
         </div>
         ${partners.length ? `<p class="pair">${icon("swap", "xs")} ${b.type === "contrast" ? "Contraste con" : "Se hace junto con"} ${partners.map((x) => `<a href="#/rutina/${r.id}/dia/${d.id}/ej/${x.id}">${esc(S.exercise(x.ex)?.n || "")}</a>`).join(" y ")}</p>` : ""}
         ${i.note ? `<div class="coachnote sm">${icon("note")}<p><b>Indicación del profe</b>${esc(i.note)}</p></div>` : ""}
       </section>
       <section class="sets">
-        <div class="sets-h"><h2>Series</h2>${last ? `<span class="muted">Última vez ${esc(relDay(last.at))}: ${last.sets.filter((s) => s.kg).map((s) => fmtKg(s.kg)).slice(0, 4).join(" · ") || "sin peso"}</span>` : `<span class="muted">Primera vez: poné el peso que uses vos. Queda guardado para la próxima.</span>`}</div>
+        <div class="sets-h"><h2>Series</h2>${last ? "" : `<span class="muted">Primera vez: poné el peso que uses vos. Queda guardado para la próxima.</span>`}</div>
         <div class="setlist">${setRows}</div>
-        ${best ? `<p class="pr">${icon("trophy", "xs")} Tu récord: <b>${fmtKg(best.kg)}</b> ${best.reps ? `× ${best.reps}` : ""}</p>` : ""}
+        ${best || lastTop ? `<div class="marks">
+          ${best ? `<div class="mark-pr"><small>${icon("trophy", "xs")} Tu récord</small><b>${fmtKg(best.kg)}${best.reps ? ` × ${best.reps}` : ""}</b><small>${esc(relDay(best.at))}</small></div>` : ""}
+          ${lastTop ? `<div><small>${icon("clock", "xs")} Última vez</small><b>${fmtKg(lastTop.kg)}${lastTop.reps ? ` × ${lastTop.reps}` : ""}</b><small>${esc(relDay(last.at))}</small></div>` : ""}
+        </div>` : ""}
       </section>
       <section class="howto">
         <details ${own ? "" : "open"}><summary>${icon("info", "sm")} Cómo se hace</summary>
@@ -191,11 +193,10 @@ export function exerciseView(params) {
           ${ex.sec ? `<p class="muted tiny">También trabaja: ${esc(ex.sec)}</p>` : ""}
         </details>
       </section>
-      <nav class="exnav">
-        ${prev ? `<a class="btn ghost" href="#/rutina/${r.id}/dia/${d.id}/ej/${prev.i.id}" aria-label="Ejercicio anterior">${icon("left")}</a>` : `<span></span>`}
-        <a class="btn primary exnav-day" href="#/rutina/${r.id}/dia/${d.id}">${icon("list", "sm")} Volver a ${esc(d.name)}</a>
-        ${next ? `<a class="btn ghost" href="#/rutina/${r.id}/dia/${d.id}/ej/${next.i.id}" aria-label="Ejercicio siguiente">${icon("right")}</a>` : `<span></span>`}
-      </nav>`,
+      ${prev || next ? `<nav class="exnav ${prev && next ? "" : "one"}">
+        ${prev ? `<a class="exnav-b prev" href="#/rutina/${r.id}/dia/${d.id}/ej/${prev.i.id}">${icon("left")}<span><b>Anterior</b><small>${esc(S.exercise(prev.i.ex)?.n || "")}</small></span></a>` : ""}
+        ${next ? `<a class="exnav-b next" href="#/rutina/${r.id}/dia/${d.id}/ej/${next.i.id}"><span><b>Siguiente</b><small>${esc(S.exercise(next.i.ex)?.n || "")}</small></span>${icon("right")}</a>` : ""}
+      </nav>` : ""}`,
     mount(host) {
       host.querySelector("[data-zoom]")?.addEventListener("click", () => zoomPhotos(ex));
       if (!own) return;
@@ -285,13 +286,11 @@ function weekStrip(u, r) {
     const done = logs.filter((l) => dayKey(l.at) === k);
     const fut = k > today;
     return `<div class="wd ${k === today ? "is-today" : ""} ${done.length ? "on" : ""} ${fut ? "fut" : ""}">
-      <small>${lab}</small><b>${new Date(t).getDate()}</b><i>${done.length ? esc(done.map(nameOf).join(" ")) : ""}</i></div>`;
+      <small>${lab}</small><b>${new Date(t).getDate()}</b><i>${done.length ? esc(done.map(nameOf).join(" ")) : k === today ? "Hoy" : ""}</i></div>`;
   }).join("");
-  const n = new Set(logs.map((l) => l.dayId)).size;
   return `<section class="weekstrip" aria-label="Esta semana">
-      <div class="weekstrip-h"><b>Esta semana</b><span>${n} de ${r.days.length} días hechos</span></div>
+      <div class="weekstrip-h"><b>Esta semana</b><span>Hoy es <em>${fmtWeekday(Date.now())} ${new Date().getDate()}</em></span></div>
       <div class="wds">${cells}</div>
-      <p class="tiny muted">${icon("repeat", "xs")} Cada lunes la semana arranca de cero. Tus kilos y récords quedan guardados.</p>
     </section>`;
 }
 

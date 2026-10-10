@@ -428,11 +428,11 @@ a.exrow:hover, button.exrow:hover { background: var(--card2); }
 .video-ph small { color: rgba(255, 255, 255, .62); font-size: 13px; max-width: 30ch; }
 .video-ph .waves { position: absolute; right: 14px; top: 14px; width: 80px; opacity: .4; }
 .exhead { margin-bottom: 18px; }
-.targets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
+.targets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 14px; }
 .targets > div { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 8px; display: grid; gap: 2px; text-align: center; }
 .targets small { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
 .targets b { font: 700 21px/1.1 "Barlow Condensed", sans-serif; }
-@media (max-width: 360px) { .targets { grid-template-columns: 1fr 1fr; } }
+
 .pair { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 12px; font-size: 14px; color: var(--text2); }
 .pair a { color: var(--red2); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 
@@ -467,8 +467,17 @@ a.exrow:hover, button.exrow:hover { background: var(--card2); }
 .howto li::before { content: counter(s); width: 26px; height: 26px; border-radius: 50%; background: var(--red-soft); color: var(--red2); display: grid; place-items: center; font: 700 14px "Barlow Condensed", sans-serif; }
 .tip { background: var(--card2); border-radius: 12px; padding: 12px; font-size: 14.5px; color: var(--text2); margin-bottom: 10px; }
 .howto .tiny { margin-bottom: 14px; }
-.exnav { display: grid; grid-template-columns: 54px 1fr 54px; gap: 10px; }
-.exnav > .btn:not(.exnav-day) { padding: 0; }
+.exnav { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.exnav.one { grid-template-columns: 1fr; }
+.exnav-b { display: flex; align-items: center; gap: 8px; min-height: 64px; padding: 10px 14px; border-radius: 18px; min-width: 0; transition: transform .15s; }
+.exnav-b:active { transform: scale(.97); }
+.exnav-b span { display: grid; gap: 1px; min-width: 0; flex: 1; }
+.exnav-b b { font: 700 19px/1.1 "Barlow Condensed", sans-serif; text-transform: uppercase; }
+.exnav-b small { font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .8; }
+.exnav-b .i { flex: none; width: 22px; height: 22px; }
+.exnav-b.prev { background: var(--card2); border: 1px solid var(--line2); color: var(--text); }
+.exnav-b.next { background: var(--red); color: #fff; text-align: right; box-shadow: 0 6px 18px rgba(209, 31, 42, .3); }
+.exnav.one .exnav-b.prev { text-align: left; }
 
 /* Temporizador de descanso */
 .rest {
@@ -971,3 +980,21 @@ a.mrow:hover, button.mrow:hover { background: var(--card2); }
 @keyframes exframe { 0%, 38% { opacity: 0; } 50%, 88% { opacity: 1; } 100% { opacity: 0; } }
 .ph-tag { position: absolute; left: 10px; bottom: 10px; display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 99px; background: rgba(0, 0, 0, .66); color: #fff; font-size: 12px; font-weight: 600; backdrop-filter: blur(4px); }
 @media (prefers-reduced-motion: reduce) { .ex-photo .f1 { animation: none; opacity: 0; } }
+
+/* "Hoy es sábado 10" en la semana */
+.weekstrip-h em, .weekcard-h em { font-style: normal; font-weight: 700; color: var(--text); text-transform: capitalize; }
+.wk i { display: grid; place-items: center; font: 700 16px "Barlow Condensed", sans-serif; font-style: normal; color: var(--muted); }
+.wk.is-today i { color: var(--text); }
+.wk.is-today small { color: var(--red2); font-weight: 700; }
+.wd.is-today:not(.on) i { color: var(--red2); }
+
+/* Récord y última vez, abajo de las series */
+.marks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+.marks > div { display: grid; gap: 3px; padding: 12px 14px; border-radius: 14px; background: var(--card2); border: 1px solid var(--line); min-width: 0; }
+.marks small .i { vertical-align: -2px; }
+.marks .mark-pr { background: var(--warn-soft); border-color: transparent; }
+.marks .mark-pr .i { color: var(--warn); }
+.marks small { font-size: 11.5px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.marks b { font: 700 24px/1.1 "Barlow Condensed", sans-serif; white-space: nowrap; }
+.marks small + b + small { text-transform: none; letter-spacing: 0; font-weight: 500; }
+.marks > div:only-child { grid-column: 1 / -1; }

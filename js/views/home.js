@@ -1,6 +1,6 @@
 /* Inicio del socio */
 import { icon, logo, WAVES } from "../core/icons.js";
-import { esc, greeting, firstName, waNumber, telHref, fmtDate, weekStart, dayKey, DAY, relDay, countUp, $$ } from "../core/util.js";
+import { esc, fmtWeekday, greeting, firstName, waNumber, telHref, fmtDate, weekStart, dayKey, DAY, relDay, countUp, $$ } from "../core/util.js";
 import * as S from "../core/store.js";
 import { me } from "../core/auth.js";
 import { avatar } from "../core/ui.js";
@@ -26,7 +26,7 @@ export function homeView() {
   const todayKey = dayKey();
   const week = WL.map((l, i) => {
     const k = dayKey(w0 + i * DAY);
-    return `<span class="wk ${trained.has(k) ? "on" : ""} ${k === todayKey ? "is-today" : ""}"><small>${l}</small><i></i></span>`;
+    return `<span class="wk ${trained.has(k) ? "on" : ""} ${k === todayKey ? "is-today" : ""}"><small>${k === todayKey ? "Hoy" : l}</small><i>${trained.has(k) ? "" : new Date(w0 + i * DAY).getDate()}</i></span>`;
   }).join("");
   const thisWeek = WL.filter((_, i) => trained.has(dayKey(w0 + i * DAY))).length;
   const open = S.openNow();
@@ -40,14 +40,14 @@ export function homeView() {
     const doneSets = Object.values(live.sets).flat().filter((x) => x?.done).length;
     todayCard = `<a class="today live" href="#/rutina/${live.routineId}/dia/${live.dayId}">
       <span class="kicker">${icon("bolt", "xs")} Entrenamiento en curso</span>
-      <h2>${esc(liveDay.name)} <span>${esc(liveDay.focus)}</span></h2>
+      <h2>${esc(liveDay.focus || liveDay.name)}</h2>
       <div class="bar"><i style="width:${Math.min(100, (doneSets / st.sets) * 100)}%"></i></div>
       <span class="today-cta">Continuar · ${doneSets}/${st.sets} series ${icon("arrow")}</span>${WAVES}</a>`;
   } else if (r && next) {
     const st = S.dayStats(next);
     todayCard = `<a class="today" href="#/rutina/${r.id}/dia/${next.id}">
       <span class="kicker">Hoy te toca</span>
-      <h2>${esc(next.name)} <span>${esc(next.focus)}</span></h2>
+      <h2>${esc(next.focus || next.name)}</h2>
       <span class="today-meta">${icon("dumbbell", "xs")} ${st.ex} ejercicios <i></i> ${icon("clock", "xs")} ${st.min} min <i></i> ${st.sets} series</span>
       <span class="today-cta">Ver el día ${icon("arrow")}</span>${WAVES}</a>`;
   } else {
@@ -74,7 +74,7 @@ export function homeView() {
     ${installBanner()}
     ${feeCard}
     <section class="weekcard">
-      <div class="weekcard-h"><h2>Esta semana</h2><span>${thisWeek} ${thisWeek === 1 ? "entrenamiento" : "entrenamientos"}</span></div>
+      <div class="weekcard-h"><h2>Esta semana</h2><span>Hoy es <em>${fmtWeekday(Date.now())} ${new Date().getDate()}</em></span></div>
       <div class="week">${week}</div>
       <div class="stats3">
         <div><b data-count="${month}">0</b><small>en ${new Date().toLocaleDateString("es-AR", { month: "long" })}</small></div>

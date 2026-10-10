@@ -489,24 +489,27 @@ export function feesView(params, query) {
         const p = e.target.closest("[data-pay]");
         if (p) paySheet(S.user(p.dataset.pay));
         if (e.target.closest("[data-act=plans]")) plansSheet();
-        if (e.target.closest("[data-act=convs]")) conveniosSheet();
+        if (e.target.closest("[data-act=convs]")) go("/panel/convenios");
       });
     },
   };
 }
 
 function plansSheet() {
-  const row = (p) => `<div class="planrow" data-id="${esc(p.id)}"><input type="text" name="pn" value="${esc(p.name)}" aria-label="Nombre del plan"><label class="money"><span>$</span><input type="number" name="pp" value="${p.price}" min="0" inputmode="numeric" aria-label="Precio"></label><button type="button" class="icon-btn sm" data-del aria-label="Quitar plan">${icon("trash", "sm")}</button></div>`;
+  const row = (p) => `<div class="planrow" data-id="${esc(p.id)}">
+      <label class="field"><span>Nombre del plan</span><input type="text" name="pn" value="${esc(p.name)}" placeholder="Ej: Musculación · pase libre"></label>
+      <label class="field"><span>Precio por mes</span><span class="affix"><i>$</i><input type="number" name="pp" value="${p.price || ""}" min="0" step="100" inputmode="numeric" placeholder="0"></span></label>
+      <button type="button" class="icon-btn sm" data-del aria-label="Quitar plan">${icon("trash", "sm")}</button></div>`;
   sheet({
     title: "Planes y precios",
-    html: `<form novalidate><div data-rows>${S.db.plans.map(row).join("")}</div>
+    html: `<form novalidate><p class="muted tiny">Lo que paga un socio por mes en cada plan. Los convenios se descuentan sobre este precio.</p><div data-rows>${S.db.plans.map(row).join("")}</div>
       <button type="button" class="btn ghost sm" data-add>${icon("plus", "sm")} Agregar plan</button>
       ${field({ label: "Avisar al socio antes del vencimiento", name: "rd", value: S.db.gym.reminderDays, options: [3, 5, 7, 10].map((n) => [n, plural(n, "día", "días")]) })}
       <button class="btn primary block" type="submit">Guardar</button></form>`,
     onMount(b, close) {
       const rows = $("[data-rows]", b);
       b.addEventListener("click", (e) => {
-        if (e.target.closest("[data-add]")) rows.insertAdjacentHTML("beforeend", row({ id: "p-" + Date.now().toString(36), name: "", price: 0 }));
+        if (e.target.closest("[data-add]")) { rows.insertAdjacentHTML("beforeend", row({ id: "p-" + Date.now().toString(36), name: "", price: 0 })); rows.lastElementChild.querySelector("[name=pn]").focus(); }
         const d = e.target.closest("[data-del]");
         if (d) d.closest(".planrow").remove();
       });
@@ -541,44 +544,123 @@ function priceLines(pr, charged) {
     <span>Total a cobrar <b>${money(charged)}</b>${charged !== pr.total ? ` <em>(con descuento sería ${money(pr.total)})</em>` : ""}</span>`;
 }
 
-function conveniosSheet() {
-  const row = (c) => `<div class="convrow" data-id="${esc(c.id)}">
-      <div class="convplans"><small>Vale para:</small>${S.db.plans.map((p) => `<label class="pchip"><input type="checkbox" name="cp" value="${esc(p.id)}" ${!c.planIds?.length || c.planIds.includes(p.id) ? "checked" : ""}><span>${esc(p.name)}</span></label>`).join("")}</div>
-      <input type="text" name="cn" value="${esc(c.name)}" placeholder="Empresa (ej. Enerflex)" aria-label="Empresa">
-      <select name="ct" aria-label="Tipo de descuento"><option value="pct" ${c.type !== "fixed" ? "selected" : ""}>Porcentaje %</option><option value="fixed" ${c.type === "fixed" ? "selected" : ""}>$ fijo por mes</option></select>
-      <input type="number" name="cv" value="${+c.value ? esc(c.value) : ""}" min="0" inputmode="numeric" placeholder="A definir" aria-label="Valor del descuento">
-      <button type="button" class="icon-btn sm" data-del aria-label="Quitar convenio">${icon("trash", "sm")}</button>
-      <input type="text" name="cd" value="${esc(c.data || "")}" placeholder="Datos de la empresa: contacto, teléfono, CUIT… (opcional)" aria-label="Datos de la empresa">
-    </div>`;
-  sheet({
-    title: "Convenios con empresas",
-    html: `<form novalidate>
-      <p class="muted tiny">Cargá cada empresa y su descuento. Después, al dar de alta o cobrarle a un socio, elegís su convenio y la app calcula el total. Los que dicen "A definir" ya están cargados (de las publicaciones de Vientos): falta poner el descuento.</p>
-      <div data-rows>${S.convenios().map(row).join("") || ""}</div>
-      <button type="button" class="btn ghost sm" data-add>${icon("plus", "sm")} Agregar convenio</button>
-      <p class="form-err" role="alert" hidden></p>
-      <button class="btn primary block" type="submit">Guardar</button></form>`,
-    onMount(b, close) {
-      const rows = $("[data-rows]", b), err = $(".form-err", b);
-      if (!S.convenios().length) rows.insertAdjacentHTML("beforeend", row({ id: "c-" + Date.now().toString(36), name: "", type: "pct", value: "" }));
-      b.addEventListener("click", (e) => {
-        if (e.target.closest("[data-add]")) { rows.insertAdjacentHTML("beforeend", row({ id: "c-" + Date.now().toString(36), name: "", type: "pct", value: "" })); rows.lastElementChild.querySelector("[name=cn]").focus(); }
-        const d = e.target.closest("[data-del]");
-        if (d) d.closest(".convrow").remove();
+const convPlans = (c) => (!c.planIds?.length ? "Todos los planes" : c.planIds.map((id) => S.plan(id)?.name).filter(Boolean).join(", ") || "Ningún plan");
+const convValue = (c) => (!+c.value ? "A definir" : c.type === "pct" ? `${c.value} %` : `${money(c.value)} / mes`);
+const convMembers = (id) => S.activeMembers().filter((m) => m.fee?.convenioId === id);
+const convInitials = (n) => String(n).replace(/\(.*\)/, "").trim().split(/[\s·]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+
+/* Pantalla de convenios: buscador, filtros y una ficha por empresa */
+export function conveniosView() {
+  const list = S.convenios().slice().sort((x, y) => (+!+x.value) - (+!+y.value) || x.name.localeCompare(y.name, "es"));
+  const withDisc = list.filter((c) => +c.value).length;
+  const people = S.activeMembers().filter((m) => S.convenio(m.fee?.convenioId)).length;
+  return {
+    layout: "panel", nav: "cuotas", title: "Convenios",
+    html: `${pageHead({ back: "#/panel/cuotas", kicker: "Cuotas", title: "Convenios", actions: `<button class="btn primary sm" type="button" data-act="new">${icon("plus", "sm")} Nuevo convenio</button>` })}
+      <p class="muted lead">Empresas y organizaciones con descuento ("Entrená con descuento"). Al dar de alta o cobrarle a un socio elegís su convenio y la app calcula el total.</p>
+      <section class="kpis kpis3">
+        <div class="kpi"><b>${list.length}</b><small>convenios</small></div>
+        <div class="kpi ${list.length - withDisc ? "warn" : ""}"><b>${list.length - withDisc}</b><small>sin descuento cargado</small></div>
+        <div class="kpi"><b>${people}</b><small>socios con convenio</small></div>
+      </section>
+      <div class="filters"><label class="search">${icon("search", "sm")}<input type="search" data-q placeholder="Buscar empresa u organización" aria-label="Buscar convenio"></label></div>
+      <div class="chips-scroll" role="tablist">
+        <button class="chip on" type="button" data-f="">Todos <b>${list.length}</b></button>
+        <button class="chip" type="button" data-f="ok">Con descuento <b>${withDisc}</b></button>
+        <button class="chip" type="button" data-f="todo">A definir <b>${list.length - withDisc}</b></button>
+      </div>
+      <div class="cvlist">${list.map((c) => {
+        const n = convMembers(c.id).length;
+        return `<button class="cvrow" type="button" data-cv="${esc(c.id)}" data-state="${+c.value ? "ok" : "todo"}" data-name="${esc(fold(c.name + " " + (c.data || "") + " " + (c.contact || "")))}">
+          <span class="cv-ic">${esc(convInitials(c.name))}</span>
+          <span class="cv-t"><b>${esc(c.name)}</b><small>${plural(n, "socio", "socios")} · ${esc(convPlans(c))}</small></span>
+          <span class="cv-badge ${+c.value ? "" : "todo"}">${esc(convValue(c))}</span>
+          ${icon("right", "sm")}</button>`;
+      }).join("")}</div>
+      <div data-none hidden>${empty("search", "No hay convenios con ese nombre")}</div>`,
+    mount(host) {
+      const q = $("[data-q]", host), none = $("[data-none]", host);
+      let f = "";
+      const apply = () => {
+        const t = fold(q.value.trim());
+        let shown = 0;
+        $$(".cvrow", host).forEach((r) => { const ok = (!f || r.dataset.state === f) && (!t || r.dataset.name.includes(t)); r.hidden = !ok; shown += ok; });
+        none.hidden = !!shown;
+      };
+      q.addEventListener("input", apply);
+      host.addEventListener("click", (e) => {
+        const ch = e.target.closest("[data-f]");
+        if (ch) { f = ch.dataset.f; $$("[data-f]", host).forEach((x) => x.classList.toggle("on", x === ch)); apply(); }
+        const r = e.target.closest("[data-cv]");
+        if (r) convenioSheet(S.convenio(r.dataset.cv));
+        if (e.target.closest("[data-act=new]")) convenioSheet(null);
       });
-      $("form", b).addEventListener("submit", (e) => {
+    },
+  };
+}
+
+/* Ficha de un convenio: alta o edición */
+function convenioSheet(c) {
+  const isNew = !c;
+  c = c || { id: "c-" + Date.now().toString(36), name: "", type: "pct", value: 0, planIds: [], contact: "", phone: "", data: "" };
+  const members = isNew ? [] : convMembers(c.id);
+  const ex = S.db.plans[0];
+  sheet({
+    title: isNew ? "Nuevo convenio" : "Editar convenio",
+    html: `<form novalidate class="cvform">
+      ${field({ label: "Empresa u organización", name: "name", value: c.name, req: true, ph: "Ej: Enerflex, SMATA, Policía de Santa Cruz" })}
+      <fieldset class="cvsec"><legend>Descuento</legend>
+        <div class="seg" role="radiogroup" aria-label="Tipo de descuento">
+          <label><input type="radio" name="type" value="pct" ${c.type !== "fixed" ? "checked" : ""}><span>Porcentaje</span></label>
+          <label><input type="radio" name="type" value="fixed" ${c.type === "fixed" ? "checked" : ""}><span>Monto fijo por mes</span></label>
+        </div>
+        <label class="field"><span data-vlabel></span><span class="affix"><i data-pre>$</i><input type="number" name="value" value="${+c.value ? esc(c.value) : ""}" min="0" inputmode="numeric" placeholder="A definir"><i data-suf>%</i></span>
+          <small>Si todavía no sabés el descuento, dejalo vacío: queda "A definir" y no descuenta nada.</small></label>
+        <p class="cvex" data-ex></p>
+      </fieldset>
+      <fieldset class="cvsec"><legend>Vale para</legend>
+        <div class="cvplans">${S.db.plans.map((p) => `<label class="pchip"><input type="checkbox" name="plan" value="${esc(p.id)}" ${!c.planIds?.length || c.planIds.includes(p.id) ? "checked" : ""}><span>${esc(p.name)}</span></label>`).join("")}</div>
+      </fieldset>
+      <fieldset class="cvsec"><legend>Datos de la empresa <em>(opcional)</em></legend>
+        <div class="grid2">${field({ label: "Persona de contacto", name: "contact", value: c.contact || "" })}${field({ label: "Teléfono", name: "phone", type: "tel", value: c.phone || "" })}</div>
+        ${field({ label: "Notas", name: "data", type: "textarea", value: c.data || "", ph: "CUIT, requisitos (carnet, recibo de sueldo), vigencia…" })}
+      </fieldset>
+      ${members.length ? `<fieldset class="cvsec"><legend>Socios con este convenio (${members.length})</legend>
+        <div class="mlist">${members.slice(0, 8).map((m) => `<a class="mrow" href="#/panel/socios/${m.id}">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${esc(S.plan(m.fee?.planId)?.name || "")}</small></span>${icon("right", "sm")}</a>`).join("")}</div>
+      </fieldset>` : ""}
+      <p class="form-err" role="alert" hidden></p>
+      <button class="btn primary block lg" type="submit">${icon("check", "sm")} ${isNew ? "Crear convenio" : "Guardar cambios"}</button>
+      ${isNew ? "" : `<button class="btn ghost block danger-t" type="button" data-del>${icon("trash", "sm")} Eliminar convenio</button>`}
+    </form>`,
+    onMount(b, close) {
+      const f = $("form", b), err = $(".form-err", b);
+      const draw = () => {
+        const fixed = f.type.value === "fixed", v = +f.value.value || 0;
+        $("[data-vlabel]", b).textContent = fixed ? "Monto que se descuenta por mes" : "Porcentaje de descuento";
+        $("[data-pre]", b).hidden = !fixed; $("[data-suf]", b).hidden = fixed;
+        const disc = !v || !ex ? 0 : fixed ? Math.min(ex.price, v) : Math.round((ex.price * v) / 100);
+        $("[data-ex]", b).innerHTML = v && ex ? `Ejemplo: ${esc(ex.name)} <s>${money(ex.price)}</s> → <b>${money(ex.price - disc)}</b> por mes` : "";
+      };
+      f.addEventListener("input", draw); f.addEventListener("change", draw); draw();
+      f.addEventListener("submit", (e) => {
         e.preventDefault();
-        const all = S.db.plans.map((p) => p.id);
-        const list = $$(".convrow", b).map((r) => {
-          const on = $$("[name=cp]:checked", r).map((x) => x.value);
-          return { id: r.dataset.id, name: r.querySelector("[name=cn]").value.trim(), type: r.querySelector("[name=ct]").value, value: +r.querySelector("[name=cv]").value || 0, planIds: on.length === all.length ? [] : on, data: r.querySelector("[name=cd]").value.trim() };
-        }).filter((c) => c.name);
-        const bad = list.find((c) => c.value < 0 || (c.type === "pct" && c.value > 100));
-        if (bad) { err.textContent = `Revisá el descuento de ${bad.name}${bad.type === "pct" ? " (entre 1 y 100 %)" : ""}.`; err.hidden = false; return; }
-        const noPlan = $$(".convrow", b).find((r) => r.querySelector("[name=cn]").value.trim() && !$$("[name=cp]:checked", r).length);
-        if (noPlan) { err.textContent = `Marcá al menos un plan para ${noPlan.querySelector("[name=cn]").value.trim()}.`; err.hidden = false; return; }
-        S.api.saveConvenios(list);
-        close(); toast("Convenios guardados"); refresh();
+        const fail = (m) => { err.textContent = m; err.hidden = false; };
+        const name = f.name.value.trim(), type = f.type.value, value = +f.value.value || 0;
+        const on = $$("[name=plan]:checked", f).map((x) => x.value);
+        if (!name) return fail("Escribí el nombre de la empresa.");
+        if (S.convenios().some((x) => x.id !== c.id && fold(x.name) === fold(name))) return fail("Ya hay un convenio con ese nombre.");
+        if (value < 0 || (type === "pct" && value > 100)) return fail("El porcentaje tiene que ser entre 1 y 100.");
+        if (!on.length) return fail("Marcá al menos un plan.");
+        const next = { ...c, name, type, value, planIds: on.length === S.db.plans.length ? [] : on, contact: f.contact.value.trim(), phone: f.phone.value.trim(), data: f.data.value.trim() };
+        const list = S.convenios().filter((x) => x.id !== c.id);
+        S.api.saveConvenios(isNew ? [...list, next] : S.convenios().map((x) => (x.id === c.id ? next : x)));
+        close(); toast(isNew ? "Convenio creado" : "Convenio guardado"); refresh();
+      });
+      $("[data-del]", b)?.addEventListener("click", async () => {
+        const ok = await confirmDialog({ title: `¿Eliminar ${c.name}?`, text: members.length ? `${plural(members.length, "socio queda", "socios quedan")} sin convenio. Los pagos ya hechos no cambian.` : "Los pagos ya hechos no cambian.", ok: "Eliminar", danger: true });
+        if (!ok) return;
+        S.api.saveConvenios(S.convenios().filter((x) => x.id !== c.id));
+        close(); toast("Convenio eliminado"); refresh();
       });
     },
   });
@@ -718,7 +800,7 @@ export function qrView() {
 export function moreView() {
   const items = [
     ["#/panel/cuotas", "card", "Cuotas"], ["#/panel/avisos", "bell", "Avisos a los socios"],
-    ...(isAdmin() ? [["#/panel/gimnasio", "settings", "Datos del gimnasio y equipo"]] : []),
+    ...(isAdmin() ? [["#/panel/convenios", "card", "Convenios"], ["#/panel/gimnasio", "settings", "Datos del gimnasio y equipo"]] : []),
     ["#/panel/qr", "qr", "QR de la app"], ["#/panel/cuenta", "user", "Mi cuenta"],
   ];
   return {

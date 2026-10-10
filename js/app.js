@@ -11,7 +11,7 @@ import { progressView } from "./views/progress.js";
 import { profileView } from "./views/profile.js";
 import { installView } from "./views/install.js";
 import { assistantView } from "./views/assistant.js";
-import { panelHome, membersView, memberView, previewView, feesView, noticesView, gymView, qrView, moreView } from "./views/panel.js";
+import { panelHome, membersView, memberView, previewView, feesView, conveniosView, noticesView, gymView, qrView, moreView } from "./views/panel.js";
 import { routineEditorView, templateEditorView, templatesView, exercisesView } from "./views/editor.js";
 
 /* Android/Chrome avisa cuando la app se puede instalar: se guarda para el botón */
@@ -55,6 +55,7 @@ async function boot() {
   route("/panel/plantilla/:id", templateEditorView, staff);
   route("/panel/ejercicios", exercisesView, staff);
   route("/panel/cuotas", feesView, staff);
+  route("/panel/convenios", conveniosView, { staff: true, admin: true });
   route("/panel/avisos", noticesView, staff);
   route("/panel/gimnasio", gymView, { staff: true, admin: true });
   route("/panel/qr", qrView, staff);

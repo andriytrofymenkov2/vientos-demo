@@ -162,10 +162,11 @@ export function exerciseView(params) {
     html: `${pageHead({ back: `#/rutina/${r.id}/dia/${d.id}`, kicker: `${d.name} · ${k + 1} de ${flat.length}`, title: ex.n })}
       <div class="video">${yt
         ? `<iframe src="https://www.youtube-nocookie.com/embed/${yt}?rel=0&modestbranding=1&playsinline=1" title="Video: ${esc(ex.n)}" allow="encrypted-media; picture-in-picture" allowfullscreen loading="lazy"></iframe>`
-        : exPhoto(ex) ? `<div class="ex-photo">
+        : exPhoto(ex) ? `<button class="ex-photo" type="button" data-zoom aria-label="Ver la imagen en grande">
             <img class="f0" src="${exPhoto(ex)}" alt="${esc(ex.n)}: posición inicial">
             ${exPhoto(ex, 1) ? `<img class="f1" src="${exPhoto(ex, 1)}" alt="${esc(ex.n)}: posición final">` : ""}
-            <span class="ph-tag">${icon("video", "xs")} Imagen de referencia · video próximamente</span></div>`
+            <span class="ph-tag">${icon("video", "xs")} Imagen de referencia · video próximamente</span>
+            <span class="ph-zoom">${icon("search", "xs")} Tocá para agrandar</span></button>`
         : `<div class="video-ph">${exTile(ex, "xl")}<span>${icon("video", "sm")} Video próximamente</span><small>Lo graba el equipo de Vientos con las máquinas del gimnasio</small>${WAVES}</div>`}</div>
       <section class="exhead">
         <div class="tags">${tag(ex.g)}${ex.eq ? tag(ex.eq) : ""}${b.type !== "single" ? tag(`${BLOCK_TYPES[b.type].label} ${letter(bi, ii)}`, "red") : ""}</div>
@@ -196,6 +197,7 @@ export function exerciseView(params) {
         ${next ? `<a class="btn ghost" href="#/rutina/${r.id}/dia/${d.id}/ej/${next.i.id}" aria-label="Ejercicio siguiente">${icon("right")}</a>` : `<span></span>`}
       </nav>`,
     mount(host) {
+      host.querySelector("[data-zoom]")?.addEventListener("click", () => zoomPhotos(ex));
       if (!own) return;
       const ensure = () => {
         const s = S.session(u.id);
@@ -291,4 +293,21 @@ function weekStrip(u, r) {
       <div class="wds">${cells}</div>
       <p class="tiny muted">${icon("repeat", "xs")} Cada lunes la semana arranca de cero. Tus kilos y récords quedan guardados.</p>
     </section>`;
+}
+
+/* Imagen de referencia a pantalla completa: posición inicial y final, una debajo de la otra */
+function zoomPhotos(ex) {
+  const el = document.createElement("div");
+  el.className = "zoom";
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-label", ex.n);
+  el.innerHTML = `<div class="zoom-in">
+      <figure><img src="${exPhoto(ex)}" alt="${esc(ex.n)}: posición inicial"><figcaption>Así empezás</figcaption></figure>
+      ${exPhoto(ex, 1) ? `<figure><img src="${exPhoto(ex, 1)}" alt="${esc(ex.n)}: posición final"><figcaption>Así terminás</figcaption></figure>` : ""}
+    </div>
+    <button class="btn primary block lg zoom-x" type="button">${icon("x")} Cerrar</button>`;
+  const close = () => { el.remove(); removeEventListener("hashchange", close); };
+  el.querySelector(".zoom-x").addEventListener("click", close);
+  addEventListener("hashchange", close);
+  document.body.append(el);
 }

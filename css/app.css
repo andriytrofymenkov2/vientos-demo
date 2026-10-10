@@ -953,8 +953,19 @@ a.mrow:hover, button.mrow:hover { background: var(--card2); }
 .extile.photo { background: #fff; border-color: var(--line2); }
 .extile.photo::before { display: none; }
 .extile.photo img { width: 100%; height: 100%; object-fit: cover; }
-.video:has(.ex-photo) { aspect-ratio: 3 / 2; background: #fff; }
-.ex-photo { position: absolute; inset: 0; }
+.extile.photo:not(.sm) { width: 104px; height: 78px; border-radius: 14px; }
+.extile.photo.sm { width: 64px; height: 48px; }
+/* En el celular la foto va de borde a borde */
+.video:has(.ex-photo) { aspect-ratio: 3 / 2; background: #fff; margin-left: -16px; margin-right: -16px; border-radius: 0; border: 0; }
+@media (min-width: 592px) { .video:has(.ex-photo) { margin-left: 0; margin-right: 0; border-radius: 20px; } }
+.ex-photo { position: absolute; inset: 0; width: 100%; padding: 0; border: 0; background: none; cursor: zoom-in; }
+.ph-zoom { position: absolute; right: 10px; top: 10px; display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 99px; background: rgba(0, 0, 0, .66); color: #fff; font-size: 12px; font-weight: 600; }
+.zoom { position: fixed; inset: 0; z-index: 200; background: #000; overflow-y: auto; display: flex; flex-direction: column; padding: calc(12px + env(safe-area-inset-top)) 0 calc(16px + env(safe-area-inset-bottom)); animation: viewin .2s ease-out; }
+.zoom-in { flex: 1; display: grid; gap: 12px; align-content: center; }
+.zoom figure { margin: 0; background: #fff; }
+.zoom img { display: block; width: 100%; height: auto; }
+.zoom figcaption { background: #000; color: #fff; padding: 8px 16px 0; font-weight: 700; font-size: 16px; }
+.zoom-x { margin: 16px 16px 0; width: auto; }
 .ex-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .ex-photo .f1 { animation: exframe 3.2s ease-in-out infinite; }
 @keyframes exframe { 0%, 38% { opacity: 0; } 50%, 88% { opacity: 1; } 100% { opacity: 0; } }

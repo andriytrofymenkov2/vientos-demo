@@ -998,3 +998,18 @@ a.mrow:hover, button.mrow:hover { background: var(--card2); }
 .marks b { font: 700 24px/1.1 "Barlow Condensed", sans-serif; white-space: nowrap; }
 .marks small + b + small { text-transform: none; letter-spacing: 0; font-weight: 500; }
 .marks > div:only-child { grid-column: 1 / -1; }
+
+/* Convenios */
+.convrow { display: grid; grid-template-columns: 1fr 150px 96px auto; gap: 8px; padding: 10px 0 12px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.convrow input, .convrow select { height: 44px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg2); color: var(--text); padding: 0 10px; min-width: 0; font: inherit; }
+.convrow [name=cd] { grid-column: 1 / -1; }
+@media (max-width: 560px) { .convrow { grid-template-columns: 1fr 1fr auto; } .convrow [name=cn] { grid-column: 1 / -1; } }
+.paypreview .disc { color: var(--ok); }
+.paypreview em { font-style: normal; color: var(--muted); }
+.convplans { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; order: 9; }
+.convplans small { color: var(--muted); font-size: 12.5px; margin-right: 2px; }
+.pchip { display: inline-flex; }
+.pchip input { position: absolute; opacity: 0; pointer-events: none; }
+.pchip span { padding: 6px 10px; border-radius: 99px; border: 1px solid var(--line2); font-size: 12.5px; color: var(--muted); cursor: pointer; }
+.pchip input:checked + span { background: var(--red-soft, rgba(209, 31, 42, .15)); border-color: var(--red); color: var(--text); }
+.pchip input:focus-visible + span { outline: 2px solid var(--text2); }

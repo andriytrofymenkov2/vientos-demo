@@ -54,7 +54,7 @@ export function panelHome() {
   const pm0 = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
   const paid = (a, b) => S.db.payments.filter((p) => p.at >= a && p.at < b).reduce((x, p) => x + (p.amount || 0), 0);
   const thisMonth = paid(m0, m1), lastMonth = paid(pm0, m0);
-  const priceOf = (m) => S.plan(m.fee?.planId)?.price || 0;
+  const priceOf = (m) => S.priceWith(m.fee?.planId, 1, m.fee?.convenioId).total;
   const toCollect = act.filter((m) => m.fee?.dueAt >= Date.now() && m.fee.dueAt < m1);
   const owed = late.reduce((x, m) => x + priceOf(m), 0);
   const diff = lastMonth ? Math.round(((thisMonth - lastMonth) / lastMonth) * 100) : null;
@@ -77,6 +77,8 @@ export function panelHome() {
     return { label: MONTHS[a.getMonth()], n: S.db.users.filter((x) => x.role === "socio" && x.joined >= a.getTime() && x.joined < b.getTime()).length };
   });
   const avgAge = ages.filter((x) => x !== null);
+  const convRows = S.convenios().map((c) => ({ label: c.name, n: act.filter((m) => m.fee?.convenioId === c.id).length }));
+  if (convRows.length) convRows.push({ label: "Sin convenio", n: act.filter((m) => !S.convenio(m.fee?.convenioId)).length });
 
   return {
     layout: "panel", nav: "resumen", title: "Resumen",
@@ -107,6 +109,7 @@ export function panelHome() {
         ${admin ? `
         <section class="card"><div class="card-h"><h2>${icon("userplus", "sm")} Socios nuevos por mes</h2><span class="muted">últimos 6 meses</span></div>${cols(altas)}</section>
         <section class="card"><div class="card-h"><h2>${icon("card", "sm")} Socios por plan</h2></div>${hbars(planRows, act.length)}</section>
+        ${convRows.length ? `<section class="card"><div class="card-h"><h2>${icon("card", "sm")} Socios por convenio</h2></div>${hbars(convRows, act.length)}</section>` : ""}
         <section class="card"><div class="card-h"><h2>${icon("users", "sm")} Mujeres y hombres</h2></div>${hbars(genRows, act.length)}</section>
         <section class="card"><div class="card-h"><h2>${icon("calendar", "sm")} Edades</h2>${avgAge.length ? `<span class="muted">promedio ${Math.round(avgAge.reduce((a, b) => a + b, 0) / avgAge.length)} años</span>` : ""}</div>${hbars(ageRows, act.length)}</section>`
         : `<section class="card"><div class="card-h"><h2>${icon("users", "sm")} Mis socios</h2><span class="muted">${mine.length}</span></div>
@@ -219,15 +222,20 @@ function newMemberSheet() {
       ${field({ label: "Email (opcional)", name: "email", type: "email", ph: "Para recuperar la contraseña" })}
       ${field({ label: "Profe a cargo", name: "coach", value: me().role === "profe" ? me().id : "", options: [["", "Sin asignar"], ...S.coaches().map((c) => [c.id, c.name])] })}
       <fieldset class="paybox"><legend>Cuota</legend>
-        <div class="grid2">${field({ label: "Plan", name: "plan", value: p0?.id, options: S.db.plans.map((p) => [p.id, p.name]) })}${field({ label: "Monto cobrado", name: "amount", type: "number", value: p0?.price || "", attrs: 'inputmode="numeric" min="0"' })}</div>
+        <div class="grid2">${field({ label: "Plan", name: "plan", value: p0?.id, options: S.db.plans.map((p) => [p.id, p.name]) })}${convField() || `<span></span>`}</div>
+        ${field({ label: "Monto cobrado", name: "amount", type: "number", value: p0?.price || "", attrs: 'inputmode="numeric" min="0"' })}
+        <div class="paypreview" data-preview></div>
         <label class="check"><input type="checkbox" name="paid" checked><span>Ya pagó: registrar el pago y la cuota vence en un mes</span></label>
       </fieldset>
       <p class="muted tiny">Va a entrar con su DNI como usuario y contraseña. La primera vez, la app le pide elegir su propia contraseña.</p>
       <p class="form-err" role="alert" hidden></p>
       <button class="btn primary block" type="submit">${icon("userplus", "sm")} Crear socio</button></form>`,
     onMount(b, close) {
-      const f = $("form", b), err = $(".form-err", b);
-      f.plan.addEventListener("change", () => { f.amount.value = S.plan(f.plan.value)?.price || ""; });
+      const f = $("form", b), err = $(".form-err", b), pv = $("[data-preview]", b);
+      const sync = () => { const pr = S.priceWith(f.plan.value, 1, f.conv?.value); f.amount.value = pr.total || ""; pv.innerHTML = priceLines(pr, +f.amount.value); };
+      f.plan.addEventListener("change", sync); f.conv?.addEventListener("change", sync);
+      f.amount.addEventListener("input", () => { pv.innerHTML = priceLines(S.priceWith(f.plan.value, 1, f.conv?.value), +f.amount.value); });
+      sync();
       f.addEventListener("submit", async (e) => {
         e.preventDefault();
         const d = formData(f);
@@ -242,8 +250,8 @@ function newMemberSheet() {
         const btn = $("button[type=submit]", f);
         btn.disabled = true;
         try {
-          const m = await S.api.createMember({ name: `${d.first.trim()} ${d.last.trim()}`, dni, email: d.email.trim(), phone: d.phone, birth: d.birth, gender: d.gender, pass, coachId: d.coach, planId: d.paid ? null : d.plan });
-          if (d.paid) S.api.registerPayment(m.id, { planId: d.plan, months: 1, amount: +d.amount || 0, by: me().id });
+          const m = await S.api.createMember({ name: `${d.first.trim()} ${d.last.trim()}`, dni, email: d.email.trim(), phone: d.phone, birth: d.birth, gender: d.gender, pass, coachId: d.coach, planId: d.paid ? null : d.plan, convenioId: d.conv || null });
+          if (d.paid) S.api.registerPayment(m.id, { planId: d.plan, months: 1, amount: +d.amount || 0, by: me().id, convenioId: d.conv || null });
           close(); go("/panel/socios/" + m.id);
           setTimeout(() => credentialsSheet(S.user(m.id) || m, pass), 300);
         } catch (e2) { fail(e2.message); btn.disabled = false; }
@@ -338,9 +346,10 @@ export function memberView(params) {
           ${logs.slice(0, 5).map((l) => `<div class="hrow"><span><b>${esc(l.dayName)} · ${esc(l.focus)}</b><small>${esc(relDay(l.at))} · ${l.min} min${l.sets.length ? ` · ${l.sets.length} series` : ""}</small></span></div>`).join("") || `<p class="muted">Sin entrenamientos registrados.</p>`}
         </section>
         <section class="card"><div class="card-h"><h2>${icon("card", "sm")} Cuota</h2>${feePill(m)}</div>
-          ${m.fee ? `<dl class="kv"><div><dt>Plan</dt><dd>${esc(p?.name || "—")}</dd></div><div><dt>Vence</dt><dd>${fmtDate(m.fee.dueAt, { year: true })}</dd></div></dl>` : `<p class="muted">Sin cuota cargada.</p>`}
+          ${m.fee?.dueAt ? `<dl class="kv"><div><dt>Plan</dt><dd>${esc(p?.name || "—")}</dd></div><div><dt>Vence</dt><dd>${fmtDate(m.fee.dueAt, { year: true })}</dd></div></dl>` : `<p class="muted">Sin cuota cargada.</p>`}
+          ${S.convenios().length ? `<label class="field"><span>Convenio</span><select data-conv>${convOptions(m.fee?.convenioId).map(([v, l]) => `<option value="${esc(v)}" ${v === (m.fee?.convenioId || "") ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}
           <div class="row-btns"><button class="btn primary sm" type="button" data-act="pay">${icon("check", "sm")} Registrar pago</button><button class="btn ghost sm" type="button" data-act="due">Cambiar vencimiento</button></div>
-          ${pays.length ? `<h3 class="sub">Pagos</h3>${pays.map((x, i) => `<div class="hrow payrow"><span><b>${money(x.amount)} · ${plural(x.months || 1, "mes", "meses")}</b><small>${x.from ? `Cubre ${fmtDate(x.from)} al ${fmtDate(x.to, { year: true })}` : esc(S.plan(x.planId)?.name || "")} · cobrado el ${fmtDate(x.at)}</small></span>${i === 0 ? `<button class="btn ghost sm danger-t" type="button" data-unpay="${x.id}">Anular</button>` : ""}</div>`).join("")}` : ""}
+          ${pays.length ? `<h3 class="sub">Pagos</h3>${pays.map((x, i) => `<div class="hrow payrow"><span><b>${money(x.amount)} · ${plural(x.months || 1, "mes", "meses")}</b><small>${x.from ? `Cubre ${fmtDate(x.from)} al ${fmtDate(x.to, { year: true })}` : esc(S.plan(x.planId)?.name || "")} · cobrado el ${fmtDate(x.at)}${x.discount ? ` · convenio ${esc(x.discount.name)} (−${money(x.discount.amount)})` : ""}</small></span>${i === 0 ? `<button class="btn ghost sm danger-t" type="button" data-unpay="${x.id}">Anular</button>` : ""}</div>`).join("")}` : ""}
         </section>
         <section class="card"><div class="card-h"><h2>${icon("settings", "sm")} Cuenta</h2></div>
           ${field({ label: "Profe a cargo", name: "coach", value: m.coachId || "", options: [["", "Sin asignar"], ...S.coaches().map((c) => [c.id, c.name])], attrs: "data-coach" })}
@@ -350,6 +359,7 @@ export function memberView(params) {
       </div>`,
     mount(host) {
       $("[data-coach]", host).addEventListener("change", (e) => { S.api.updateUser(m.id, { coachId: e.target.value || null }); toast("Profe actualizado"); });
+      $("[data-conv]", host)?.addEventListener("change", (e) => { S.api.setConvenio(m.id, e.target.value || null); toast(e.target.value ? "Convenio asignado: se aplica en el próximo pago" : "Convenio quitado"); });
       host.addEventListener("click", async (e) => {
         const a = e.target.closest("[data-act]")?.dataset.act;
         if (a === "assign") assignSheet({ userId: m.id });
@@ -385,7 +395,8 @@ export function paySheet(m, onDone) {
     html: `<form novalidate>
       <div class="mrow plain">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${m.fee ? `Cuota actual: ${esc(st.label)}${m.fee.dueAt ? ` · vence ${fmtDate(m.fee.dueAt)}` : ""}` : "Sin cuota cargada"}</small></span></div>
       ${field({ label: "Plan", name: "plan", value: cur, options: S.db.plans.map((p) => [p.id, `${p.name} · ${money(p.price)}`]) })}
-      <div class="grid2">${field({ label: "Meses que paga", name: "months", value: 1, options: [1, 2, 3, 6, 12].map((n) => [n, plural(n, "mes", "meses")]) })}${field({ label: "Monto cobrado", name: "amount", type: "number", value: S.plan(cur)?.price || "", attrs: 'inputmode="numeric" min="0"' })}</div>
+      ${convField(m.fee?.convenioId)}
+      <div class="grid2">${field({ label: "Meses que paga", name: "months", value: 1, options: [1, 2, 3, 6, 12].map((n) => [n, plural(n, "mes", "meses")]) })}${field({ label: "Monto cobrado", name: "amount", type: "number", value: S.priceWith(cur, 1, m.fee?.convenioId).total || "", attrs: 'inputmode="numeric" min="0"' })}</div>
       ${canChain ? `<fieldset class="radios"><legend>Desde cuándo cuenta</legend>
         <label class="radio"><input type="radio" name="from" value="due" checked><span><b>Desde que vence la actual (${fmtDate(m.fee.dueAt)})</b><small>Pagó por adelantado: se suma al final.</small></span></label>
         <label class="radio"><input type="radio" name="from" value="today"><span><b>Desde hoy</b><small>Arranca hoy, sin sumarse a lo que ya tenía.</small></span></label>
@@ -399,9 +410,9 @@ export function paySheet(m, onDone) {
         const from = d.from === "due" && canChain ? m.fee.dueAt : day0.getTime();
         return { d, from, to: plusMonths(from, +d.months) };
       };
-      const draw = () => { const { d, from, to } = calc(); pv.innerHTML = `<span>Cubre del <b>${fmtDate(from)}</b> al <b>${fmtDate(to, { year: true })}</b></span><span>Nuevo vencimiento: <b>${fmtDate(to, { year: true })}</b> · ${money(+d.amount || 0)}</span>`; };
-      const sync = () => { const d = formData(f); f.amount.value = (S.plan(d.plan)?.price || 0) * +d.months; draw(); };
-      f.plan.addEventListener("change", sync); f.months.addEventListener("change", sync);
+      const draw = () => { const { d, from, to } = calc(); pv.innerHTML = `${priceLines(S.priceWith(d.plan, +d.months, d.conv), +d.amount || 0)}<span>Cubre del <b>${fmtDate(from)}</b> al <b>${fmtDate(to, { year: true })}</b></span><span>Nuevo vencimiento: <b>${fmtDate(to, { year: true })}</b></span>`; };
+      const sync = () => { const d = formData(f); f.amount.value = S.priceWith(d.plan, +d.months, d.conv).total; draw(); };
+      f.plan.addEventListener("change", sync); f.months.addEventListener("change", sync); f.conv?.addEventListener("change", sync);
       f.addEventListener("input", draw); f.addEventListener("change", draw);
       draw();
       let sent = false;
@@ -410,7 +421,7 @@ export function paySheet(m, onDone) {
         if (sent) return;                         /* evita registrar dos veces con un doble toque */
         sent = true; $("button[type=submit]", f).disabled = true;
         const { d, from } = calc();
-        S.api.registerPayment(m.id, { planId: d.plan, months: +d.months, amount: +d.amount || 0, by: me().id, from });
+        S.api.registerPayment(m.id, { planId: d.plan, months: +d.months, amount: +d.amount || 0, by: me().id, from, convenioId: d.conv || null });
         close(); toast(`Pago registrado. Vence el ${fmtDate(S.user(m.id).fee.dueAt)}`);
         onDone ? onDone() : refresh();
       });
@@ -456,7 +467,7 @@ export function feesView(params, query) {
   const chips = [["", "Todos", act.length], ["late", "Vencidas", by.late.length], ["soon", "Por vencer", by.soon.length], ["ok", "Al día", by.ok.length], ["none", "Sin cuota", by.none.length]];
   return {
     layout: "panel", nav: "cuotas", title: "Cuotas",
-    html: `${pageHead({ title: "Cuotas", actions: isAdmin() ? `<button class="btn ghost sm" type="button" data-act="plans">${icon("settings", "sm")} Planes y precios</button>` : "" })}
+    html: `${pageHead({ title: "Cuotas", actions: isAdmin() ? `<button class="btn ghost sm" type="button" data-act="convs">${icon("card", "sm")} Convenios</button><button class="btn ghost sm" type="button" data-act="plans">${icon("settings", "sm")} Planes y precios</button>` : "" })}
       <section class="kpis">
         <div class="kpi"><b>${by.ok.length}</b><small>al día</small></div>
         <div class="kpi warn"><b>${by.soon.length}</b><small>vencen en ${S.db.gym.reminderDays} días</small></div>
@@ -468,7 +479,7 @@ export function feesView(params, query) {
       <div class="mlist">${list.map((m) => {
         const st = S.feeStatus(m);
         const msg = st.state === "late" ? `Hola ${firstName(m.name)}! Te escribimos de Vientos: tu cuota venció el ${fmtDate(m.fee.dueAt)}. ¿Pasás a regularizarla? 💪` : `Hola ${firstName(m.name)}! Te recordamos que tu cuota de Vientos vence el ${m.fee ? fmtDate(m.fee.dueAt) : ""}.`;
-        return `<div class="mrow">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${esc(S.plan(m.fee?.planId)?.name || "Sin plan")}${m.fee ? " · vence " + fmtDate(m.fee.dueAt) : ""}</small></span>
+        return `<div class="mrow">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${esc(S.plan(m.fee?.planId)?.name || "Sin plan")}${S.convenio(m.fee?.convenioId) ? " · " + esc(S.convenio(m.fee.convenioId).name) : ""}${m.fee?.dueAt ? " · vence " + fmtDate(m.fee.dueAt) : ""}</small></span>
           ${feePill(m)}
           ${(st.state === "late" || st.state === "soon") && m.phone ? `<a class="icon-btn" href="https://wa.me/${waNumber(m.phone)}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener" aria-label="Recordar por WhatsApp a ${esc(m.name)}">${icon("whatsapp", "sm")}</a>` : ""}
           <button class="btn ghost sm" type="button" data-pay="${m.id}">Cobrar</button></div>`;
@@ -478,6 +489,7 @@ export function feesView(params, query) {
         const p = e.target.closest("[data-pay]");
         if (p) paySheet(S.user(p.dataset.pay));
         if (e.target.closest("[data-act=plans]")) plansSheet();
+        if (e.target.closest("[data-act=convs]")) conveniosSheet();
       });
     },
   };
@@ -505,6 +517,68 @@ function plansSheet() {
         S.api.savePlans(plans);
         S.api.saveGym({ reminderDays: +formData(e.target).rd });
         close(); toast("Planes guardados"); refresh();
+      });
+    },
+  });
+}
+
+/* ------------------------------------------------------------- convenios
+   Empresas con descuento (ej. Enerflex): porcentaje o monto fijo por mes.
+   Se asigna al socio y se aplica solo al registrar cada pago. */
+function convOptions() {
+  return [["", "Sin convenio"], ...S.convenios().filter((c) => c.active !== false).map((c) => [c.id, S.convLabel(c)])];
+}
+function convField(value = "") {
+  if (!S.convenios().length) return "";
+  return field({ label: "Convenio", name: "conv", value: S.convenio(value) ? value : "", options: convOptions() });
+}
+/* "Precio de lista $40.000 · Convenio Enerflex −15 % ($6.000) · Total $34.000" */
+function priceLines(pr, charged) {
+  const why = pr.conv && !pr.c ? `<span class="muted">${esc(pr.conv.name)}: ${+pr.conv.value ? "no aplica a este plan" : "falta cargar el descuento (Cuotas › Convenios)"}</span>` : "";
+  if (!pr.c) return why + charged !== pr.total && pr.total ? `<span>Precio de lista <b>${money(pr.list)}</b> · cobrás <b>${money(charged)}</b></span>` : `<span>Total a cobrar <b>${money(charged)}</b></span>`;
+  return `<span>Precio de lista <b>${money(pr.list)}</b></span>
+    <span class="disc">Convenio ${esc(pr.c.name)} ${pr.c.type === "pct" ? `−${esc(pr.c.value)} %` : "monto fijo"}: <b>−${money(pr.disc)}</b></span>
+    <span>Total a cobrar <b>${money(charged)}</b>${charged !== pr.total ? ` <em>(con descuento sería ${money(pr.total)})</em>` : ""}</span>`;
+}
+
+function conveniosSheet() {
+  const row = (c) => `<div class="convrow" data-id="${esc(c.id)}">
+      <div class="convplans"><small>Vale para:</small>${S.db.plans.map((p) => `<label class="pchip"><input type="checkbox" name="cp" value="${esc(p.id)}" ${!c.planIds?.length || c.planIds.includes(p.id) ? "checked" : ""}><span>${esc(p.name)}</span></label>`).join("")}</div>
+      <input type="text" name="cn" value="${esc(c.name)}" placeholder="Empresa (ej. Enerflex)" aria-label="Empresa">
+      <select name="ct" aria-label="Tipo de descuento"><option value="pct" ${c.type !== "fixed" ? "selected" : ""}>Porcentaje %</option><option value="fixed" ${c.type === "fixed" ? "selected" : ""}>$ fijo por mes</option></select>
+      <input type="number" name="cv" value="${+c.value ? esc(c.value) : ""}" min="0" inputmode="numeric" placeholder="A definir" aria-label="Valor del descuento">
+      <button type="button" class="icon-btn sm" data-del aria-label="Quitar convenio">${icon("trash", "sm")}</button>
+      <input type="text" name="cd" value="${esc(c.data || "")}" placeholder="Datos de la empresa: contacto, teléfono, CUIT… (opcional)" aria-label="Datos de la empresa">
+    </div>`;
+  sheet({
+    title: "Convenios con empresas",
+    html: `<form novalidate>
+      <p class="muted tiny">Cargá cada empresa y su descuento. Después, al dar de alta o cobrarle a un socio, elegís su convenio y la app calcula el total. Los que dicen "A definir" ya están cargados (de las publicaciones de Vientos): falta poner el descuento.</p>
+      <div data-rows>${S.convenios().map(row).join("") || ""}</div>
+      <button type="button" class="btn ghost sm" data-add>${icon("plus", "sm")} Agregar convenio</button>
+      <p class="form-err" role="alert" hidden></p>
+      <button class="btn primary block" type="submit">Guardar</button></form>`,
+    onMount(b, close) {
+      const rows = $("[data-rows]", b), err = $(".form-err", b);
+      if (!S.convenios().length) rows.insertAdjacentHTML("beforeend", row({ id: "c-" + Date.now().toString(36), name: "", type: "pct", value: "" }));
+      b.addEventListener("click", (e) => {
+        if (e.target.closest("[data-add]")) { rows.insertAdjacentHTML("beforeend", row({ id: "c-" + Date.now().toString(36), name: "", type: "pct", value: "" })); rows.lastElementChild.querySelector("[name=cn]").focus(); }
+        const d = e.target.closest("[data-del]");
+        if (d) d.closest(".convrow").remove();
+      });
+      $("form", b).addEventListener("submit", (e) => {
+        e.preventDefault();
+        const all = S.db.plans.map((p) => p.id);
+        const list = $$(".convrow", b).map((r) => {
+          const on = $$("[name=cp]:checked", r).map((x) => x.value);
+          return { id: r.dataset.id, name: r.querySelector("[name=cn]").value.trim(), type: r.querySelector("[name=ct]").value, value: +r.querySelector("[name=cv]").value || 0, planIds: on.length === all.length ? [] : on, data: r.querySelector("[name=cd]").value.trim() };
+        }).filter((c) => c.name);
+        const bad = list.find((c) => c.value < 0 || (c.type === "pct" && c.value > 100));
+        if (bad) { err.textContent = `Revisá el descuento de ${bad.name}${bad.type === "pct" ? " (entre 1 y 100 %)" : ""}.`; err.hidden = false; return; }
+        const noPlan = $$(".convrow", b).find((r) => r.querySelector("[name=cn]").value.trim() && !$$("[name=cp]:checked", r).length);
+        if (noPlan) { err.textContent = `Marcá al menos un plan para ${noPlan.querySelector("[name=cn]").value.trim()}.`; err.hidden = false; return; }
+        S.api.saveConvenios(list);
+        close(); toast("Convenios guardados"); refresh();
       });
     },
   });

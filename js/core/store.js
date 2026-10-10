@@ -131,6 +131,37 @@ export const exercise = (id) => db.exercises.find((e) => e.id === id);
 export const template = (id) => db.templates.find((t) => t.id === id);
 export const routine = (id) => db.routines.find((r) => r.id === id);
 export const plan = (id) => db.plans.find((p) => p.id === id);
+
+/* Convenios con empresas: descuento en porcentaje o monto fijo por mes */
+/* Los que publicó Vientos en Facebook (marzo y abril). Donde la publicación
+   dice el porcentaje, viene cargado; el resto queda "a definir" hasta que el
+   dueño cargue el descuento. */
+const MUSC = ["p-libre", "p-3x"];
+export const DEFAULT_CONVENIOS = [
+  { id: "c-centa", name: "CENTA", type: "pct", value: 35, planIds: MUSC, data: "35 % en sala de musculación" },
+  { id: "c-imparables", name: "Imparables (padrinos y madrinas)", type: "pct", value: 35, planIds: MUSC, data: "35 % en sala de musculación" },
+  { id: "c-smata", name: "SMATA", type: "pct", value: 20, planIds: [], data: "Afiliados al sindicato (consultar requisitos)" },
+  { id: "c-apap", name: "APAP Santa Cruz", type: "pct", value: 0, planIds: [], data: "50 % en Funcional / Minitramp / Bodyattack (profe Caro Vega). Cargar cuando estén esos planes." },
+  { id: "c-casfpi", name: "CASFPI (Sindicato trabajadores ANSES)", type: "pct", value: 0, planIds: [], data: "" },
+  { id: "c-amgyp", name: "AMGyP (Mutual del Gas y Petróleo)", type: "pct", value: 0, planIds: [], data: "" },
+  { id: "c-viacargo", name: "Vía Cargo", type: "pct", value: 0, planIds: [], data: "" },
+  { id: "c-autofarma", name: "Autofarma", type: "pct", value: 0, planIds: [], data: "" },
+  { id: "c-minimarket", name: "Minimarket", type: "pct", value: 0, planIds: [], data: "" },
+  { id: "c-bomberos", name: "Policía de Santa Cruz · Bomberos", type: "pct", value: 0, planIds: [], data: "" },
+  { id: "c-enerflex", name: "Enerflex", type: "pct", value: 0, planIds: [], data: "" },
+];
+export const convenios = () => db.gym.convenios || DEFAULT_CONVENIOS;
+export const convenio = (id) => (id ? convenios().find((c) => c.id === id) || null : null);
+export const convLabel = (c) => (!c ? "" : `${c.name} · ${!+c.value ? "descuento a definir" : c.type === "pct" ? `${c.value} %` : `$ ${Number(c.value).toLocaleString("es-AR")} por mes`}`);
+/* Precio de lista, descuento y total a cobrar. `c` es el convenio solo si se aplica
+   (tiene descuento cargado y vale para ese plan); `conv` es el elegido. */
+export function priceWith(planId, months = 1, convenioId = null) {
+  const list = (plan(planId)?.price || 0) * months;
+  const conv = convenio(convenioId);
+  const c = conv && +conv.value > 0 && (!conv.planIds?.length || conv.planIds.includes(planId)) ? conv : null;
+  const disc = !c ? 0 : c.type === "pct" ? Math.round((list * +c.value) / 100) : Math.min(list, +c.value * months);
+  return { list, disc, total: list - disc, c, conv };
+}
 export const routinesOf = (userId) => db.routines.filter((r) => r.userId === userId).sort((a, b) => b.number - a.number);
 export const activeRoutine = (userId) => db.routines.find((r) => r.userId === userId && r.active);
 export const logsOf = (userId) => db.logs.filter((l) => l.userId === userId).sort((a, b) => b.at - a.at);
@@ -274,11 +305,11 @@ export const api = {
   },
 
   /* Alta en recepción: el usuario es el DNI; el email es opcional */
-  async createMember({ name, dni, email = "", phone, birth = "", gender = "", pass, coachId, planId }) {
+  async createMember({ name, dni, email = "", phone, birth = "", gender = "", pass, coachId, planId, convenioId = null }) {
     const username = (dni || email).trim().toLowerCase();
     if (findLogin(username) || (email && findLogin(email))) throw new Error(dni ? "Ya hay un socio con ese DNI." : "Ya hay una cuenta con ese email.");
     const mail = (email || `socio${dni}@sin-email.vientos.app`).trim().toLowerCase();
-    const fee = planId ? { planId, dueAt: Date.now() + 30 * DAY } : null;
+    const fee = planId ? { planId, dueAt: Date.now() + 30 * DAY, ...(convenioId ? { convenioId } : {}) } : null;
     const prefs = { theme: "dark", sound: true, tempPass: true };
     if (R) {
       const u = await R.createAccount({ name, email: mail, username, phone, birth, gender, pass, role: "socio", coachId: coachId || null, fee, prefs });
@@ -470,14 +501,17 @@ export const api = {
 
   /* Pago de cuota: cubre de `from` a `to` (from + meses). Guarda cómo estaba la
      cuota antes, para poder anularlo si se cargó por error. */
-  registerPayment(userId, { planId, months = 1, amount, by, from }) {
+  registerPayment(userId, { planId, months = 1, amount, by, from, convenioId = null }) {
     const u = user(userId);
-    const p = plan(planId);
+    const pr = priceWith(planId, months, convenioId);
     const start = from ?? Math.max(Date.now(), u.fee?.dueAt || 0);
     const d = new Date(start); d.setMonth(d.getMonth() + months);
     const prev = u.fee ? { ...u.fee } : null;
-    u.fee = { planId, dueAt: d.getTime() };
-    const pay = { id: uid("pay"), userId, planId, months, amount: amount ?? (p?.price || 0) * months, at: Date.now(), by, from: start, to: d.getTime(), prev };
+    u.fee = { planId, dueAt: d.getTime(), ...(pr.conv ? { convenioId: pr.conv.id } : {}) };
+    const pay = {
+      id: uid("pay"), userId, planId, months, amount: amount ?? pr.total, at: Date.now(), by, from: start, to: d.getTime(), prev,
+      list: pr.list, discount: pr.c ? { id: pr.c.id, name: pr.c.name, type: pr.c.type, value: pr.c.value, amount: pr.disc } : null,
+    };
     db.payments.push(pay);
     save();
     push("saveProfile", u);
@@ -498,7 +532,14 @@ export const api = {
     save();
     push("deletePayment", id);
   },
-  setDue(userId, dueAt, planId) { const u = user(userId); u.fee = { planId: planId || u.fee?.planId || db.plans[0].id, dueAt }; save(); push("saveProfile", u); },
+  setDue(userId, dueAt, planId) { const u = user(userId); u.fee = { ...u.fee, planId: planId || u.fee?.planId || db.plans[0].id, dueAt }; save(); push("saveProfile", u); },
+  setConvenio(userId, convenioId) {
+    const u = user(userId);
+    const { convenioId: _, ...rest } = u.fee || {};
+    u.fee = u.fee || convenioId ? { ...rest, ...(convenioId ? { convenioId } : {}) } : null;
+    save(); push("saveProfile", u);
+  },
+  saveConvenios(list) { db.gym.convenios = list; save(); push("saveGym"); },
 
   saveGym(patch) { Object.assign(db.gym, patch); save(); push("saveGym"); },
   savePlans(plans) { db.plans = plans; save(); push("saveGym"); },

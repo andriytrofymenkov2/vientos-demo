@@ -268,7 +268,7 @@ end $$;
 -- Datos públicos del gimnasio para la pantalla de ingreso (sin código ni precios).
 create or replace function public.public_gym() returns jsonb
 language sql stable security definer set search_path = public as $$
-  select coalesce((select data - 'joinCode' - 'plans' from public.gym where id = 1), '{}'::jsonb);
+  select coalesce((select data - 'joinCode' - 'plans' - 'convenios' from public.gym where id = 1), '{}'::jsonb);
 $$;
 
 -- "Despertador": consulta mínima para que el proyecto gratis no se pause.

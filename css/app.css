@@ -1063,3 +1063,17 @@ button.payrow > .i { color: var(--muted); flex: none; }
 .paybig span { color: var(--muted); }
 .mrow-link b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mrow-link small { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Cartel "¡Listo, ya está instalada!" */
+.inst-done { display: grid; gap: 10px; justify-items: center; text-align: center; padding: 18px 16px 20px; border-radius: 20px; background: var(--ok-soft); border: 1px solid rgba(60, 207, 126, .35); animation: viewin .35s ease-out; }
+.inst-done h2 { display: inline-flex; align-items: center; gap: 8px; font: 700 26px/1.1 "Barlow Condensed", sans-serif; text-transform: uppercase; }
+.inst-done h2 .i { width: 26px; height: 26px; color: var(--ok); }
+.inst-done p { font-size: 16px; line-height: 1.45; max-width: 32ch; }
+.mk-home { display: grid; grid-template-columns: repeat(4, 46px); gap: 12px 14px; padding: 16px; border-radius: 22px; background: linear-gradient(160deg, #2b3a55, #1a1f2b); margin-bottom: 4px; }
+.mk-home > i { width: 46px; height: 46px; border-radius: 12px; background: rgba(255, 255, 255, .14); }
+.mk-home-app { display: grid; justify-items: center; gap: 3px; position: relative; }
+.mk-home-app img { width: 46px; height: 46px; border-radius: 12px; box-shadow: 0 0 0 3px #fff, 0 0 0 7px var(--red); animation: pulse-app 1.4s ease-in-out infinite; }
+.mk-home-app b { position: absolute; top: 52px; font-size: 10px; color: #fff; font-weight: 600; }
+@keyframes pulse-app { 50% { box-shadow: 0 0 0 3px #fff, 0 0 0 11px rgba(209, 31, 42, .55); } }
+@media (prefers-reduced-motion: reduce) { .mk-home-app img { animation: none; } }
+.ig-step .inst-done { margin-top: 4px; }

@@ -92,15 +92,23 @@ function iosGuide(p) {
         <div class="mk">${mk}</div>
         <p>${t}</p>
       </section>`).join("")}
+      <section class="ig-step" data-step="${steps.length}">${donePanel(false)}</section>
       <div class="ig-nav">
         <button class="btn ghost" type="button" data-prev disabled>${icon("left")}</button>
-        <div class="ig-dots">${steps.map((_, i) => `<i class="${i ? "" : "on"}"></i>`).join("")}</div>
+        <div class="ig-dots">${[...steps, 0].map((_, i) => `<i class="${i ? "" : "on"}"></i>`).join("")}</div>
         <button class="btn primary" type="button" data-next>Siguiente ${icon("right")}</button>
       </div>
-      <p class="tiny muted">Al terminar, buscá el ícono de Vientos en tu pantalla de inicio y abrila desde ahí.</p>
     </div>
     <div class="ios-arrow ${where}" aria-hidden="true">${icon(where === "top-right" ? "up" : "down")}<span>Compartir</span></div>`;
 }
+
+/* Cartel final: "¡Listo, ya está instalada!" con el ícono a buscar */
+const donePanel = (android) => `<div class="inst-done" data-done>
+    <div class="mk-home" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><span class="mk-home-app"><img src="img/icon-192.png" alt=""><b>Vientos</b></span><i></i><i></i></div>
+    <h2>${icon("checkc")} ¡Listo, ya está instalada!</h2>
+    <p>Ahora <b>cerrá ${android ? "Chrome" : "Safari"}</b> y buscá este ícono en la pantalla de tu celular. <b>Abrí Vientos desde ahí.</b></p>
+    <p class="tiny muted">${android ? "Si no lo ves, deslizá hacia arriba para ver todas tus apps." : "Si no lo ves, pasá a la última página de tu pantalla de inicio."}</p>
+  </div>`;
 
 const step = (n, ic, html) => `<li><span class="stp">${n}</span><span class="stp-i">${icon(ic)}</span><p>${html}</p></li>`;
 
@@ -134,7 +142,7 @@ export function installView() {
         <div class="inst-logo">${logo()}</div>
         <h1>Instalá la app de Vientos</h1>
         <p class="muted">Tu rutina, tus pesos y tu progreso, siempre a mano. Es gratis y no ocupa lugar.</p>
-        ${body}
+        <div data-installbox>${body}</div>
         <a class="btn ${p.standalone ? "primary" : "ghost"} block" href="#${me() ? homeOf() : "/ingresar"}" data-skip>${p.standalone || !p.mobile ? (me() ? "Ir a la app" : "Ingresar") : "Seguir sin instalar"}</a>
         ${p.ios && !p.standalone ? `<p class="tiny muted">Instalala antes de ingresar: en iPhone, la app instalada pide el usuario de nuevo.</p>` : ""}
         <p class="tiny muted">Se instala sin App Store ni Play Store.</p>
@@ -158,8 +166,18 @@ export function installView() {
         e.prompt();
         const r = await e.userChoice;
         window.__bip = null;
-        if (r.outcome === "accepted") toast("¡Listo! Buscá el ícono de Vientos.");
+        if (r.outcome === "accepted") installed();
       });
+      /* Instalada (por el botón o desde el menú de Chrome): se avisa con un cartel grande */
+      const installed = () => {
+        const box = $("[data-installbox]", host);
+        if (!box || $("[data-done]", host)) return;
+        box.innerHTML = donePanel(true);
+        const skip = $("[data-skip]", host);
+        if (skip) skip.textContent = "Seguir en el navegador";
+        try { navigator.vibrate?.(60); } catch { /* sin vibración */ }
+      };
+      addEventListener("appinstalled", installed);
       /* Guía por voz: lee cada paso con una pausa para hacerlo */
       const vb = $("[data-voice]", host);
       let talking = false, timer = 0;
@@ -173,7 +191,8 @@ export function installView() {
         const say = (i) => {
           if (!talking) return;
           if (i >= lines.length) {
-            const end = new SpeechSynthesisUtterance("Listo. Buscá el ícono de Vientos en tu pantalla de inicio y abrí la app desde ahí.");
+            $("[data-guide]", host)?.dispatchEvent(new CustomEvent("ig:show", { detail: lines.length }));
+            const end = new SpeechSynthesisUtterance("Listo, ya está instalada. Cerrá Safari, buscá el ícono de Vientos en tu pantalla de inicio y abrí la app desde ahí.");
             end.lang = "es-AR"; end.rate = 1.08; end.onend = stopVoice; speechSynthesis.speak(end);
             return;
           }
@@ -199,7 +218,7 @@ export function installView() {
           secs.forEach((s, i) => s.classList.toggle("on", i === k));
           dots.forEach((d, i) => d.classList.toggle("on", i === k));
           prev.disabled = k === 0;
-          next.innerHTML = k === secs.length - 1 ? "Volver a empezar" : `Siguiente ${icon("right")}`;
+          next.innerHTML = k === secs.length - 1 ? "Volver a empezar" : k === secs.length - 2 ? `${icon("check")} Ya lo agregué` : `Siguiente ${icon("right")}`;
           $(".ios-arrow", host)?.classList.toggle("off", k > 0);
         };
         g.addEventListener("ig:show", (e) => show(e.detail));
@@ -208,7 +227,7 @@ export function installView() {
       }
       const q = $("[data-qr]", host);
       if (q) qrSvg(url, 5).then((svg) => (q.innerHTML = svg)).catch(() => (q.textContent = url));
-      return () => { removeEventListener("vientos:installable", ready); stopVoice(); };
+      return () => { removeEventListener("vientos:installable", ready); removeEventListener("appinstalled", installed); stopVoice(); };
     },
   };
 }

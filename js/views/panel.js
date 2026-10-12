@@ -116,7 +116,7 @@ export function panelHome() {
           ${mine.slice(0, 8).map((m) => { const r = S.activeRoutine(m.id); return mrow(m, r ? esc(S.routineTitle(r)) : "Sin rutina"); }).join("") || `<p class="muted">Todavía no tenés socios a cargo.</p>`}
           <a class="btn ghost sm" href="#/panel/socios?f=mios">Ver todos</a></section>`}
       </div>
-      ${admin && (genRows.some((r) => r.label === "Sin dato" && r.n) || noAge) ? `<p class="muted tiny">“Sin dato”: socios a los que no se les cargó el género o la fecha de nacimiento. Se completa desde la ficha de cada socio.</p>` : ""}`,
+      ${admin && (genRows.some((r) => r.label === "Sin dato" && r.n) || noAge) ? `<p class="muted tiny">“Sin dato”: socios a los que no se les cargó el género o la fecha de nacimiento. Se completa en la ficha de cada socio › Editar datos personales.</p>` : ""}`,
     mount(host) {
       $$("[data-count]", host).forEach((el) => countUp(el, +el.dataset.count));
       host.addEventListener("click", (e) => { const b = e.target.closest("[data-approve]"); if (b) approveSheet(S.user(b.dataset.approve)); });
@@ -341,18 +341,20 @@ export function memberView(params) {
           <button class="btn primary block" type="button" data-act="assign">${icon("plus", "sm")} ${r ? "Nueva rutina" : "Asignar rutina"}</button>
           ${all.filter((x) => !x.active).length ? `<h3 class="sub">Historial</h3>${all.filter((x) => !x.active).map((x) => `<a class="hrow" href="#/panel/rutina/${x.id}"><span><b>${esc(S.routineTitle(x))}</b><small>${fmtDate(x.startedAt)} al ${fmtDate(x.endedAt || Date.now())}</small></span>${icon("right", "sm")}</a>`).join("")}` : ""}
         </section>
-        <section class="card"><div class="card-h"><h2>${icon("trend", "sm")} Constancia</h2><span class="muted">${plural(logs.filter((l) => l.at >= m0.getTime()).length, "entrenamiento", "entrenamientos")} este mes</span></div>
-          ${heatmap(m.id, 12)}
+        <section class="card"><div class="card-h"><h2>${icon("trend", "sm")} Constancia</h2><span class="muted">últimos 3 meses</span></div>
+          ${heatmap(m.id, 13)}
+          <div class="permonth">${[2, 1, 0].map((k) => { const a = new Date(m0.getFullYear(), m0.getMonth() - k, 1), b = new Date(a.getFullYear(), a.getMonth() + 1, 1); const n = logs.filter((l) => l.at >= a.getTime() && l.at < b.getTime()).length; return `<div class="${k ? "" : "now"}"><b>${n}</b><small>${a.toLocaleDateString("es-AR", { month: "long" })}</small></div>`; }).join("")}</div>
           ${logs.slice(0, 5).map((l) => `<div class="hrow"><span><b>${esc(l.dayName)} · ${esc(l.focus)}</b><small>${esc(relDay(l.at))} · ${l.min} min${l.sets.length ? ` · ${l.sets.length} series` : ""}</small></span></div>`).join("") || `<p class="muted">Sin entrenamientos registrados.</p>`}
         </section>
         <section class="card"><div class="card-h"><h2>${icon("card", "sm")} Cuota</h2>${feePill(m)}</div>
           ${m.fee?.dueAt ? `<dl class="kv"><div><dt>Plan</dt><dd>${esc(p?.name || "—")}</dd></div><div><dt>Vence</dt><dd>${fmtDate(m.fee.dueAt, { year: true })}</dd></div></dl>` : `<p class="muted">Sin cuota cargada.</p>`}
           ${S.convenios().length ? `<label class="field"><span>Convenio</span><select data-conv>${convOptions(m.fee?.convenioId).map(([v, l]) => `<option value="${esc(v)}" ${v === (m.fee?.convenioId || "") ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}
           <div class="row-btns"><button class="btn primary sm" type="button" data-act="pay">${icon("check", "sm")} Registrar pago</button><button class="btn ghost sm" type="button" data-act="due">Cambiar vencimiento</button></div>
-          ${pays.length ? `<h3 class="sub">Pagos</h3>${pays.map((x, i) => `<div class="hrow payrow"><span><b>${money(x.amount)} · ${plural(x.months || 1, "mes", "meses")}</b><small>${x.from ? `Cubre ${fmtDate(x.from)} al ${fmtDate(x.to, { year: true })}` : esc(S.plan(x.planId)?.name || "")} · cobrado el ${fmtDate(x.at)}${x.discount ? ` · convenio ${esc(x.discount.name)} (−${money(x.discount.amount)})` : ""}</small></span>${i === 0 ? `<button class="btn ghost sm danger-t" type="button" data-unpay="${x.id}">Anular</button>` : ""}</div>`).join("")}` : ""}
+          ${pays.length ? `<h3 class="sub">Pagos</h3>${pays.map((x, i) => `<div class="hrow payrow"><span><b>${money(x.amount)} · ${plural(x.months || 1, "mes", "meses")}</b><small>${x.from ? `Cubre ${fmtDate(x.from)} al ${fmtDate(x.to, { year: true })}` : esc(S.plan(x.planId)?.name || "")} · cobrado el ${fmtDate(x.at)}${x.discount ? ` · convenio ${esc(x.discount.name)} (−${money(x.discount.amount)})` : ""}</small></span>${i === 0 && isAdmin() ? `<button class="btn ghost sm danger-t" type="button" data-unpay="${x.id}">Anular</button>` : ""}</div>`).join("")}` : ""}
         </section>
         <section class="card"><div class="card-h"><h2>${icon("settings", "sm")} Cuenta</h2></div>
           ${field({ label: "Profe a cargo", name: "coach", value: m.coachId || "", options: [["", "Sin asignar"], ...S.coaches().map((c) => [c.id, c.name])], attrs: "data-coach" })}
+          <button class="lrow" type="button" data-act="data">${icon("user", "sm")}<span>Editar datos personales${!m.gender || !m.birth ? ` <em class="pill warn">Faltan datos</em>` : ""}</span>${icon("right", "sm")}</button>
           <button class="lrow" type="button" data-act="reset">${icon("lock", "sm")}<span>${isDni(m.user) ? "Olvidó la contraseña: volver a su DNI" : "Generar contraseña nueva"}</span>${icon("right", "sm")}</button>
           <button class="lrow danger" type="button" data-act="drop">${icon("trash", "sm")}<span>Dar de baja de la app</span>${icon("right", "sm")}</button>
         </section>
@@ -364,11 +366,12 @@ export function memberView(params) {
         const a = e.target.closest("[data-act]")?.dataset.act;
         if (a === "assign") assignSheet({ userId: m.id });
         if (a === "pay") paySheet(m);
-        const un = e.target.closest("[data-unpay]");
+        const un = isAdmin() && e.target.closest("[data-unpay]");
         if (un && await confirmDialog({ title: "¿Anular este pago?", text: "Se borra el pago y la cuota vuelve a como estaba antes de registrarlo.", ok: "Anular pago", danger: true })) {
           S.api.deletePayment(un.dataset.unpay); toast("Pago anulado"); refresh();
         }
         if (a === "due") dueSheet(m);
+        if (a === "data") dataSheet(m);
         if (a === "reset" && await confirmDialog({ title: isDni(m.user) ? "¿Volver a la contraseña inicial?" : "¿Generar una contraseña nueva?", text: isDni(m.user) ? `Va a poder entrar con su DNI (${m.user}) y la app le pide elegir una nueva.` : "La anterior deja de funcionar.", ok: "Confirmar" })) {
           const pass = isDni(m.user) ? m.user : genPass();
           await S.api.resetPassword(m.id, pass);
@@ -424,6 +427,29 @@ export function paySheet(m, onDone) {
         S.api.registerPayment(m.id, { planId: d.plan, months: +d.months, amount: +d.amount || 0, by: me().id, from, convenioId: d.conv || null });
         close(); toast(`Pago registrado. Vence el ${fmtDate(S.user(m.id).fee.dueAt)}`);
         onDone ? onDone() : refresh();
+      });
+    },
+  });
+}
+
+/* Datos personales del socio (nombre, teléfono, nacimiento, género) */
+function dataSheet(m) {
+  sheet({
+    title: "Datos personales",
+    html: `<form novalidate>
+      ${field({ label: "Nombre y apellido", name: "name", value: m.name, req: true })}
+      ${field({ label: "Teléfono (WhatsApp)", name: "phone", type: "tel", value: m.phone || "" })}
+      <div class="grid2">${field({ label: "Fecha de nacimiento", name: "birth", type: "date", value: m.birth || "" })}${field({ label: "Género", name: "gender", value: m.gender || "", options: [["", "Elegir"], "Femenino", "Masculino", "Otro"] })}</div>
+      <p class="muted tiny">El género y la edad se usan solo para las estadísticas del resumen.</p>
+      <p class="form-err" role="alert" hidden></p>
+      <button class="btn primary block" type="submit">Guardar</button></form>`,
+    onMount(b, close) {
+      $("form", b).addEventListener("submit", (e) => {
+        e.preventDefault();
+        const d = formData(e.target), err = $(".form-err", b);
+        if (!d.name.trim()) { err.textContent = "Escribí el nombre."; err.hidden = false; return; }
+        S.api.updateUser(m.id, { name: d.name.trim(), phone: d.phone.trim(), birth: d.birth, gender: d.gender });
+        close(); toast("Datos guardados"); refresh();
       });
     },
   });

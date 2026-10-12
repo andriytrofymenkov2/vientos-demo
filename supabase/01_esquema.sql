@@ -205,7 +205,12 @@ create policy "en curso staff lee" on public.live for select to authenticated us
 drop policy if exists "pagos propios" on public.payments;
 create policy "pagos propios" on public.payments for select to authenticated using (user_id = auth.uid() and public.is_active());
 drop policy if exists "pagos staff" on public.payments;
-create policy "pagos staff" on public.payments for all to authenticated using (public.is_staff()) with check (public.is_staff());
+drop policy if exists "pagos staff lee" on public.payments;
+create policy "pagos staff lee" on public.payments for select to authenticated using (public.is_staff());
+drop policy if exists "pagos staff cobra" on public.payments;
+create policy "pagos staff cobra" on public.payments for insert to authenticated with check (public.is_staff());
+drop policy if exists "pagos dueño" on public.payments;          -- anular o cambiar un pago: solo el dueño
+create policy "pagos dueño" on public.payments for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
 drop policy if exists "avisos lee" on public.notices;
 create policy "avisos lee" on public.notices for select to authenticated using (public.is_active());

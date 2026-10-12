@@ -5,3 +5,10 @@ preguntas-para-vientos.md
 README.md
 __pycache__/
 qr/
+Contraseña Supabase/
+*.txt
+!img/ej/CREDITOS.txt
+.env*
+*secret*
+*clave*
+*contrase*

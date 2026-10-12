@@ -218,7 +218,7 @@ function newMemberSheet() {
     html: `<form novalidate>
       <div class="grid2">${field({ label: "Nombre", name: "first", req: true, attrs: 'autocomplete="off"' })}${field({ label: "Apellido", name: "last", req: true, attrs: 'autocomplete="off"' })}</div>
       <div class="grid2">${field({ label: "DNI (será su usuario)", name: "dni", req: true, ph: "Sin puntos", attrs: 'inputmode="numeric" autocomplete="off"' })}${field({ label: "Teléfono (WhatsApp)", name: "phone", type: "tel", req: true, ph: "2966 …" })}</div>
-      <div class="grid2">${field({ label: "Fecha de nacimiento", name: "birth", type: "date" })}${field({ label: "Género", name: "gender", options: [["", "Elegir"], "Femenino", "Masculino", "Otro"] })}</div>
+      <div class="grid2">${field({ label: "Fecha de nacimiento", name: "birth", type: "date", req: true, attrs: `max="${dayKey()}"` })}${field({ label: "Género", name: "gender", req: true, options: [["", "Elegir"], "Femenino", "Masculino", "Otro"] })}</div>
       ${field({ label: "Email (opcional)", name: "email", type: "email", ph: "Para recuperar la contraseña" })}
       ${field({ label: "Profe a cargo", name: "coach", value: me().role === "profe" ? me().id : "", options: [["", "Sin asignar"], ...S.coaches().map((c) => [c.id, c.name])] })}
       <fieldset class="paybox"><legend>Cuota</legend>
@@ -245,6 +245,10 @@ function newMemberSheet() {
         if (!d.first.trim() || !d.last.trim()) return fail("Completá nombre y apellido.");
         if (dni.length < 7 || dni.length > 9) return fail("Revisá el DNI (solo números).");
         if (d.phone.replace(/\D/g, "").length < 8) return fail("Revisá el teléfono.");
+        const age = d.birth ? (Date.now() - new Date(d.birth + "T12:00").getTime()) / (365.25 * DAY) : null;
+        if (age === null) return fail("Completá la fecha de nacimiento.");
+        if (age < 8 || age > 100) return fail("Revisá la fecha de nacimiento.");
+        if (!d.gender) return fail("Elegí el género.");
         if (d.email && !/^\S+@\S+\.\S+$/.test(d.email)) return fail("Revisá el email.");
         const pass = dni;
         const btn = $("button[type=submit]", f);

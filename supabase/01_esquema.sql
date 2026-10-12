@@ -111,14 +111,17 @@ create or replace function private.handle_new_user() returns trigger
 language plpgsql security definer set search_path = public as $$
 declare v_code text := new.raw_user_meta_data ->> 'code';
         v_ok text := (select data ->> 'joinCode' from public.gym where id = 1);
+        v_valid boolean;
 begin
   if v_code is not null and v_ok is not null and upper(trim(v_code)) <> upper(trim(v_ok)) then
     raise exception 'El código del gimnasio no es correcto. Pedilo en recepción.';
   end if;
+  v_valid := v_code is not null and v_ok is not null;
   insert into public.profiles (id, name, username, email, phone)
   values (new.id,
           coalesce(new.raw_user_meta_data ->> 'name', split_part(new.email, '@', 1)),
-          lower(coalesce(nullif(trim(new.raw_user_meta_data ->> 'username'), ''), new.email)),   -- el DNI del socio, o su email
+          -- el DNI como usuario solo con el código del gimnasio (alta en recepción o registro válido)
+          lower(case when v_valid then coalesce(nullif(trim(new.raw_user_meta_data ->> 'username'), ''), new.email) else new.email end),
           lower(new.email),
           coalesce(new.raw_user_meta_data ->> 'phone', ''))
   on conflict (id) do nothing;
@@ -136,7 +139,12 @@ begin
   if not public.is_staff() then
     new.role := old.role; new.status := old.status; new.coach_id := old.coach_id; new.fee := old.fee;
   elsif not public.is_admin() then
-    new.role := old.role;                                   -- solo el dueño cambia roles
+    -- el profe maneja socios; a otro profe o al dueño solo los cambia el dueño
+    if old.role <> 'socio' and old.id <> auth.uid() then
+      raise exception 'Solo el dueño puede modificar a un profe o administrador';
+    end if;
+    new.role := old.role;
+    if old.id = auth.uid() then new.status := old.status; end if;
   end if;
   new.id := old.id; new.username := old.username; new.email := old.email; new.joined := old.joined;
   return new;
@@ -233,8 +241,9 @@ language plpgsql security definer set search_path = public, extensions as $$
 declare v_role text := (select role from public.profiles where id = p_user);
 begin
   if not public.is_staff() then raise exception 'Sin permiso'; end if;
+  if v_role is null then raise exception 'No existe esa cuenta'; end if;
   if v_role <> 'socio' and not public.is_admin() then raise exception 'Solo el dueño puede cambiar la contraseña de un profe'; end if;
-  if length(p_pass) < 8 then raise exception 'La contraseña es muy corta'; end if;
+  if length(p_pass) < 6 then raise exception 'La contraseña es muy corta'; end if;
   update auth.users set encrypted_password = extensions.crypt(p_pass, extensions.gen_salt('bf')), updated_at = now() where id = p_user;
 end $$;
 

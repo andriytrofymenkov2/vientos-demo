@@ -21,6 +21,9 @@ addEventListener("beforeinstallprompt", (e) => {
   dispatchEvent(new Event("vientos:installable"));
 });
 
+/* Que nadie pueda meter la app dentro de otra página para engañar a los clics */
+if (window.top !== window.self) { try { window.top.location = window.location.href; } catch { document.documentElement.hidden = true; } }
+
 async function boot() {
   applyTheme();
   await S.init();

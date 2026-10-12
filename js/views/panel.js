@@ -325,7 +325,7 @@ export function memberView(params) {
   const all = S.routinesOf(m.id);
   const logs = S.logsOf(m.id);
   const p = S.plan(m.fee?.planId);
-  const pays = S.db.payments.filter((x) => x.userId === m.id).sort((a, b) => b.at - a.at).slice(0, 4);
+  const allPays = paysOf(m.id), pays = allPays.slice(0, 3);
   const m0 = new Date(); m0.setDate(1); m0.setHours(0, 0, 0, 0);
 
   return {
@@ -354,7 +354,8 @@ export function memberView(params) {
           ${m.fee?.dueAt ? `<dl class="kv"><div><dt>Plan</dt><dd>${esc(p?.name || "—")}</dd></div><div><dt>Vence</dt><dd>${fmtDate(m.fee.dueAt, { year: true })}</dd></div></dl>` : `<p class="muted">Sin cuota cargada.</p>`}
           ${S.convenios().length ? `<label class="field"><span>Convenio</span><select data-conv>${convOptions(m.fee?.convenioId).map(([v, l]) => `<option value="${esc(v)}" ${v === (m.fee?.convenioId || "") ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}
           <div class="row-btns"><button class="btn primary sm" type="button" data-act="pay">${icon("check", "sm")} Registrar pago</button><button class="btn ghost sm" type="button" data-act="due">Cambiar vencimiento</button></div>
-          ${pays.length ? `<h3 class="sub">Pagos</h3>${pays.map((x, i) => `<div class="hrow payrow"><span><b>${money(x.amount)} · ${plural(x.months || 1, "mes", "meses")}</b><small>${x.from ? `Cubre ${fmtDate(x.from)} al ${fmtDate(x.to, { year: true })}` : esc(S.plan(x.planId)?.name || "")} · cobrado el ${fmtDate(x.at)}${x.discount ? ` · convenio ${esc(x.discount.name)} (−${money(x.discount.amount)})` : ""}</small></span>${i === 0 && isAdmin() ? `<button class="btn ghost sm danger-t" type="button" data-unpay="${x.id}">Anular</button>` : ""}</div>`).join("")}` : ""}
+          ${pays.length ? `<h3 class="sub">Últimos pagos</h3>${pays.map(payRow).join("")}
+            ${allPays.length > pays.length ? `<button class="btn ghost sm block" type="button" data-act="pays">${icon("list", "sm")} Ver todos los pagos (${allPays.length})</button>` : ""}` : ""}
         </section>
         <section class="card"><div class="card-h"><h2>${icon("settings", "sm")} Cuenta</h2></div>
           ${field({ label: "Profe a cargo", name: "coach", value: m.coachId || "", options: [["", "Sin asignar"], ...S.coaches().map((c) => [c.id, c.name])], attrs: "data-coach" })}
@@ -370,10 +371,9 @@ export function memberView(params) {
         const a = e.target.closest("[data-act]")?.dataset.act;
         if (a === "assign") assignSheet({ userId: m.id });
         if (a === "pay") paySheet(m);
-        const un = isAdmin() && e.target.closest("[data-unpay]");
-        if (un && await confirmDialog({ title: "¿Anular este pago?", text: "Se borra el pago y la cuota vuelve a como estaba antes de registrarlo.", ok: "Anular pago", danger: true })) {
-          S.api.deletePayment(un.dataset.unpay); toast("Pago anulado"); refresh();
-        }
+        const pr = e.target.closest("[data-payid]");
+        if (pr) payDetailSheet(S.db.payments.find((x) => x.id === pr.dataset.payid));
+        if (a === "pays") paysSheet(m);
         if (a === "due") dueSheet(m);
         if (a === "data") dataSheet(m);
         if (a === "reset" && await confirmDialog({ title: isDni(m.user) ? "¿Volver a la contraseña inicial?" : "¿Generar una contraseña nueva?", text: isDni(m.user) ? `Va a poder entrar con su DNI (${m.user}) y la app le pide elegir una nueva.` : "La anterior deja de funcionar.", ok: "Confirmar" })) {
@@ -431,6 +431,106 @@ export function paySheet(m, onDone) {
         S.api.registerPayment(m.id, { planId: d.plan, months: +d.months, amount: +d.amount || 0, by: me().id, from, convenioId: d.conv || null });
         close(); toast(`Pago registrado. Vence el ${fmtDate(S.user(m.id).fee.dueAt)}`);
         onDone ? onDone() : refresh();
+      });
+    },
+  });
+}
+
+/* ------------------------------------------------------------------ pagos */
+const paysOf = (userId) => S.db.payments.filter((x) => x.userId === userId).sort((a, b) => b.at - a.at);
+const monthKey = (t) => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+const monthName = (k) => { const [y, mo] = k.split("-").map(Number); const s = new Date(y, mo - 1, 1).toLocaleDateString("es-AR", { month: "long", year: "numeric" }); return s[0].toUpperCase() + s.slice(1); };
+
+function payRow(x) {
+  return `<button class="hrow payrow" type="button" data-payid="${esc(x.id)}">
+    <span><b>${money(x.amount)} · ${plural(x.months || 1, "mes", "meses")}</b>
+      <small>Cobrado el ${fmtDate(x.at, { year: true })}${x.from ? ` · cubre ${fmtDate(x.from)} al ${fmtDate(x.to, { year: true })}` : ""}${x.discount ? ` · ${esc(x.discount.name)}` : ""}${x.edited ? " · editado" : ""}</small></span>
+    ${icon("right", "sm")}</button>`;
+}
+
+/* Todos los pagos de un socio, con filtro por mes y total */
+function paysSheet(m) {
+  const all = paysOf(m.id);
+  const months = [...new Set(all.map((x) => monthKey(x.at)))];
+  sheet({
+    title: `Pagos de ${firstName(m.name)}`,
+    html: `<label class="field"><span>Mes de cobro</span><select data-month><option value="">Todos (${all.length})</option>${months.map((k) => `<option value="${k}">${esc(monthName(k))}</option>`).join("")}</select></label>
+      <div class="paysum" data-sum></div>
+      <div data-list></div>`,
+    onMount(b, close) {
+      const sel = $("[data-month]", b);
+      const draw = () => {
+        const list = all.filter((x) => !sel.value || monthKey(x.at) === sel.value);
+        $("[data-sum]", b).innerHTML = `<span>${plural(list.length, "pago", "pagos")}</span><b>${money(list.reduce((a, x) => a + (x.amount || 0), 0))}</b>`;
+        $("[data-list]", b).innerHTML = list.map(payRow).join("") || `<p class="muted">No hay pagos en ese mes.</p>`;
+      };
+      sel.addEventListener("change", draw); draw();
+      b.addEventListener("click", (e) => { const r = e.target.closest("[data-payid]"); if (r) { close(); setTimeout(() => payDetailSheet(all.find((x) => x.id === r.dataset.payid)), 250); } });
+    },
+  });
+}
+
+/* Detalle de un pago: el dueño lo puede editar o anular */
+function payDetailSheet(x) {
+  if (!x) return;
+  const m = S.user(x.userId), by = S.user(x.by), ed = x.edited && S.user(x.edited.by);
+  const latest = paysOf(x.userId)[0]?.id === x.id;
+  const kv = (k, v) => (v ? `<div><dt>${k}</dt><dd>${v}</dd></div>` : "");
+  sheet({
+    title: "Pago",
+    html: `<div class="paybig"><b>${money(x.amount)}</b><span>${esc(m?.name || "")}</span></div>
+      <dl class="kv">
+        ${kv("Plan", esc(S.plan(x.planId)?.name || "—"))}
+        ${kv("Meses", plural(x.months || 1, "mes", "meses"))}
+        ${kv("Cubre", x.from ? `${fmtDate(x.from)} al ${fmtDate(x.to, { year: true })}` : "")}
+        ${kv("Precio de lista", x.list ? money(x.list) : "")}
+        ${kv("Convenio", x.discount ? `${esc(x.discount.name)} · −${money(x.discount.amount)}` : "")}
+        ${kv("Cobrado el", fmtDate(x.at, { year: true }))}
+        ${kv("Cobró", by ? esc(by.name) : "")}
+        ${kv("Nota", x.note ? esc(x.note) : "")}
+        ${kv("Editado", x.edited ? `${fmtDate(x.edited.at, { year: true })}${ed ? " por " + esc(ed.name) : ""}` : "")}
+      </dl>
+      ${isAdmin() ? `<div class="row-btns"><button class="btn ghost" type="button" data-edit>${icon("edit", "sm")} Editar</button><button class="btn ghost danger-t" type="button" data-del>${icon("trash", "sm")} Anular</button></div>`
+        : `<p class="muted tiny">Solo el dueño puede editar o anular un pago.</p>`}`,
+    onMount(b, close) {
+      $("[data-edit]", b)?.addEventListener("click", () => { close(); setTimeout(() => payEditSheet(x), 250); });
+      $("[data-del]", b)?.addEventListener("click", async () => {
+        close();
+        const due = m?.fee?.dueAt;
+        const ok = await confirmDialog({
+          title: `¿Anular el pago de ${money(x.amount)}?`,
+          text: latest ? "Se borra el pago y la cuota vuelve a como estaba antes de registrarlo." : `Se borra el pago del historial. La cuota no cambia${due ? ` (sigue venciendo el ${fmtDate(due)})` : ""}: si hace falta, cambiá el vencimiento desde la ficha.`,
+          ok: "Anular pago", danger: true,
+        });
+        if (!ok) return;
+        S.api.deletePayment(x.id); toast("Pago anulado"); refresh();
+      });
+    },
+  });
+}
+
+function payEditSheet(x) {
+  sheet({
+    title: "Editar pago",
+    html: `<form novalidate>
+      ${field({ label: "Monto cobrado", name: "amount", type: "number", value: x.amount || 0, req: true, attrs: 'inputmode="numeric" min="0"' })}
+      ${field({ label: "Fecha de cobro", name: "at", type: "date", value: dayKey(x.at), req: true, attrs: `max="${dayKey()}"` })}
+      ${field({ label: "Nota (opcional)", name: "note", value: x.note || "", ph: "Ej: pagó con transferencia, se corrigió el monto" })}
+      <p class="muted tiny">Para cambiar el período que cubre, usá "Cambiar vencimiento" en la ficha del socio.</p>
+      <p class="form-err" role="alert" hidden></p>
+      <button class="btn primary block" type="submit">Guardar cambios</button></form>`,
+    onMount(b, close) {
+      $("form", b).addEventListener("submit", (e) => {
+        e.preventDefault();
+        const d = formData(e.target), err = $(".form-err", b);
+        const amount = +d.amount;
+        if (!(amount >= 0) || d.amount === "") { err.textContent = "Revisá el monto."; err.hidden = false; return; }
+        if (!d.at) { err.textContent = "Elegí la fecha de cobro."; err.hidden = false; return; }
+        const [y, mo, da] = d.at.split("-").map(Number);
+        const old = new Date(x.at);
+        const at = new Date(y, mo - 1, da, old.getHours(), old.getMinutes()).getTime();
+        S.api.updatePayment(x.id, { amount, at, note: d.note.trim() }, me().id);
+        close(); toast("Pago actualizado"); refresh();
       });
     },
   });
@@ -509,7 +609,7 @@ export function feesView(params, query) {
       <div class="mlist">${list.map((m) => {
         const st = S.feeStatus(m);
         const msg = st.state === "late" ? `Hola ${firstName(m.name)}! Te escribimos de Vientos: tu cuota venció el ${fmtDate(m.fee.dueAt)}. ¿Pasás a regularizarla? 💪` : `Hola ${firstName(m.name)}! Te recordamos que tu cuota de Vientos vence el ${m.fee ? fmtDate(m.fee.dueAt) : ""}.`;
-        return `<div class="mrow">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${esc(S.plan(m.fee?.planId)?.name || "Sin plan")}${S.convenio(m.fee?.convenioId) ? " · " + esc(S.convenio(m.fee.convenioId).name) : ""}${m.fee?.dueAt ? " · vence " + fmtDate(m.fee.dueAt) : ""}</small></span>
+        return `<div class="mrow"><a class="mrow-link" href="#/panel/socios/${m.id}" aria-label="Ver la ficha de ${esc(m.name)}">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${esc(S.plan(m.fee?.planId)?.name || "Sin plan")}${S.convenio(m.fee?.convenioId) ? " · " + esc(S.convenio(m.fee.convenioId).name) : ""}${m.fee?.dueAt ? " · vence " + fmtDate(m.fee.dueAt) : ""}</small></span></a>
           ${feePill(m)}
           ${(st.state === "late" || st.state === "soon") && m.phone ? `<a class="icon-btn" href="https://wa.me/${waNumber(m.phone)}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener" aria-label="Recordar por WhatsApp a ${esc(m.name)}">${icon("whatsapp", "sm")}</a>` : ""}
           <button class="btn ghost sm" type="button" data-pay="${m.id}">Cobrar</button></div>`;

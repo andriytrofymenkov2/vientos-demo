@@ -532,6 +532,14 @@ export const api = {
     save();
     push("deletePayment", id);
   },
+  /* Corregir un pago (monto, fecha de cobro, nota). Queda anotado quién y cuándo. */
+  updatePayment(id, patch, by) {
+    const p = db.payments.find((x) => x.id === id);
+    if (!p) return;
+    Object.assign(p, patch, { edited: { at: Date.now(), by } });
+    save();
+    push("updatePayment", p);
+  },
   setDue(userId, dueAt, planId) { const u = user(userId); u.fee = { ...u.fee, planId: planId || u.fee?.planId || db.plans[0].id, dueAt }; save(); push("saveProfile", u); },
   setConvenio(userId, convenioId) {
     const u = user(userId);

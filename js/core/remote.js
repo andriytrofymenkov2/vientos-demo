@@ -320,6 +320,7 @@ export const remoteAdapter = {
   async deleteLive(uid) { must(await sb.from("live").delete().eq("user_id", uid)); },
   async saveLog(l) { must(await sb.from("logs").insert({ id: l.id, user_id: l.userId, at: iso(l.at), data: strip(l, "id", "userId", "at") })); },
   async savePayment(p) { must(await sb.from("payments").insert({ id: p.id, user_id: p.userId, at: iso(p.at), amount: p.amount || 0, data: strip(p, "id", "userId", "at", "amount") })); },
+  async updatePayment(p) { must(await sb.from("payments").update({ at: iso(p.at), amount: p.amount || 0, data: strip(p, "id", "userId", "at", "amount") }).eq("id", p.id)); },
   async deletePayment(id) { must(await sb.from("payments").delete().eq("id", id)); },
   async saveGym(data) { must(await sb.from("gym").upsert({ id: 1, data: data || { ...S.db.gym, plans: S.db.plans }, updated_at: iso() })); },
   async saveNotice(n) { must(await sb.from("notices").insert({ id: n.id, at: iso(n.at), data: strip(n, "id", "at") })); },

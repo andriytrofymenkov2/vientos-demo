@@ -1048,3 +1048,18 @@ a.mrow:hover, button.mrow:hover { background: var(--card2); }
 .permonth .now b { color: var(--text); }
 .permonth small { color: var(--muted); font-size: 12.5px; text-transform: capitalize; }
 .lrow em.pill { font-style: normal; margin-left: 6px; height: 22px; }
+
+/* Cobros: socio en cuotas, historial y detalle de pagos */
+.mrow-link { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; color: inherit; }
+.mrow-link > span { display: grid; gap: 2px; min-width: 0; }
+.mrow-link:hover b { text-decoration: underline; }
+button.payrow { width: 100%; background: none; border: 0; border-bottom: 1px solid var(--line); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+button.payrow > .i { color: var(--muted); flex: none; }
+.paysum { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 14px; border-radius: 14px; background: var(--card2); margin-bottom: 8px; }
+.paysum span { color: var(--muted); font-size: 14px; }
+.paysum b { font: 700 24px "Barlow Condensed", sans-serif; }
+.paybig { display: grid; gap: 2px; text-align: center; padding: 6px 0 14px; }
+.paybig b { font: 700 40px/1 "Barlow Condensed", sans-serif; }
+.paybig span { color: var(--muted); }
+.mrow-link b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mrow-link small { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

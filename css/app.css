@@ -1077,3 +1077,8 @@ button.payrow > .i { color: var(--muted); flex: none; }
 @keyframes pulse-app { 50% { box-shadow: 0 0 0 3px #fff, 0 0 0 11px rgba(209, 31, 42, .55); } }
 @media (prefers-reduced-motion: reduce) { .mk-home-app img { animation: none; } }
 .ig-step .inst-done { margin-top: 4px; }
+
+/* Mover día: arriba, junto a las pestañas */
+.daymove { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 2px 0 12px; }
+.daymove .muted { white-space: nowrap; }
+.daymove { scroll-margin-top: 90px; }

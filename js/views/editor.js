@@ -70,6 +70,10 @@ function editor(obj, kind) {
   const tabs = () => `<div class="daytabs" role="tablist">${obj.days.map((d, i) => `<button type="button" role="tab" class="daytab ${i === cur ? "on" : ""}" data-day="${i}" aria-selected="${i === cur}"><b>${esc(d.name)}</b><small>${esc(d.focus || "—")}</small></button>`).join("")}
     <button type="button" class="daytab add" data-act="add-day" aria-label="Agregar día">${icon("plus")}</button></div>`;
 
+  /* Los días sin nombre propio (Día 1, Día 2…) siguen su posición: al moverlos,
+     agregarlos o borrarlos se renumeran solos. Un nombre escrito a mano no se toca. */
+  const renumber = () => obj.days.forEach((d, i) => { if (/^Día\s*\d+$/i.test(d.name.trim())) d.name = `Día ${i + 1}`; });
+
   const itemRow = (b, bi, i, ii) => {
     const ex = S.exercise(i.ex);
     const multi = b.type !== "single";
@@ -94,6 +98,11 @@ function editor(obj, kind) {
     if (!d) return "";
     const st = S.dayStats(d);
     return `<div class="eday">
+      <div class="daymove">
+        <button type="button" class="btn ghost sm" data-act="left-day" ${cur === 0 ? "disabled" : ""}>${icon("left", "sm")} Mover antes</button>
+        <span class="muted tiny">${cur + 1} de ${obj.days.length}</span>
+        <button type="button" class="btn ghost sm" data-act="right-day" ${cur === obj.days.length - 1 ? "disabled" : ""}>Mover después ${icon("right", "sm")}</button>
+      </div>
       <div class="grid2">
         ${field({ label: "Nombre del día", name: "dname", value: d.name, attrs: 'data-day-f="name"' })}
         ${field({ label: "Grupos musculares / foco", name: "dfocus", value: d.focus, ph: "Ej: Espalda, bíceps y abdomen", attrs: 'data-day-f="focus"' })}
@@ -119,8 +128,6 @@ function editor(obj, kind) {
       </div>
       <div class="dayops">
         <button type="button" class="btn ghost sm" data-act="dup-day">${icon("copy", "sm")} Duplicar día</button>
-        <button type="button" class="btn ghost sm" data-act="left-day" ${cur === 0 ? "disabled" : ""}>${icon("left", "sm")} Mover</button>
-        <button type="button" class="btn ghost sm" data-act="right-day" ${cur === obj.days.length - 1 ? "disabled" : ""}>Mover ${icon("right", "sm")}</button>
         <button type="button" class="btn ghost sm danger-t" data-act="del-day" ${obj.days.length < 2 ? "disabled" : ""}>${icon("trash", "sm")} Borrar día</button>
       </div>
     </div>`;
@@ -235,14 +242,14 @@ function editor(obj, kind) {
         if (act === "bdown") mv(blocks, bi, bi + 1);
         if (act === "del-item") { b.items.splice(ii, 1); if (!b.items.length) blocks.splice(bi, 1); redraw(false); }
         if (act === "del-block" && await confirmDialog({ title: "¿Quitar este bloque?", ok: "Quitar", danger: true })) { blocks.splice(bi, 1); redraw(false); }
-        if (act === "dup-day") { const c = JSON.parse(JSON.stringify(day())); c.name = `Día ${obj.days.length + 1}`; obj.days.push(S.normDays([strip(c)])[0]); cur = obj.days.length - 1; redraw(); }
-        if (act === "left-day" || act === "right-day") { const to = cur + (act === "left-day" ? -1 : 1); obj.days.splice(to, 0, obj.days.splice(cur, 1)[0]); cur = to; redraw(); }
-        if (act === "del-day" && await confirmDialog({ title: `¿Borrar ${day().name}?`, text: "Se quitan todos sus ejercicios.", ok: "Borrar", danger: true })) { obj.days.splice(cur, 1); cur = Math.max(0, cur - 1); redraw(); }
+        if (act === "dup-day") { const c = JSON.parse(JSON.stringify(day())); c.name = `Día ${obj.days.length + 1}`; obj.days.push(S.normDays([strip(c)])[0]); cur = obj.days.length - 1; renumber(); redraw(); }
+        if (act === "left-day" || act === "right-day") { const to = cur + (act === "left-day" ? -1 : 1); obj.days.splice(to, 0, obj.days.splice(cur, 1)[0]); cur = to; renumber(); redraw(); }
+        if (act === "del-day" && await confirmDialog({ title: `¿Borrar ${day().name}?`, text: "Se quitan todos sus ejercicios.", ok: "Borrar", danger: true })) { obj.days.splice(cur, 1); cur = Math.max(0, cur - 1); renumber(); redraw(); }
       });
       tabsEl.addEventListener("click", (e) => {
         const t = e.target.closest("[data-day]");
         if (t) { cur = +t.dataset.day; tabsEl.innerHTML = tabs(); body.innerHTML = dayBody(); return; }
-        if (e.target.closest("[data-act=add-day]")) { obj.days.push(S.normDays([{ name: `Día ${obj.days.length + 1}`, focus: "", blocks: [] }])[0]); cur = obj.days.length - 1; redraw(); }
+        if (e.target.closest("[data-act=add-day]")) { obj.days.push(S.normDays([{ name: `Día ${obj.days.length + 1}`, focus: "", blocks: [] }])[0]); cur = obj.days.length - 1; renumber(); redraw(); }
       });
       host.querySelector(".ed-foot").addEventListener("click", async (e) => {
         const act = e.target.closest("[data-act]")?.dataset.act;

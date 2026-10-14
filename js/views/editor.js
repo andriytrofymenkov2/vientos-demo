@@ -136,7 +136,7 @@ function editor(obj, kind) {
   const users = isT ? S.db.routines.filter((r) => r.active && r.fromTemplate === obj.id).length : 0;
   const actions = isT
     ? `<button class="btn primary sm" type="button" data-act="assign">${icon("userplus", "sm")} Asignar</button>`
-    : `<a class="btn ghost sm" href="#/panel/vista/${obj.id}">${icon("eye", "sm")} Vista del socio</a>`;
+    : `<a class="btn ghost sm" href="#/imprimir/${obj.id}">${icon("print", "sm")} Imprimir</a><a class="btn ghost sm" href="#/panel/vista/${obj.id}">${icon("eye", "sm")} Vista del socio</a>`;
 
   return {
     layout: "panel", nav: isT ? "plantillas" : "socios", title: obj.name,

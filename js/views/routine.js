@@ -1,5 +1,5 @@
 /* Mi rutina: días, ejercicios y registro del entrenamiento */
-import { icon, WAVES } from "../core/icons.js";
+import { icon, logo, WAVES } from "../core/icons.js";
 import { esc, fmtDate, fmtWeekday, fmtRest, fmtKg, relDay, ytId, waNumber, plural, weekStart, dayKey, DAY, $, $$, vibrate } from "../core/util.js";
 import * as S from "../core/store.js";
 import { me, isStaff } from "../core/auth.js";
@@ -53,6 +53,7 @@ export function routineView(params) {
         <h1>${esc(S.routineTitle(r))}</h1>
         ${r.personal ? `<p class="rhero-sub">${esc(r.name)}</p>` : ""}
         ${coach ? `<p class="rhero-by">${icon("user", "xs")} Armada por ${esc(coach.name)} · desde el ${fmtDate(r.startedAt)}</p>` : ""}
+        <a class="btn ghost sm rhero-print" href="#/imprimir/${r.id}">${icon("print", "sm")} Imprimir mi rutina</a>
         ${WAVES}
       </section>
       ${r.note ? `<div class="coachnote">${icon("note")}<p><b>Nota del profe</b>${esc(r.note)}</p></div>` : ""}
@@ -309,4 +310,64 @@ function zoomPhotos(ex) {
   el.querySelector(".zoom-x").addEventListener("click", close);
   addEventListener("hashchange", close);
   document.body.append(el);
+}
+
+
+/* ------------------------------------------------- rutina para imprimir (A4)
+   Hoja prolija con el logo de Vientos: datos del socio, un recuadro por día y
+   un casillero vacío por serie para anotar los kilos a mano. Se usa "Imprimir" /
+   "Guardar como PDF" del navegador o del celular. */
+export function printView(params) {
+  const r = S.routine(params.rid);
+  if (!canSee(r)) return go("/rutina", { replace: true });
+  const owner = S.user(r.userId), coach = S.user(r.coachId), g = S.db.gym;
+  const back = isStaff() ? `#/panel/socios/${r.userId}` : "#/rutina";
+  const dayHtml = (d) => {
+    const st = S.dayStats(d);
+    const rows = d.blocks.map((b, bi) => {
+      const head = b.type === "single" ? "" : `<tr class="p-bh"><td colspan="5"><b>${esc(BLOCK_TYPES[b.type].label)}</b> · ${b.items[0]?.sets || 1} ${(b.items[0]?.sets || 1) === 1 ? "vuelta" : "vueltas"} · descanso ${fmtRest(b.rest)}</td></tr>`;
+      const items = b.items.map((i, ii) => {
+        const ex = S.exercise(i.ex);
+        const list = repsList(i.reps);
+        return `<tr>
+          <td class="p-n">${b.type !== "single" ? `<em>${letter(bi, ii)}</em>` : ""}<b>${esc(ex?.n || "Ejercicio")}</b>${i.note ? `<small>${esc(i.note)}</small>` : ""}</td>
+          <td class="p-c">${i.sets}</td>
+          <td class="p-c">${esc(list.length > 1 ? list.join(" · ") : i.reps)}</td>
+          <td class="p-c">${restOf(b, i, ii) ? fmtRest(restOf(b, i, ii)) : "—"}</td>
+          <td class="p-kg">${Array.from({ length: Math.min(i.sets, 6) }, () => "<i></i>").join("")}</td></tr>`;
+      }).join("");
+      return head + items;
+    }).join("");
+    return `<section class="p-day">
+      <header><span class="p-dn">${esc(d.name)}</span><h2>${esc(d.focus || "Entrenamiento")}</h2><small>${st.ex} ejercicios · ${st.sets} series · ~${st.min} min</small></header>
+      <table><thead><tr><th>Ejercicio</th><th>Series</th><th>Repeticiones</th><th>Descanso</th><th>Kilos (anotá cada serie)</th></tr></thead><tbody>${rows}</tbody></table>
+    </section>`;
+  };
+  return {
+    layout: "print", title: `Rutina · ${owner?.name || ""}`,
+    html: `<div class="p-bar no-print">
+        <a class="btn ghost sm" href="${back}">${icon("left", "sm")} Volver</a>
+        <span class="muted">Se imprime en hoja A4. En el celular elegí "Guardar como PDF" o "Imprimir".</span>
+        <button class="btn primary" type="button" data-print>${icon("print", "sm")} Imprimir / Guardar PDF</button>
+      </div>
+      <article class="p-sheet">
+        <header class="p-head">
+          <div class="p-logo">${logo()}</div>
+          <div class="p-title"><span>Rutina de entrenamiento</span><h1>${esc(S.routineTitle(r))}</h1></div>
+        </header>
+        <section class="p-info">
+          <div><small>Socio</small><b>${esc(owner?.name || "")}</b></div>
+          <div><small>Profe</small><b>${esc(coach?.name || "—")}</b></div>
+          <div><small>Desde</small><b>${fmtDate(r.startedAt, { year: true })}</b></div>
+          <div><small>Días por semana</small><b>${r.days.length}</b></div>
+        </section>
+        ${r.note ? `<p class="p-note"><b>Nota del profe:</b> ${esc(r.note)}</p>` : ""}
+        ${r.days.map(dayHtml).join("")}
+        <footer class="p-foot">
+          <span>Vientos GYM · ${esc(g.address || "")}, ${esc(g.city || "")}</span>
+          <span>WhatsApp ${esc(g.whatsapp || "")} · @${esc(g.instagram || "vientosgym")}</span>
+        </footer>
+      </article>`,
+    mount(host) { host.querySelector("[data-print]")?.addEventListener("click", () => window.print()); },
+  };
 }

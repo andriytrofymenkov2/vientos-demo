@@ -6,7 +6,7 @@ import { shell, applyTheme, toast } from "./core/ui.js";
 import { resumeRest } from "./core/timer.js";
 import { loginView, registerView, recoverView, firstPasswordView } from "./views/auth.js";
 import { homeView } from "./views/home.js";
-import { routineView, dayView, exerciseView, summaryView } from "./views/routine.js";
+import { routineView, dayView, exerciseView, summaryView, printView } from "./views/routine.js";
 import { progressView } from "./views/progress.js";
 import { profileView } from "./views/profile.js";
 import { installView } from "./views/install.js";
@@ -43,6 +43,7 @@ async function boot() {
   route("/rutina", routineView, member);
   route("/rutina/:rid", routineView, member);
   route("/rutina/:rid/dia/:did", dayView);
+  route("/imprimir/:rid", printView);
   route("/rutina/:rid/dia/:did/ej/:iid", exerciseView);
   route("/resumen/:id", summaryView, member);
   route("/progreso", progressView, member);

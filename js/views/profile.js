@@ -4,7 +4,7 @@ import { esc, fmtDate, waNumber, $ } from "../core/util.js";
 import * as S from "../core/store.js";
 import { me, logout, remembered, setRemember, passwordIssues, isStaff } from "../core/auth.js";
 import { go, refresh } from "../core/router.js";
-import { avatar, field, formData, toast, sheet, applyTheme, feePill, pageHead } from "../core/ui.js";
+import { avatar, field, dateField, formData, toast, sheet, applyTheme, feePill, pageHead } from "../core/ui.js";
 
 const toggle = (name, label, on, hint = "") => `<label class="toggle"><span><b>${esc(label)}</b>${hint ? `<small>${esc(hint)}</small>` : ""}</span><input type="checkbox" name="${name}" ${on ? "checked" : ""} role="switch"><i aria-hidden="true"></i></label>`;
 
@@ -25,7 +25,7 @@ export function profileView(params, query = {}) {
         <div class="card-h"><h2>${icon("user", "sm")} Información personal</h2></div>
         ${field({ label: "Nombre y apellido", name: "fullname", value: u.name, req: true })}
         <div class="grid2">
-          ${field({ label: "Fecha de nacimiento", name: "birth", type: "date", value: u.birth })}
+          ${dateField({ label: "Fecha de nacimiento", name: "birth", value: u.birth })}
           ${field({ label: "Género", name: "gender", value: u.gender, options: [["", "Prefiero no decir"], "Femenino", "Masculino", "No binario", "Otro"] })}
         </div>
         ${field({ label: "Teléfono", name: "phone", type: "tel", value: u.phone })}

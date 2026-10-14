@@ -461,7 +461,9 @@ export const api = {
   logSet(userId, itemId, setIdx, data) {
     const s = db.live[userId];
     if (!s) return;
-    (s.sets[itemId] ||= [])[setIdx] = { ...(s.sets[itemId]?.[setIdx] || {}), ...data };
+    const prev = s.sets[itemId]?.[setIdx] || {};
+    /* la hora de cada serie hecha: sirve para medir cuánto se entrenó de verdad */
+    (s.sets[itemId] ||= [])[setIdx] = { ...prev, ...data, ...(data.done ? { t: prev.done && prev.t ? prev.t : Date.now() } : {}) };
     s.lastAt = Date.now();
     save();
     push("saveLive", userId, s);
@@ -485,9 +487,16 @@ export const api = {
     for (const b of d?.blocks || []) for (const i of b.items) {
       (s.sets[i.id] || []).forEach((x, n) => { if (x?.done) sets.push({ item: i.id, ex: i.ex, set: n + 1, kg: x.kg ?? null, reps: x.reps ?? null }); });
     }
+    /* Duración real: de la primera a la última serie hecha (+ unos 2 min de la última serie).
+       No cuenta el tiempo antes de empezar ni el que pasa hasta que se toca "Listo por hoy". */
+    const times = Object.values(s.sets).flat().filter((x) => x?.done && x.t).map((x) => x.t);
+    const last = times.length ? Math.max(...times) : (s.lastAt || endAt);
+    const first = times.length ? Math.min(...times) : s.startedAt;
+    const end = Math.min(endAt, last + 120000);
+    const min = Math.min(240, Math.max(1, Math.round((end - Math.min(first, last)) / 60000)));
     const log = {
       id: uid("l"), userId, routineId: s.routineId, dayId: s.dayId, dayName: d?.name || "", focus: d?.focus || "",
-      startedAt: s.startedAt, at: endAt, min: Math.max(1, Math.round((endAt - s.startedAt) / 60000)), sets,
+      startedAt: Math.min(first, last), at: Math.min(endAt, last + 120000), min, sets,
       volume: sets.reduce((a, x) => a + (x.kg || 0) * (parseInt(x.reps) || 0), 0),
     };
     delete db.live[userId];

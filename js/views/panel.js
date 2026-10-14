@@ -4,7 +4,7 @@ import { esc, fold, fmtDate, relDay, dayKey, plural, debounce, waNumber, firstNa
 import * as S from "../core/store.js";
 import { me, isAdmin, logout } from "../core/auth.js";
 import { go, refresh } from "../core/router.js";
-import { field, formData, toast, sheet, confirmDialog, pageHead, empty, avatar, feePill } from "../core/ui.js";
+import { field, dateField, formData, toast, sheet, confirmDialog, pageHead, empty, avatar, feePill } from "../core/ui.js";
 import { heatmap } from "./progress.js";
 import { routineView } from "./routine.js";
 import { qrSvg, installUrl } from "./install.js";
@@ -218,7 +218,7 @@ function newMemberSheet() {
     html: `<form novalidate>
       <div class="grid2">${field({ label: "Nombre", name: "first", req: true, attrs: 'autocomplete="off"' })}${field({ label: "Apellido", name: "last", req: true, attrs: 'autocomplete="off"' })}</div>
       <div class="grid2">${field({ label: "DNI (será su usuario)", name: "dni", req: true, ph: "Sin puntos", attrs: 'inputmode="numeric" autocomplete="off"' })}${field({ label: "Teléfono (WhatsApp)", name: "phone", type: "tel", req: true, ph: "2966 …" })}</div>
-      <div class="grid2">${field({ label: "Fecha de nacimiento", name: "birth", type: "date", req: true, attrs: `max="${dayKey()}"` })}${field({ label: "Género", name: "gender", req: true, options: [["", "Elegir"], "Femenino", "Masculino", "Otro"] })}</div>
+      <div class="grid2">${dateField({ label: "Fecha de nacimiento", name: "birth", req: true })}${field({ label: "Género", name: "gender", req: true, options: [["", "Elegir"], "Femenino", "Masculino", "Otro"] })}</div>
       ${field({ label: "Email (opcional)", name: "email", type: "email", ph: "Para recuperar la contraseña" })}
       ${field({ label: "Profe a cargo", name: "coach", value: me().role === "profe" ? me().id : "", options: [["", "Sin asignar"], ...S.coaches().map((c) => [c.id, c.name])] })}
       <fieldset class="paybox"><legend>Cuota</legend>
@@ -514,7 +514,7 @@ function payEditSheet(x) {
     title: "Editar pago",
     html: `<form novalidate>
       ${field({ label: "Monto cobrado", name: "amount", type: "number", value: x.amount || 0, req: true, attrs: 'inputmode="numeric" min="0"' })}
-      ${field({ label: "Fecha de cobro", name: "at", type: "date", value: dayKey(x.at), req: true, attrs: `max="${dayKey()}"` })}
+      ${dateField({ label: "Fecha de cobro", name: "at", value: dayKey(x.at), req: true })}
       ${field({ label: "Nota (opcional)", name: "note", value: x.note || "", ph: "Ej: pagó con transferencia, se corrigió el monto" })}
       <p class="muted tiny">Para cambiar el período que cubre, usá "Cambiar vencimiento" en la ficha del socio.</p>
       <p class="form-err" role="alert" hidden></p>
@@ -543,7 +543,7 @@ function dataSheet(m) {
     html: `<form novalidate>
       ${field({ label: "Nombre y apellido", name: "name", value: m.name, req: true })}
       ${field({ label: "Teléfono (WhatsApp)", name: "phone", type: "tel", value: m.phone || "" })}
-      <div class="grid2">${field({ label: "Fecha de nacimiento", name: "birth", type: "date", value: m.birth || "" })}${field({ label: "Género", name: "gender", value: m.gender || "", options: [["", "Elegir"], "Femenino", "Masculino", "Otro"] })}</div>
+      <div class="grid2">${dateField({ label: "Fecha de nacimiento", name: "birth", value: m.birth || "" })}${field({ label: "Género", name: "gender", value: m.gender || "", options: [["", "Elegir"], "Femenino", "Masculino", "Otro"] })}</div>
       <p class="muted tiny">El género y la edad se usan solo para las estadísticas del resumen.</p>
       <p class="form-err" role="alert" hidden></p>
       <button class="btn primary block" type="submit">Guardar</button></form>`,
@@ -563,7 +563,7 @@ function dueSheet(m) {
   const v = m.fee?.dueAt ? dayKey(m.fee.dueAt) : dayKey(Date.now() + 30 * DAY);
   sheet({
     title: "Cambiar vencimiento",
-    html: `<form novalidate>${field({ label: "Vence el", name: "due", type: "date", value: v, req: true })}${field({ label: "Plan", name: "plan", value: m.fee?.planId, options: S.db.plans.map((p) => [p.id, p.name]) })}<button class="btn primary block" type="submit">Guardar</button></form>`,
+    html: `<form novalidate>${dateField({ label: "Vence el", name: "due", value: v, req: true })}${field({ label: "Plan", name: "plan", value: m.fee?.planId, options: S.db.plans.map((p) => [p.id, p.name]) })}<button class="btn primary block" type="submit">Guardar</button></form>`,
     onMount(b, close) {
       $("form", b).addEventListener("submit", (e) => {
         e.preventDefault();

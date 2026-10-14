@@ -1082,3 +1082,10 @@ button.payrow > .i { color: var(--muted); flex: none; }
 .daymove { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 2px 0 12px; }
 .daymove .muted { white-space: nowrap; }
 .daymove { scroll-margin-top: 90px; }
+
+/* Fecha escrita: DD / MM / AAAA */
+.datef-in { display: flex; align-items: center; gap: 6px; }
+.datef-in i { font-style: normal; color: var(--muted); font-size: 18px; }
+.datef-in input[data-p] { text-align: center; padding-left: 0; padding-right: 0; min-width: 0; flex: 1 1 0; }
+.datef-in input[data-p=y] { flex: 1.6 1 0; }
+.datef.bad input[data-p] { border-color: var(--bad); }

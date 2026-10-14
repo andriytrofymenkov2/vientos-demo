@@ -11,28 +11,80 @@ let state = null, tick = 0, el = null, actx = null;
 function load() { try { state = JSON.parse(localStorage.getItem(KEY) || "null"); } catch { state = null; } }
 function persist() { try { state ? localStorage.setItem(KEY, JSON.stringify(state)) : localStorage.removeItem(KEY); } catch { /* sin almacenamiento */ } }
 
-/* El navegador solo deja sonar audio después de un toque: se prepara al iniciar */
+/* ---------------------------------------------------------------- alarma
+   El navegador solo deja sonar audio después de un toque: se prepara al iniciar el
+   descanso. La alarma es fuerte y larga (4 ráfagas, unos 4 segundos) y se genera
+   como un archivo de audio: suena por el parlante a volumen de medios y, en la
+   mayoría de los celulares, sigue funcionando con la pantalla apagada porque
+   mientras se descansa corre un audio silencioso que mantiene viva la página. */
+const RATE = 22050;
+function wav(samples) {
+  const buf = new ArrayBuffer(44 + samples.length * 2), v = new DataView(buf);
+  const w = (o, str) => [...str].forEach((c, i) => v.setUint8(o + i, c.charCodeAt(0)));
+  w(0, "RIFF"); v.setUint32(4, 36 + samples.length * 2, true); w(8, "WAVEfmt ");
+  v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+  v.setUint32(24, RATE, true); v.setUint32(28, RATE * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
+  w(36, "data"); v.setUint32(40, samples.length * 2, true);
+  samples.forEach((x, i) => v.setInt16(44 + i * 2, Math.max(-1, Math.min(1, x)) * 32767, true));
+  return URL.createObjectURL(new Blob([buf], { type: "audio/wav" }));
+}
+/* Pitido de alarma: dos tonos alternados (1000 y 1500 Hz) con onda casi cuadrada = mucho más fuerte que un seno */
+function alarmWav() {
+  const out = [];
+  const burst = (hz, sec) => { const n = Math.floor(RATE * sec); for (let i = 0; i < n; i++) { const env = Math.min(1, i / 200, (n - i) / 200); out.push(Math.tanh(3 * Math.sin((2 * Math.PI * hz * i) / RATE)) * 0.95 * env); } };
+  const gap = (sec) => { for (let i = 0; i < RATE * sec; i++) out.push(0); };
+  for (let r = 0; r < 4; r++) { burst(1000, 0.16); gap(0.05); burst(1500, 0.16); gap(0.05); burst(1000, 0.16); gap(0.05); burst(1500, 0.16); gap(0.32); }
+  return wav(out);
+}
+let alarmUrl = null, silentUrl = null, alarmEl = null, silentEl = null;
 function unlockAudio() {
   try { actx ||= new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume(); } catch { actx = null; }
-}
-function beep() {
-  if (me()?.prefs?.sound === false || !actx) return;
   try {
-    [0, 0.18, 0.36].forEach((t, i) => {
-      const o = actx.createOscillator(), g = actx.createGain();
-      o.type = "sine"; o.frequency.value = i === 2 ? 1180 : 880;
-      g.gain.setValueAtTime(0.0001, actx.currentTime + t);
-      g.gain.exponentialRampToValueAtTime(0.25, actx.currentTime + t + 0.02);
-      g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime + t + 0.15);
+    alarmUrl ||= alarmWav();
+    silentUrl ||= wav(new Array(RATE).fill(0));
+    if (!alarmEl) { alarmEl = new Audio(alarmUrl); alarmEl.volume = 1; alarmEl.preload = "auto"; }
+    if (!silentEl) { silentEl = new Audio(silentUrl); silentEl.loop = true; silentEl.volume = 1; }
+    /* el toque que arrancó el descanso "habilita" el audio: se enciende el silencioso y se deja listo el de la alarma */
+    silentEl.play().catch(() => {});
+    alarmEl.muted = true; alarmEl.play().then(() => { alarmEl.pause(); alarmEl.currentTime = 0; alarmEl.muted = false; }).catch(() => { alarmEl.muted = false; });
+  } catch { /* sin audio */ }
+}
+function stopSilent() { try { silentEl?.pause(); } catch { /* nada */ } }
+
+function beep() {
+  if (me()?.prefs?.sound === false) return;
+  try { alarmEl.currentTime = 0; alarmEl.volume = 1; alarmEl.play().catch(webBeep); } catch { webBeep(); }
+}
+/* Plan B si el archivo de audio no pudo sonar: tonos con el audio web, más fuertes que antes */
+function webBeep() {
+  if (!actx) return;
+  try {
+    for (let r = 0; r < 3; r++) [0, 0.2, 0.4].forEach((t, i) => {
+      const o = actx.createOscillator(), g = actx.createGain(), at = actx.currentTime + r * 0.9 + t;
+      o.type = "square"; o.frequency.value = i === 1 ? 1500 : 1000;
+      g.gain.setValueAtTime(0.0001, at);
+      g.gain.exponentialRampToValueAtTime(0.8, at + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, at + 0.17);
       o.connect(g).connect(actx.destination);
-      o.start(actx.currentTime + t); o.stop(actx.currentTime + t + 0.16);
+      o.start(at); o.stop(at + 0.18);
     });
   } catch { /* sin audio */ }
+}
+
+/* Aviso del sistema (vibra y suena aunque la pantalla esté apagada): solo si la persona lo permitió */
+const askNotify = () => { try { if ("Notification" in window && Notification.permission === "default") Notification.requestPermission(); } catch { /* sin avisos */ } };
+async function notifyEnd(label) {
+  try {
+    if (!("Notification" in window) || Notification.permission !== "granted" || document.visibilityState === "visible") return;
+    const reg = await navigator.serviceWorker?.getRegistration();
+    await reg?.showNotification("¡Terminó el descanso!", { body: `${label} · a la próxima serie`, tag: "vientos-rest", renotify: true, requireInteraction: false, vibrate: [500, 200, 500, 200, 500, 200, 800], icon: "img/icon-192.png", badge: "img/favicon-64.png", silent: false });
+  } catch { /* sin avisos */ }
 }
 
 export function startRest(sec, label = "Descanso") {
   if (!sec) return;
   unlockAudio();
+  askNotify();
   state = { endAt: Date.now() + sec * 1000, total: sec, label };
   persist();
   mountEl();
@@ -41,7 +93,7 @@ export function startRest(sec, label = "Descanso") {
 export const restRunning = () => !!state;
 
 export function stopRest() {
-  state = null; persist();
+  state = null; persist(); stopSilent();
   clearInterval(tick); tick = 0;
   if (el) { el.classList.remove("in"); setTimeout(() => { if (!state) { el?.remove(); el = null; } }, 250); }
 }
@@ -91,12 +143,18 @@ function loop() {
     draw();
     if (Date.now() >= state.endAt && !state.rang) {
       state.rang = true; persist();
-      vibrate([180, 90, 180, 90, 260]);
+      vibrate([500, 200, 500, 200, 500, 200, 800]);
       beep();
-      setTimeout(() => { if (state?.rang) stopRest(); }, 2600);
+      notifyEnd(state.label || "Descanso");
+      setTimeout(() => { if (state?.rang) stopRest(); }, 4800);
     }
   }, 250);
 }
+
+/* Si el celular durmió la página y el descanso terminó, al volver se avisa igual */
+if (typeof document !== "undefined") document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && state && !state.rang && Date.now() >= state.endAt) { draw(); }
+});
 
 /* Al abrir la app: si había un descanso corriendo, lo retoma */
 export function resumeRest() {

@@ -158,6 +158,56 @@ export function field({ label, name, type = "text", value = "", ph = "", req = f
   else input = `<input name="${name}" type="${type}" value="${v}" placeholder="${esc(ph)}" ${req ? "required" : ""} ${attrs}>`;
   return `<label class="field"><span>${esc(label)}</span>${input}${hint ? `<small>${esc(hint)}</small>` : ""}</label>`;
 }
+/* Fecha para escribir con el teclado numérico: DD / MM / AAAA.
+   Al completar cada parte salta a la siguiente. El valor (AAAA-MM-DD) viaja en
+   un campo oculto con el mismo nombre, así formData() lo lee igual que antes. */
+export function dateField({ label, name, value = "", req = false, hint = "" }) {
+  const [y = "", m = "", d = ""] = String(value || "").split("-");
+  return `<div class="field datef" data-datef ${req ? "data-req" : ""}><span>${esc(label)}</span>
+    <div class="datef-in">
+      <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="DD" data-p="d" value="${esc(d)}" autocomplete="off" aria-label="${esc(label)}: día">
+      <i aria-hidden="true">/</i>
+      <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="MM" data-p="m" value="${esc(m)}" autocomplete="off" aria-label="${esc(label)}: mes">
+      <i aria-hidden="true">/</i>
+      <input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="AAAA" data-p="y" value="${esc(y)}" autocomplete="off" aria-label="${esc(label)}: año">
+      <input type="hidden" name="${esc(name)}" value="${esc(value || "")}">
+    </div>${hint ? `<small>${esc(hint)}</small>` : ""}</div>`;
+}
+const pad2 = (n) => String(n).padStart(2, "0");
+function syncDate(box) {
+  const g = (p) => box.querySelector(`[data-p=${p}]`).value;
+  const d = +g("d"), m = +g("m"), y = +g("y");
+  const t = new Date(y, m - 1, d);
+  const ok = g("y").length === 4 && d >= 1 && m >= 1 && m <= 12 && y >= 1900 && y <= 2100 && t.getFullYear() === y && t.getMonth() === m - 1 && t.getDate() === d;
+  box.querySelector("input[type=hidden]").value = ok ? `${y}-${pad2(m)}-${pad2(d)}` : "";
+  box.classList.toggle("bad", !ok && !!(g("d") || g("m") || g("y")) && g("y").length === 4);
+}
+if (typeof document !== "undefined") {
+  document.addEventListener("input", (e) => {
+    const inp = e.target.closest?.("[data-datef] [data-p]");
+    if (!inp) return;
+    const box = inp.closest("[data-datef]");
+    const max = inp.dataset.p === "y" ? 4 : 2;
+    inp.value = inp.value.replace(/\D/g, "").slice(0, max);
+    /* un día o mes que ya no puede crecer (ej. 4 → 04, 2 → 02) salta solo al siguiente */
+    const next = { d: "m", m: "y" }[inp.dataset.p];
+    const first = +inp.value[0];
+    const full = inp.value.length === max || (inp.dataset.p === "d" && first >= 4) || (inp.dataset.p === "m" && first >= 2);
+    if (next && inp.value && full && e.inputType !== "deleteContentBackward") {
+      if (inp.value.length === 1) inp.value = "0" + inp.value;
+      box.querySelector(`[data-p=${next}]`).focus();
+    }
+    syncDate(box);
+  });
+  document.addEventListener("keydown", (e) => {
+    const inp = e.target.closest?.("[data-datef] [data-p]");
+    if (!inp || e.key !== "Backspace" || inp.value) return;
+    const prev = { m: "d", y: "m" }[inp.dataset.p];
+    if (prev) { e.preventDefault(); const p = inp.closest("[data-datef]").querySelector(`[data-p=${prev}]`); p.focus(); p.value = p.value.slice(0, -1); syncDate(inp.closest("[data-datef]")); }
+  });
+  document.addEventListener("focusin", (e) => { if (e.target.matches?.("[data-datef] [data-p]")) setTimeout(() => { if (document.activeElement === e.target) e.target.select?.(); }, 0); });
+}
+
 export const formData = (form) => Object.fromEntries(new FormData(form).entries());
 
 export function empty(ic, title, text = "", action = "") {

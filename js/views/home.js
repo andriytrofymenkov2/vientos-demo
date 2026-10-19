@@ -14,7 +14,7 @@ export function homeView() {
   const r = S.activeRoutine(u.id);
   const live = S.session(u.id);
   const liveDay = live && S.routine(live.routineId)?.days.find((d) => d.id === live.dayId);
-  const next = S.nextDay(u.id);
+  const plan = S.todayPlan(u.id), next = plan?.day || null;
   const coach = S.user(u.coachId);
   const fee = S.feeStatus(u);
   const logs = S.logsOf(u.id);
@@ -46,7 +46,7 @@ export function homeView() {
   } else if (r && next) {
     const st = S.dayStats(next);
     todayCard = `<a class="today" href="#/rutina/${r.id}/dia/${next.id}">
-      <span class="kicker">Hoy te toca</span>
+      <span class="kicker">${plan.today ? "Hoy te toca" : plan.inDays === 1 ? "Hoy descansás · mañana te toca" : `Hoy descansás · el ${S.WEEKDAYS[plan.wd]} te toca`}</span>
       <h2>${esc(next.focus || next.name)}</h2>
       <span class="today-meta">${icon("dumbbell", "xs")} ${st.ex} ejercicios <i></i> ${icon("clock", "xs")} ${st.min} min <i></i> ${st.sets} series</span>
       <span class="today-cta">Ver el día ${icon("arrow")}</span>${WAVES}</a>`;

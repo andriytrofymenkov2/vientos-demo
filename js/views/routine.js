@@ -31,7 +31,7 @@ export function routineView(params) {
   }
   const coach = S.user(r.coachId);
   const live = S.session(u.id);
-  const next = r.active ? S.nextDay(u.id) : null;
+  const plan = r.active ? S.todayPlan(u.id) : null, next = plan?.day || null;
   const doneWeek = new Set(S.logsOf(u.id).filter((l) => l.routineId === r.id && l.at >= weekStart()).map((l) => l.dayId));
   const others = S.routinesOf(u.id).filter((x) => x.id !== r.id);
 
@@ -39,10 +39,10 @@ export function routineView(params) {
     const st = S.dayStats(d);
     const state = live?.dayId === d.id ? `<span class="pill live">${icon("bolt", "xs")} En curso</span>`
       : doneWeek.has(d.id) ? `<span class="pill ok">${icon("check", "xs")} Hecho</span>`
-      : next?.id === d.id ? `<span class="pill red">Próximo</span>` : "";
+      : next?.id === d.id ? `<span class="pill red">${plan.today ? "Hoy" : "Próximo"}</span>` : "";
     return `<a class="dayrow" href="#/rutina/${r.id}/dia/${d.id}">
       <span class="dayrow-n">${esc(d.name)}</span>
-      <span class="dayrow-t"><b>${esc(d.focus || "Entrenamiento")}</b><small>${st.ex} ejercicios · ${st.sets} series · ${st.min} min</small></span>
+      <span class="dayrow-t"><b>${esc(d.focus || "Entrenamiento")}</b><small>${r.active && S.slotsOf(r)[r.days.indexOf(d)] !== undefined ? `<span class="dow">${esc(S.WEEKDAYS[S.slotsOf(r)[r.days.indexOf(d)]])}</span> · ` : ""}${st.ex} ejercicios · ${st.sets} series · ${st.min} min</small></span>
       ${state}${icon("right", "sm")}</a>`;
   }).join("");
 

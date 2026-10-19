@@ -1145,3 +1145,5 @@ button.payrow > .i { color: var(--muted); flex: none; }
   .p-head { padding-bottom: 8px; }
   .p-info { margin: 8px 0; }
 }
+
+.dow { text-transform: capitalize; color: var(--text2); font-weight: 600; }

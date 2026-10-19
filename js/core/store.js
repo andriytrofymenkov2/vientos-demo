@@ -235,15 +235,33 @@ export function streakWeeks(userId) {
 }
 export const trainedDays = (userId) => new Set(logsOf(userId).map((l) => dayKey(l.at)));
 
-/* Próximo día sugerido: el siguiente al último que entrenó */
-export function nextDay(userId) {
+/* Semana fija: el Día 1 es del lunes, el Día 2 del martes, y así. No depende de lo
+   que se hizo la semana anterior: si el viernes (Día 5) no se fue, el lunes toca el Día 1.
+   Con menos de 5 días se reparten en la semana (3 días: lun, mié y vie). */
+const SLOTS = { 1: [0], 2: [0, 3], 3: [0, 2, 4], 4: [0, 1, 3, 4], 5: [0, 1, 2, 3, 4], 6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5, 6] };
+export const WEEKDAYS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
+export const weekdayOf = (ts = Date.now()) => (new Date(ts).getDay() + 6) % 7;
+/* Día de la semana (0 = lunes) en que se hace cada día de la rutina */
+export const slotsOf = (r) => (r?.days.length ? SLOTS[Math.min(7, r.days.length)] || [] : []);
+export function dayOn(r, wd) {
+  const i = slotsOf(r).indexOf(wd);
+  return i < 0 ? null : r.days[i];
+}
+/* Qué toca hoy: { day, today } · today = false cuando hoy es de descanso y se muestra el próximo */
+export function todayPlan(userId, ts = Date.now()) {
   const r = activeRoutine(userId);
   if (!r || !r.days.length) return null;
-  const last = logsOf(userId).find((l) => l.routineId === r.id);
-  if (!last) return r.days[0];
-  const i = r.days.findIndex((d) => d.id === last.dayId);
-  return r.days[(i + 1) % r.days.length];
+  const wd = weekdayOf(ts);
+  const slots = slotsOf(r);
+  const now = dayOn(r, wd);
+  if (now) return { day: now, today: true, wd };
+  for (let k = 1; k <= 7; k++) {
+    const w = (wd + k) % 7, d = dayOn(r, w);
+    if (d) return { day: d, today: false, wd: w, inDays: k };
+  }
+  return { day: r.days[0], today: false, wd: slots[0] ?? 0, inDays: 1 };
 }
+export const nextDay = (userId) => todayPlan(userId)?.day || null;
 
 /* Horario agrupado para mostrar: [{d: "Lunes a viernes", h: "06:00 a 23:00"}] */
 const WD = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];

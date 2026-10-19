@@ -140,11 +140,12 @@ const R = {
   gracias() { return { text: "¡De nada! Buen entrenamiento 💪", chips: ["¿Qué me toca hoy?", "¿Qué peso pongo?"] }; },
 
   hoy(u) {
-    const r = S.activeRoutine(u.id), d = S.nextDay(u.id);
+    const r = S.activeRoutine(u.id), plan = S.todayPlan(u.id), d = plan?.day;
     if (!r || !d) return { text: "Todavía no tenés rutina asignada. Tu profe te la carga en estos días.", actions: [profeAction(u)] };
     const st = S.dayStats(d);
     const list = d.blocks.flatMap((b) => b.items).map((i) => `• ${esc(S.exercise(i.ex)?.n || "")} — ${i.sets} × ${esc(i.reps)}`).join("<br>");
-    return { text: `Hoy te toca <b>${esc(d.name)}: ${esc(d.focus)}</b>. Son ${st.ex} ejercicios, unos ${st.min} minutos.<br><br>${list}<br><br>Podés hacerlos en el orden que quieras y saltear los que no puedas.`, actions: [{ label: `Ir a ${d.name}`, href: `#/rutina/${r.id}/dia/${d.id}`, icon: "dumbbell" }], chips: ["¿Qué peso pongo?", "La máquina está ocupada"] };
+    const cuando = plan.today ? "Hoy te toca" : `Hoy descansás. El ${S.WEEKDAYS[plan.wd]} te toca`;
+    return { text: `${cuando} <b>${esc(d.name)}: ${esc(d.focus)}</b>. Son ${st.ex} ejercicios, unos ${st.min} minutos.<br><br>${list}<br><br>Podés hacerlos en el orden que quieras y saltear los que no puedas.`, actions: [{ label: `Ir a ${d.name}`, href: `#/rutina/${r.id}/dia/${d.id}`, icon: "dumbbell" }], chips: ["¿Qué peso pongo?", "La máquina está ocupada"] };
   },
 
   peso(u, ex) {

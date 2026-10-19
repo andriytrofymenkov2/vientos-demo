@@ -85,7 +85,7 @@ const toPay = (r) => ({ ...r.data, id: r.id, userId: r.user_id, at: ms(r.at), am
 async function allPayments() {
   const rows = [];
   for (let from = 0; from < 50000; from += 1000) {
-    const { data, error } = await sb.from("payments").select("*").order("at", { ascending: false }).range(from, from + 999);
+    const { data, error } = await sb.from("payments").select("*").order("at", { ascending: false }).order("id").range(from, from + 999);
     if (error) return { data: null, error };
     rows.push(...data);
     if (data.length < 1000) break;

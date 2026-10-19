@@ -1199,3 +1199,14 @@ a.kpi .cta { margin-top: 6px; }
 .prow-t small { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prow-m { flex: none; font: 700 18px "Barlow Condensed", sans-serif; }
 [data-more] { margin-top: 10px; }
+
+/* Socios por mes: columnas tocables y detalle */
+button.col { background: none; border: 0; padding: 0; color: var(--text); font: inherit; cursor: pointer; }
+.mstats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.mstats > div { background: var(--card2); border-radius: 14px; padding: 10px 6px; text-align: center; display: grid; gap: 2px; }
+.mstats b { font: 700 26px/1 "Barlow Condensed", sans-serif; }
+.mstats small { font-size: 12px; color: var(--muted); }
+.mstats .ms-main { grid-column: 1 / -1; background: var(--red); color: #fff; }
+.mstats .ms-main small { color: rgba(255, 255, 255, .85); }
+.mstats .ms-main b { font-size: 36px; }
+@media (max-width: 420px) { .mstats { grid-template-columns: repeat(2, 1fr); } }

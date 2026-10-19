@@ -32,12 +32,12 @@ function hbars(rows, total, { money: isMoney = false } = {}) {
       <span class="hb-v"><b>${isMoney ? money(r.n) : r.n}</b><em>${pct(r.n, total)} %</em></span></div>`).join("")}</div>`;
 }
 
-/* Columnas: altas mes a mes desde el primer socio. Con muchos meses (1 año, 2 años…)
-   se desliza hacia los lados y siempre arranca mirando el mes actual. */
-function cols(rows) {
+/* Columnas: socios activos mes a mes. Se toca una columna para ver el detalle de ese mes.
+   Con muchos meses (1 año, 2 años…) se desliza hacia los lados y arranca en el mes actual. */
+function monthCols(rows) {
   const max = Math.max(...rows.map((r) => r.n), 1);
   const scroll = rows.length > 8;
-  return `<div class="cols-wrap ${scroll ? "scroll" : ""}" data-cols><div class="cols" style="--n:${rows.length}">${rows.map((r) => `<div class="col ${r.cur ? "cur" : ""}" title="${esc(r.title || r.label)}: ${r.n} ${r.n === 1 ? "alta" : "altas"}"><b>${r.n}</b><span class="col-t"><i style="height:${Math.max(r.n ? 4 : 0, (r.n / max) * 100)}%"></i></span><small>${esc(r.label)}</small><em>${esc(r.year || "")}</em></div>`).join("")}</div></div>${scroll ? `<p class="muted tiny cols-hint">${icon("left", "xs")} Deslizá para ver los meses anteriores</p>` : ""}`;
+  return `<div class="cols-wrap ${scroll ? "scroll" : ""}" data-cols><div class="cols" style="--n:${rows.length}">${rows.map((r, i) => `<button type="button" class="col ${r.cur ? "cur" : ""}" data-mi="${i}" aria-label="${esc(r.title)}: ${r.n} socios activos"><b>${r.n}</b><span class="col-t"><i style="height:${Math.max(r.n ? 4 : 0, (r.n / max) * 100)}%"></i></span><small>${esc(r.label)}</small><em>${esc(r.year || "")}</em></button>`).join("")}</div></div>${scroll ? `<p class="muted tiny cols-hint">${icon("left", "xs")} Deslizá para ver los meses anteriores</p>` : ""}`;
 }
 
 export function panelHome() {
@@ -75,18 +75,16 @@ export function panelHome() {
   const planRows = S.db.plans.map((p) => ({ label: p.name, n: act.filter((m) => m.fee?.planId === p.id).length }));
   const noPlan = act.filter((m) => !m.fee?.planId).length;
   if (noPlan) planRows.push({ label: "Sin plan", n: noPlan });
-  /* Desde el mes del primer socio hasta hoy (en un año son 12 columnas, en dos años 24…) */
-  const socios = S.db.users.filter((x) => x.role === "socio" && x.joined);
-  const firstJoin = socios.length ? new Date(Math.min(...socios.map((x) => x.joined))) : now;
-  const nMonths = Math.max(1, (now.getFullYear() - firstJoin.getFullYear()) * 12 + now.getMonth() - firstJoin.getMonth() + 1);
-  const altas = Array.from({ length: nMonths }, (_, i) => {
-    const a = new Date(firstJoin.getFullYear(), firstJoin.getMonth() + i, 1), b = new Date(firstJoin.getFullYear(), firstJoin.getMonth() + i + 1, 1);
-    return {
-      label: MONTHS[a.getMonth()], year: i === 0 || a.getMonth() === 0 ? String(a.getFullYear()) : "", cur: i === nMonths - 1,
-      title: `${MONTHS[a.getMonth()]} ${a.getFullYear()}`,
-      n: socios.filter((x) => x.joined >= a.getTime() && x.joined < b.getTime()).length,
-    };
-  });
+  /* Socios mes a mes: activos, nuevos, siguieron, se fueron y volvieron (contra altas y pagos guardados) */
+  const hist = S.membershipByMonth();
+  const mrows = hist.map((h, i) => { const d = new Date(h.start); return { label: MONTHS[d.getMonth()], year: i === 0 || d.getMonth() === 0 ? String(d.getFullYear()) : "", title: `${MONTHS[d.getMonth()]} ${d.getFullYear()}`, n: h.active, cur: h.cur }; });
+  const detail = (h) => { const d = new Date(h.start); const nm = d.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+    return `<h3 class="sub">${esc(nm[0].toUpperCase() + nm.slice(1))}</h3><div class="mstats">
+      <div class="ms-main"><b>${h.active}</b><small>socios activos</small></div>
+      <div><b>${h.nuevos}</b><small>nuevos</small></div>
+      <div><b>${h.kept}</b><small>siguieron</small></div>
+      <div><b>${h.left}</b><small>se fueron</small></div>
+      <div><b>${h.back}</b><small>volvieron</small></div></div>`; };
   const avgAge = ages.filter((x) => x !== null);
   const convRows = S.convenios().map((c) => ({ label: c.name, n: act.filter((m) => m.fee?.convenioId === c.id).length }));
   if (convRows.length) convRows.push({ label: "Sin convenio", n: act.filter((m) => !S.convenio(m.fee?.convenioId)).length });
@@ -119,7 +117,8 @@ export function panelHome() {
           ${neverIn.length ? `<p class="muted tiny">Ayudalos a instalarla la próxima vez que vengan:</p>${neverIn.slice(0, 5).map((m) => mrow(m, `Usuario ${esc(m.user)}`)).join("")}` : ""}
         </section>
         ${admin ? `
-        <section class="card"><div class="card-h"><h2>${icon("userplus", "sm")} Socios nuevos por mes</h2><span class="muted">desde ${esc(MONTHS[firstJoin.getMonth()])} ${firstJoin.getFullYear()}</span></div>${cols(altas)}</section>
+        <section class="card"><div class="card-h"><h2>${icon("users", "sm")} Socios por mes</h2><span class="muted">activos · tocá un mes</span></div>${hist.length ? `${monthCols(mrows)}<div data-mdet>${detail(hist[hist.length - 1])}</div>
+          <p class="muted tiny">"Activos" son los socios con cuota vigente ese mes, según los pagos registrados. Cada persona cuenta como "nueva" una sola vez (el mes de su alta). Los meses anteriores al uso de la app no tienen datos.</p>` : `<p class="muted">Todavía no hay datos.</p>`}</section>
         <section class="card"><div class="card-h"><h2>${icon("card", "sm")} Socios por plan</h2></div>${hbars(planRows, act.length)}</section>
         ${convRows.length ? `<section class="card"><div class="card-h"><h2>${icon("card", "sm")} Socios por convenio</h2></div>${hbars(convRows, act.length)}</section>` : ""}
         <section class="card"><div class="card-h"><h2>${icon("users", "sm")} Mujeres y hombres</h2></div>${hbars(genRows, act.length)}</section>
@@ -132,6 +131,11 @@ export function panelHome() {
     mount(host) {
       $$("[data-count]", host).forEach((el) => countUp(el, +el.dataset.count));
       $$("[data-cols].scroll", host).forEach((w) => { w.scrollLeft = w.scrollWidth; });
+      host.addEventListener("click", (e) => {
+        const c = e.target.closest("[data-mi]"); if (!c) return;
+        $$("[data-mi]", host).forEach((x) => x.classList.toggle("cur", x === c));
+        $("[data-mdet]", host).innerHTML = detail(hist[+c.dataset.mi]);
+      });
       host.addEventListener("click", (e) => { const b = e.target.closest("[data-approve]"); if (b) approveSheet(S.user(b.dataset.approve)); });
     },
   };
@@ -779,38 +783,53 @@ export function recaudacionView(params, query) {
   };
 }
 
-/* Planilla de Excel (.xlsx) con una fila por pago, lista para leer, filtrar y sumar.
-   Hoja "Pagos" + hoja "Por mes" (resumen). */
+/* Planilla de Excel (.xlsx): una fila por pago, con fórmulas (el descuento y los totales se
+   recalculan solos si la persona cambia un monto). Hoja "Pagos" + hoja "Por mes" que suma desde "Pagos". */
 function downloadPaymentsXlsx(rows, name) {
   const sorted = rows.slice().sort((a, b) => a.at - b.at);
-  const data = sorted.map((p) => { const u = S.user(p.userId); return {
+  const data = sorted.map((p) => { const u = S.user(p.userId); const lista = p.list ?? p.amount ?? 0, monto = p.amount || 0; return {
     at: p.at, socio: u?.name || "Socio eliminado", dni: u?.user || "", plan: S.plan(p.planId)?.name || "", meses: p.months || 1,
-    lista: p.list ?? p.amount ?? 0, convenio: p.discount?.name || "", desc: p.discount?.amount || 0, monto: p.amount || 0,
+    lista, convenio: p.discount?.name || "", desc: Math.max(0, lista - monto), monto,
     desde: p.from || "", hasta: p.to || "", cobro: S.user(p.by)?.name || "", nota: p.note || "",
   }; });
+  const sumOf = (k) => data.reduce((a, x) => a + (x[k] || 0), 0);
   const byMonth = {};
-  sorted.forEach((p) => { const k = mkey(p.at); (byMonth[k] ||= { mes: mlabel(k), pagos: 0, total: 0, desc: 0 }); byMonth[k].pagos++; byMonth[k].total += p.amount || 0; byMonth[k].desc += p.discount?.amount || 0; });
-  const meses = Object.values(byMonth);
+  data.forEach((x) => { const d = new Date(x.at), k = mkey(x.at); (byMonth[k] ||= { mes: new Date(d.getFullYear(), d.getMonth(), 1).getTime(), pagos: 0, total: 0, desc: 0 }); byMonth[k].pagos++; byMonth[k].total += x.monto; byMonth[k].desc += x.desc; });
+  const meses = Object.keys(byMonth).sort().map((k) => byMonth[k]);
+  const L = (r) => `Pagos!$A:$A,">="&A${r},Pagos!$A:$A,"<"&EDATE(A${r},1)`;
   const blob = makeXlsx([
     {
       name: "Pagos",
       columns: [
-        { header: "Fecha de cobro", key: "at", type: "date", width: 15 }, { header: "Socio", key: "socio", type: "text", width: 28 },
-        { header: "DNI", key: "dni", type: "text", width: 13 }, { header: "Plan", key: "plan", type: "text", width: 30 },
-        { header: "Meses", key: "meses", type: "int", width: 9 }, { header: "Precio de lista", key: "lista", type: "money", width: 16 },
-        { header: "Convenio", key: "convenio", type: "text", width: 22 }, { header: "Descuento", key: "desc", type: "money", width: 14 },
-        { header: "Monto cobrado", key: "monto", type: "money", width: 16 }, { header: "Cubre desde", key: "desde", type: "date", width: 14 },
-        { header: "Cubre hasta", key: "hasta", type: "date", width: 14 }, { header: "Cobró", key: "cobro", type: "text", width: 22 },
-        { header: "Nota", key: "nota", type: "text", width: 32 },
+        { header: "Fecha de cobro", key: "at", type: "date", width: 16 }, { header: "Socio", key: "socio", type: "text", width: 28 },
+        { header: "DNI", key: "dni", type: "text", width: 14 }, { header: "Plan", key: "plan", type: "text", width: 32 },
+        { header: "Meses", key: "meses", type: "int", width: 9 }, { header: "Precio de lista", key: "lista", type: "money", width: 17 },
+        { header: "Convenio", key: "convenio", type: "text", width: 24 },
+        { header: "Descuento", key: "desc", type: "money", width: 15, formula: (r) => `MAX(0,F${r}-I${r})` },
+        { header: "Monto cobrado", key: "monto", type: "money", width: 17 }, { header: "Cubre desde", key: "desde", type: "date", width: 15 },
+        { header: "Cubre hasta", key: "hasta", type: "date", width: 15 }, { header: "Cobró", key: "cobro", type: "text", width: 24 },
+        { header: "Nota", key: "nota", type: "text", width: 34 },
       ],
       rows: data,
-      total: { socio: `TOTAL · ${data.length} ${data.length === 1 ? "pago" : "pagos"}`, desc: data.reduce((a, x) => a + x.desc, 0), monto: data.reduce((a, x) => a + x.monto, 0) },
+      total: (c, L2, n) => c.key === "at" ? "TOTAL"
+        : c.key === "socio" ? { f: `COUNT(A2:A${n + 1})&" "&IF(COUNT(A2:A${n + 1})=1,"pago","pagos")`, v: `${n} ${n === 1 ? "pago" : "pagos"}` }
+        : c.key === "lista" ? { f: `SUM(F2:F${n + 1})`, v: sumOf("lista") }
+        : c.key === "desc" ? { f: `SUM(H2:H${n + 1})`, v: sumOf("desc") }
+        : c.key === "monto" ? { f: `SUM(I2:I${n + 1})`, v: sumOf("monto") } : "",
     },
     {
       name: "Por mes",
-      columns: [{ header: "Mes", key: "mes", type: "text", width: 22 }, { header: "Pagos", key: "pagos", type: "int", width: 10 }, { header: "Total cobrado", key: "total", type: "money", width: 18 }, { header: "Descuentos por convenio", key: "desc", type: "money", width: 24 }],
+      columns: [
+        { header: "Mes", key: "mes", type: "month", width: 22 },
+        { header: "Pagos", key: "pagos", type: "int", width: 12, formula: (r) => `COUNTIFS(${L(r)})` },
+        { header: "Total cobrado", key: "total", type: "money", width: 20, formula: (r) => `SUMIFS(Pagos!$I:$I,${L(r)})` },
+        { header: "Descuentos por convenio", key: "desc", type: "money", width: 26, formula: (r) => `SUMIFS(Pagos!$H:$H,${L(r)})` },
+      ],
       rows: meses,
-      total: { mes: "TOTAL", total: meses.reduce((a, x) => a + x.total, 0), desc: meses.reduce((a, x) => a + x.desc, 0) },
+      total: (c, L2, n) => c.key === "mes" ? "TOTAL"
+        : c.key === "pagos" ? { f: `SUM(B2:B${n + 1})`, v: meses.reduce((a, x) => a + x.pagos, 0) }
+        : c.key === "total" ? { f: `SUM(C2:C${n + 1})`, v: meses.reduce((a, x) => a + x.total, 0) }
+        : { f: `SUM(D2:D${n + 1})`, v: meses.reduce((a, x) => a + x.desc, 0) },
     },
   ]);
   const a = document.createElement("a");

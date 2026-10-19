@@ -1185,3 +1185,17 @@ a.kpi .cta { margin-top: 6px; }
 .rc-col.off { opacity: .35; pointer-events: none; }
 .pgrid > *, .card { min-width: 0; }
 .cols-wrap { max-width: 100%; }
+
+/* Lista de pagos del mes: compacta, con buscador (sirve para 100 o más por mes) */
+.paylist { display: grid; }
+.prow { display: flex; align-items: center; gap: 12px; width: 100%; padding: 9px 4px; border: 0; border-bottom: 1px solid var(--line); background: none; color: var(--text); font: inherit; text-align: left; cursor: pointer; }
+.prow[hidden] { display: none; }
+.prow:hover { background: var(--card2); }
+.prow-d { flex: none; width: 44px; display: grid; justify-items: center; line-height: 1; }
+.prow-d b { font: 700 20px "Barlow Condensed", sans-serif; }
+.prow-d small { font-size: 10.5px; color: var(--muted); text-transform: uppercase; }
+.prow-t { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.prow-t b { font-weight: 600; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prow-t small { color: var(--muted); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prow-m { flex: none; font: 700 18px "Barlow Condensed", sans-serif; }
+[data-more] { margin-top: 10px; }

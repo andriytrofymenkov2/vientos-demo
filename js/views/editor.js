@@ -4,7 +4,7 @@ import { esc, fold, fmtRest, plural, debounce, $, $$ } from "../core/util.js";
 import * as S from "../core/store.js";
 import { me } from "../core/auth.js";
 import { go, refresh } from "../core/router.js";
-import { field, formData, toast, sheet, confirmDialog, tag, pageHead, empty } from "../core/ui.js";
+import { field, formData, toast, sheet, confirmDialog, tag, pageHead, empty, limitList } from "../core/ui.js";
 import { GROUPS, EQUIP } from "../data/exercises.js";
 import { LEVELS, AUDIENCES, GOALS, BLOCK_TYPES } from "../data/templates.js";
 import { exTile, letter } from "./common.js";
@@ -314,6 +314,7 @@ export function templatesView(params, query) {
         </article>`;
       }).join("") || empty("layers", "No hay plantillas con esos filtros")}</div>`,
     mount(host) {
+      limitList($(".tgrid", host), { size: 18, itemSel: ":scope > .tcard" });
       const upd = debounce(() => {
         const p = new URLSearchParams();
         $$("[data-filter]", host).forEach((x) => x.value && p.set(x.dataset.filter, x.value));
@@ -347,6 +348,7 @@ export function exercisesView(params, query) {
       <div class="chips-scroll">${["", ...GROUPS].map((x) => `<a class="chip ${x === g ? "on" : ""}" href="#/panel/ejercicios${x ? "?g=" + encodeURIComponent(x) : ""}">${x || "Todos"}</a>`).join("")}</div>
       <div class="exlist">${list.map((e) => `<button type="button" class="exrow" data-ex="${e.id}">${exTile(e)}<span class="exrow-t"><b>${esc(e.n)}</b><small>${esc(e.g)} · ${esc(e.eq)}</small></span>${e.video ? `<span class="pill ok">${icon("video", "xs")} Video</span>` : ""}${icon("edit", "sm")}</button>`).join("") || empty("search", "No encontramos ese ejercicio", "", `<button class="btn primary" type="button" data-act="new">Crear “${esc(q)}”</button>`)}</div>`,
     mount(host) {
+      limitList($(".exlist", host), { size: 30 });
       const inp = $("[data-q]", host);
       inp.addEventListener("input", debounce(() => { location.hash = `#/panel/ejercicios?${new URLSearchParams({ ...(g ? { g } : {}), ...(inp.value ? { q: inp.value } : {}) })}`; }, 300));
       if (q) { inp.focus(); inp.setSelectionRange(q.length, q.length); }

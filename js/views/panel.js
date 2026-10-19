@@ -4,8 +4,9 @@ import { esc, fold, fmtDate, relDay, dayKey, plural, debounce, waNumber, firstNa
 import * as S from "../core/store.js";
 import { me, isAdmin, logout } from "../core/auth.js";
 import { go, refresh } from "../core/router.js";
-import { field, dateField, formData, toast, sheet, confirmDialog, pageHead, empty, avatar, feePill } from "../core/ui.js";
+import { field, dateField, limitList, formData, toast, sheet, confirmDialog, pageHead, empty, avatar, feePill } from "../core/ui.js";
 import { heatmap } from "./progress.js";
+import { makeXlsx } from "../core/xlsx.js";
 import { routineView } from "./routine.js";
 import { qrSvg, installUrl } from "./install.js";
 
@@ -105,7 +106,8 @@ export function panelHome() {
         <div><small>Deuda de cuotas vencidas</small><b class="${owed ? "bad" : ""}">${money(owed)}</b><em>${plural(late.length, "socio", "socios")}</em></div>
       </section>` : ""}
       ${pend.length ? `<section class="card alert-card"><div class="card-h"><h2>${icon("userplus", "sm")} Socios nuevos para aprobar</h2><span class="pill red">${pend.length}</span></div>
-        ${pend.map((m) => `<div class="mrow">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${esc(m.email)} · ${esc(relDay(m.joined))}</small></span><button class="btn primary sm" type="button" data-approve="${m.id}">Revisar</button></div>`).join("")}
+        ${pend.slice(0, 5).map((m) => `<div class="mrow">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${esc(m.email)} · ${esc(relDay(m.joined))}</small></span><button class="btn primary sm" type="button" data-approve="${m.id}">Revisar</button></div>`).join("")}
+      ${pend.length > 5 ? `<a class="btn ghost sm block" href="#/panel/socios?f=pend">Ver las ${pend.length} solicitudes</a>` : ""}
       </section>` : ""}
       <div class="pgrid">
         <section class="card"><div class="card-h"><h2>${icon("dumbbell", "sm")} Sin rutina asignada</h2><span class="muted">${noRoutine.length}</span></div>
@@ -187,6 +189,7 @@ export function membersView(params, query) {
         return `<a class="mrow" href="#/panel/socios/${m.id}">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${r ? esc(S.routineTitle(r)) : "Sin rutina"}${c ? " · " + esc(firstName(c.name)) : ""}${m.prefs?.tempPass ? " · nunca entró a la app" : ""}</small></span>${feePill(m)}</a>`;
       }).join("") || empty("users", "No hay socios con ese filtro")}</div>`,
     mount(host) {
+      limitList($(".mlist", host), { size: 30 });
       const inp = $("[data-q]", host);
       inp.addEventListener("input", debounce(() => { location.hash = `#/panel/socios?${new URLSearchParams({ ...(f ? { f } : {}), ...(inp.value ? { q: inp.value } : {}) })}`; }, 300));
       if (q) { inp.focus(); inp.setSelectionRange(q.length, q.length); }
@@ -286,7 +289,7 @@ export function assignSheet({ userId = null, templateId = null } = {}) {
         <label class="search">${icon("search", "sm")}<input type="search" data-uq placeholder="Buscar socio" aria-label="Buscar socio"></label>
         <div class="pick-list" data-ul></div>`;
       const ul = $("[data-ul]", b);
-      const fill = (q = "") => { ul.innerHTML = S.activeMembers().filter((m) => !q || fold(m.name).includes(fold(q))).sort((a, c) => a.name.localeCompare(c.name, "es")).slice(0, 40).map((m) => { const r = S.activeRoutine(m.id); return `<button type="button" class="mrow" data-u="${m.id}">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${r ? "Tiene: " + esc(S.routineTitle(r)) : "Sin rutina"}</small></span>${icon("right", "sm")}</button>`; }).join(""); };
+      const fill = (q = "") => { const all = S.activeMembers().filter((m) => !q || fold(m.name).includes(fold(q))).sort((a, c) => a.name.localeCompare(c.name, "es")); ul.innerHTML = all.slice(0, 12).map((m) => { const r = S.activeRoutine(m.id); return `<button type="button" class="mrow" data-u="${m.id}">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${r ? "Tiene: " + esc(S.routineTitle(r)) : "Sin rutina"}</small></span>${icon("right", "sm")}</button>`; }).join("") + (all.length > 12 ? `<p class="muted tiny center">Mostrando 12 de ${all.length}. Escribí el nombre para encontrar al resto.</p>` : ""); };
       fill();
       $("[data-uq]", b).addEventListener("input", (e) => fill(e.target.value));
       return;
@@ -626,6 +629,7 @@ export function feesView(params, query) {
           <button class="btn ghost sm" type="button" data-pay="${m.id}">Cobrar</button></div>`;
       }).join("") || empty("card", "No hay socios en esta lista")}</div>`,
     mount(host) {
+      limitList($(".mlist", host), { size: 30 });
       host.addEventListener("click", (e) => {
         const p = e.target.closest("[data-pay]");
         if (p) paySheet(S.user(p.dataset.pay));
@@ -675,6 +679,7 @@ const mlabel = (k, short = false) => { const [y, mo] = k.split("-").map(Number);
 const sum = (l) => l.reduce((a, x) => a + (x.amount || 0), 0);
 
 export function recaudacionView(params, query) {
+  const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
   const now = mkey(Date.now());
   const all = S.db.payments.slice().sort((a, b) => b.at - a.at);
   const first = all.length ? mkey(all[all.length - 1].at) : now;
@@ -691,7 +696,6 @@ export function recaudacionView(params, query) {
   const group = (fn) => { const g = {}; list.forEach((p) => { const k = fn(p); (g[k] ||= { label: k, n: 0, c: 0 }); g[k].n += p.amount || 0; g[k].c++; }); return Object.values(g).sort((a, b) => b.n - a.n); };
   const byPlan = group((p) => S.plan(p.planId)?.name || "Otro plan");
   const byConv = group((p) => p.discount?.name || "Sin convenio");
-  const byWho = group((p) => S.user(p.by)?.name || "—");
   const year = sel.slice(0, 4);
   const years = [...new Set(months.map((k) => k.slice(0, 4)))];
   const last12 = Array.from({ length: 12 }, (_, i) => { const k = `${year}-${String(i + 1).padStart(2, "0")}`; return { k, label: mlabel(k, true), n: sum(by(k)), off: !months.includes(k) }; });
@@ -699,7 +703,7 @@ export function recaudacionView(params, query) {
   const yearTotal = sum(all.filter((p) => mkey(p.at).slice(0, 4) === sel.slice(0, 4)));
   return {
     layout: "panel", nav: "cuotas", title: "Recaudación",
-    html: `${pageHead({ back: "#/panel/cuotas", kicker: "Cuotas", title: "Recaudación", actions: `<button class="btn ghost sm" type="button" data-csv="month">${icon("download", "sm")} Descargar mes</button><button class="btn ghost sm" type="button" data-csv="all">${icon("download", "sm")} Todo el historial</button>` })}
+    html: `${pageHead({ back: "#/panel/cuotas", kicker: "Cuotas", title: "Recaudación", actions: `<button class="btn ghost sm" type="button" data-csv="month">${icon("download", "sm")} Excel del mes</button><button class="btn ghost sm" type="button" data-csv="all">${icon("download", "sm")} Excel de todo</button>` })}
       <div class="rc-nav">
         <a class="icon-btn ${prev ? "" : "off"}" ${prev ? `href="#/panel/recaudacion?m=${prev}"` : 'aria-disabled="true"'} aria-label="Mes anterior">${icon("left")}</a>
         <label class="rc-sel"><select data-month aria-label="Elegir mes">${months.slice().reverse().map((k) => `<option value="${k}" ${k === sel ? "selected" : ""}>${esc(mlabel(k))}${k === now ? " (este mes)" : ""}</option>`).join("")}</select></label>
@@ -718,35 +722,102 @@ export function recaudacionView(params, query) {
       ${list.length ? `<div class="pgrid">
         <section class="card"><div class="card-h"><h2>Por plan</h2></div>${hbars(byPlan.map((x) => ({ label: x.label, n: x.n })), total, { money: true })}</section>
         <section class="card"><div class="card-h"><h2>Por convenio</h2></div>${hbars(byConv.map((x) => ({ label: x.label, n: x.n })), total, { money: true })}</section>
-        <section class="card"><div class="card-h"><h2>Quién cobró</h2></div>${hbars(byWho.map((x) => ({ label: x.label, n: x.n })), total, { money: true })}</section>
       </div>` : ""}
-      <section class="card"><div class="card-h"><h2>Pagos de ${esc(mlabel(sel))}</h2><span class="muted">${plural(list.length, "pago", "pagos")}</span></div>
-        ${list.map((p) => { const u = S.user(p.userId); return `<button class="hrow payrow" type="button" data-payid="${esc(p.id)}"><span><b>${esc(u?.name || "Socio eliminado")} · ${money(p.amount)}</b><small>${fmtDate(p.at, { year: true })} · ${esc(S.plan(p.planId)?.name || "")} · ${plural(p.months || 1, "mes", "meses")}${p.discount ? ` · ${esc(p.discount.name)}` : ""} · cobró ${esc(S.user(p.by)?.name || "—")}${p.edited ? " · editado" : ""}</small></span>${icon("right", "sm")}</button>`; }).join("") || `<p class="muted">No hay pagos en este mes.</p>`}
+      <section class="card"><div class="card-h"><h2>Pagos de ${esc(mlabel(sel))}</h2><span class="muted" data-count-all>${plural(list.length, "pago", "pagos")}</span></div>
+        ${list.length ? `
+        <div class="filters"><label class="search">${icon("search", "sm")}<input type="search" data-pq placeholder="Buscar por nombre, DNI o monto" aria-label="Buscar pago"></label></div>
+        <div class="chips-scroll" data-pf>
+          <button class="chip on" type="button" data-f="">Todos <b>${list.length}</b></button>
+          ${byPlan.map((x) => `<button class="chip" type="button" data-f="plan:${esc(x.label)}">${esc(x.label)} <b>${x.c}</b></button>`).join("")}
+          ${list.some((p) => p.discount) ? `<button class="chip" type="button" data-f="conv">Con convenio <b>${list.filter((p) => p.discount).length}</b></button>` : ""}
+          ${list.some((p) => p.edited) ? `<button class="chip" type="button" data-f="edit">Editados <b>${list.filter((p) => p.edited).length}</b></button>` : ""}
+        </div>
+        <div class="paysum" data-fsum></div>
+        <div class="paylist" data-plist>${list.map((p) => { const u = S.user(p.userId); const d = new Date(p.at);
+          return `<button class="prow" type="button" data-payid="${esc(p.id)}" data-q="${esc(fold(`${u?.name || ""} ${u?.user || ""} ${p.amount}`))}" data-plan="${esc(S.plan(p.planId)?.name || "Otro plan")}" data-conv="${p.discount ? 1 : 0}" data-edit="${p.edited ? 1 : 0}" data-amt="${p.amount || 0}">
+            <span class="prow-d"><b>${d.getDate()}</b><small>${esc(MONTHS[d.getMonth()])}</small></span>
+            <span class="prow-t"><b>${esc(u?.name || "Socio eliminado")}</b><small>${esc(S.plan(p.planId)?.name || "")}${(p.months || 1) > 1 ? ` · ${p.months} meses` : ""}${p.discount ? ` · ${esc(p.discount.name)}` : ""}${p.edited ? " · editado" : ""}</small></span>
+            <span class="prow-m">${money(p.amount)}</span></button>`; }).join("")}</div>
+        <button class="btn ghost block" type="button" data-more hidden>Ver más</button>
+        <p class="muted center" data-none hidden>No hay pagos con ese filtro.</p>` : `<p class="muted">No hay pagos en este mes.</p>`}
       </section>`,
     mount(host) {
       host.querySelector("[data-month]")?.addEventListener("change", (e) => go("/panel/recaudacion?m=" + e.target.value));
+      /* Lista de pagos: se busca y se filtra al instante, de a 20 por vez */
+      const rows = $$(".prow", host), PAGE = 20;
+      if (rows.length) {
+        const q = $("[data-pq]", host), more = $("[data-more]", host), none = $("[data-none]", host), sumEl = $("[data-fsum]", host);
+        let f = "", shown = PAGE;
+        const draw = () => {
+          const t = fold(q.value.trim());
+          const match = rows.filter((r) => (!t || r.dataset.q.includes(t)) && (!f || (f.startsWith("plan:") ? r.dataset.plan === f.slice(5) : f === "conv" ? r.dataset.conv === "1" : r.dataset.edit === "1")));
+          rows.forEach((r) => (r.hidden = true));
+          match.slice(0, shown).forEach((r) => (r.hidden = false));
+          const tot = match.reduce((a, r) => a + +r.dataset.amt, 0);
+          sumEl.innerHTML = `<span>${plural(match.length, "pago", "pagos")}${t || f ? " con este filtro" : ""}</span><b>${money(tot)}</b>`;
+          more.hidden = match.length <= shown;
+          more.textContent = `Ver más (${match.length - shown} restantes)`;
+          none.hidden = !!match.length;
+        };
+        q.addEventListener("input", () => { shown = PAGE; draw(); });
+        more.addEventListener("click", () => { shown += PAGE; draw(); });
+        $("[data-pf]", host).addEventListener("click", (e) => {
+          const c = e.target.closest("[data-f]"); if (!c) return;
+          f = c.dataset.f; shown = PAGE;
+          $$("[data-pf] .chip", host).forEach((x) => x.classList.toggle("on", x === c));
+          draw();
+        });
+        draw();
+      }
       host.addEventListener("click", (e) => {
         const r = e.target.closest("[data-payid]");
         if (r) payDetailSheet(S.db.payments.find((x) => x.id === r.dataset.payid));
         const c = e.target.closest("[data-csv]");
-        if (c) downloadPaymentsCsv(c.dataset.csv === "all" ? all : list, c.dataset.csv === "all" ? "historial" : sel);
+        if (c) downloadPaymentsXlsx(c.dataset.csv === "all" ? all : list, c.dataset.csv === "all" ? "historial" : sel);
       });
     },
   };
 }
 
-/* Planilla (CSV) para abrir en Excel: una fila por pago */
-function downloadPaymentsCsv(rows, name) {
-  const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const head = ["Fecha de cobro", "Socio", "DNI", "Plan", "Meses", "Precio de lista", "Convenio", "Descuento", "Monto cobrado", "Cubre desde", "Cubre hasta", "Cobró", "Nota"];
-  const f = (t) => (t ? new Date(t).toLocaleDateString("es-AR") : "");
-  const body = rows.map((p) => { const u = S.user(p.userId); return [f(p.at), u?.name || "", u?.user || "", S.plan(p.planId)?.name || "", p.months || 1, p.list ?? "", p.discount?.name || "", p.discount?.amount || 0, p.amount || 0, f(p.from), f(p.to), S.user(p.by)?.name || "", p.note || ""].map(q).join(";"); });
-  const blob = new Blob(["\ufeff" + [head.map(q).join(";"), ...body].join("\r\n")], { type: "text/csv;charset=utf-8" });
+/* Planilla de Excel (.xlsx) con una fila por pago, lista para leer, filtrar y sumar.
+   Hoja "Pagos" + hoja "Por mes" (resumen). */
+function downloadPaymentsXlsx(rows, name) {
+  const sorted = rows.slice().sort((a, b) => a.at - b.at);
+  const data = sorted.map((p) => { const u = S.user(p.userId); return {
+    at: p.at, socio: u?.name || "Socio eliminado", dni: u?.user || "", plan: S.plan(p.planId)?.name || "", meses: p.months || 1,
+    lista: p.list ?? p.amount ?? 0, convenio: p.discount?.name || "", desc: p.discount?.amount || 0, monto: p.amount || 0,
+    desde: p.from || "", hasta: p.to || "", cobro: S.user(p.by)?.name || "", nota: p.note || "",
+  }; });
+  const byMonth = {};
+  sorted.forEach((p) => { const k = mkey(p.at); (byMonth[k] ||= { mes: mlabel(k), pagos: 0, total: 0, desc: 0 }); byMonth[k].pagos++; byMonth[k].total += p.amount || 0; byMonth[k].desc += p.discount?.amount || 0; });
+  const meses = Object.values(byMonth);
+  const blob = makeXlsx([
+    {
+      name: "Pagos",
+      columns: [
+        { header: "Fecha de cobro", key: "at", type: "date", width: 15 }, { header: "Socio", key: "socio", type: "text", width: 28 },
+        { header: "DNI", key: "dni", type: "text", width: 13 }, { header: "Plan", key: "plan", type: "text", width: 30 },
+        { header: "Meses", key: "meses", type: "int", width: 9 }, { header: "Precio de lista", key: "lista", type: "money", width: 16 },
+        { header: "Convenio", key: "convenio", type: "text", width: 22 }, { header: "Descuento", key: "desc", type: "money", width: 14 },
+        { header: "Monto cobrado", key: "monto", type: "money", width: 16 }, { header: "Cubre desde", key: "desde", type: "date", width: 14 },
+        { header: "Cubre hasta", key: "hasta", type: "date", width: 14 }, { header: "Cobró", key: "cobro", type: "text", width: 22 },
+        { header: "Nota", key: "nota", type: "text", width: 32 },
+      ],
+      rows: data,
+      total: { socio: `TOTAL · ${data.length} ${data.length === 1 ? "pago" : "pagos"}`, desc: data.reduce((a, x) => a + x.desc, 0), monto: data.reduce((a, x) => a + x.monto, 0) },
+    },
+    {
+      name: "Por mes",
+      columns: [{ header: "Mes", key: "mes", type: "text", width: 22 }, { header: "Pagos", key: "pagos", type: "int", width: 10 }, { header: "Total cobrado", key: "total", type: "money", width: 18 }, { header: "Descuentos por convenio", key: "desc", type: "money", width: 24 }],
+      rows: meses,
+      total: { mes: "TOTAL", total: meses.reduce((a, x) => a + x.total, 0), desc: meses.reduce((a, x) => a + x.desc, 0) },
+    },
+  ]);
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob); a.download = `Vientos-recaudacion-${name}.csv`;
+  a.href = URL.createObjectURL(blob); a.download = `Vientos GYM - Recaudación ${name}.xlsx`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-  toast("Planilla descargada");
+  toast("Excel descargado");
 }
 
 /* ------------------------------------------------------------- convenios
@@ -805,11 +876,13 @@ export function conveniosView() {
     mount(host) {
       const q = $("[data-q]", host), none = $("[data-none]", host);
       let f = "";
+      const lim = limitList($(".cvlist", host), { size: 30 });
       const apply = () => {
         const t = fold(q.value.trim());
         let shown = 0;
-        $$(".cvrow", host).forEach((r) => { const ok = (!f || r.dataset.state === f) && (!t || r.dataset.name.includes(t)); r.hidden = !ok; shown += ok; });
+        $$(".cvrow", host).forEach((r) => { const ok = (!f || r.dataset.state === f) && (!t || r.dataset.name.includes(t)); r.toggleAttribute("data-off", !ok); shown += ok; });
         none.hidden = !!shown;
+        lim.apply(true);
       };
       q.addEventListener("input", apply);
       host.addEventListener("click", (e) => {
@@ -901,8 +974,9 @@ export function noticesView() {
         ${field({ label: "Mensaje", name: "body", type: "textarea", ph: "Detalle del aviso" })}
         <button class="btn primary" type="submit">${icon("bell", "sm")} Publicar aviso</button>
       </form>
-      <section class="sec">${S.db.notices.map((n) => `<article class="notice"><span class="notice-d">${esc(relDay(n.at))}</span><h3>${esc(n.title)}</h3><p>${esc(n.body)}</p><button class="icon-btn sm" type="button" data-del="${n.id}" aria-label="Borrar aviso">${icon("trash", "sm")}</button></article>`).join("") || empty("bell", "No hay avisos publicados")}</section>`,
+      <section class="sec" data-notices>${S.db.notices.map((n) => `<article class="notice"><span class="notice-d">${esc(relDay(n.at))}</span><h3>${esc(n.title)}</h3><p>${esc(n.body)}</p><button class="icon-btn sm" type="button" data-del="${n.id}" aria-label="Borrar aviso">${icon("trash", "sm")}</button></article>`).join("") || empty("bell", "No hay avisos publicados")}</section>`,
     mount(host) {
+      limitList($("[data-notices]", host), { size: 10 });
       $("form", host).addEventListener("submit", (e) => {
         e.preventDefault();
         const d = formData(e.target);

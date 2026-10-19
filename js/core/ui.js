@@ -208,6 +208,31 @@ if (typeof document !== "undefined") {
   document.addEventListener("focusin", (e) => { if (e.target.matches?.("[data-datef] [data-p]")) setTimeout(() => { if (document.activeElement === e.target) e.target.select?.(); }, 0); });
 }
 
+/* Listas largas: se muestran de a pocas con "Ver más (N restantes)". Pensado para
+   100, 500 o más registros: nunca se apilan todos uno debajo del otro.
+   `itemSel` son los elementos de la lista; los que ya están ocultos por un filtro propio ([data-off]) no cuentan. */
+export function limitList(container, { size = 30, itemSel = ":scope > *" } = {}) {
+  if (!container) return { apply() {} };
+  let shown = size;
+  let btn = container.parentElement?.querySelector(":scope > [data-limit-more]");
+  if (!btn) {
+    btn = document.createElement("button");
+    btn.type = "button"; btn.className = "btn ghost block"; btn.setAttribute("data-limit-more", "");
+    container.after(btn);
+    btn.addEventListener("click", () => { shown += size; apply(); });
+  }
+  function apply(reset = false) {
+    if (reset) shown = size;
+    const items = [...container.querySelectorAll(itemSel)].filter((el) => !el.hasAttribute("data-off"));
+    let n = 0;
+    container.querySelectorAll(itemSel).forEach((el) => { if (el.hasAttribute("data-off")) { el.hidden = true; return; } el.hidden = n++ >= shown; });
+    btn.hidden = items.length <= shown;
+    btn.textContent = `Ver más (${items.length - shown} restantes)`;
+  }
+  apply();
+  return { apply };
+}
+
 export const formData = (form) => Object.fromEntries(new FormData(form).entries());
 
 export function empty(ic, title, text = "", action = "") {

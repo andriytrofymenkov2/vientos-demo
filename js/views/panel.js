@@ -90,7 +90,7 @@ export function panelHome() {
         ${kpi(noRoutine.length, "sin rutina asignada", "#/panel/socios?f=sin", noRoutine.length ? "warn" : "")}
       </section>
       ${admin ? `<section class="money">
-        <div><small>Cobrado en ${now.toLocaleDateString("es-AR", { month: "long" })}</small><b>${money(thisMonth)}</b>${diff !== null ? `<em class="${diff >= 0 ? "up" : "down"}">${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)} % vs. ${MONTHS[new Date(pm0).getMonth()]}</em>` : ""}</div>
+        <a class="mlink" href="#/panel/recaudacion"><small>Cobrado en ${now.toLocaleDateString("es-AR", { month: "long" })} · ver historial</small><b>${money(thisMonth)}</b>${diff !== null ? `<em class="${diff >= 0 ? "up" : "down"}">${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)} % vs. ${MONTHS[new Date(pm0).getMonth()]}</em>` : ""}</a>
         <div><small>Falta cobrar este mes</small><b>${money(toCollect.reduce((x, m) => x + priceOf(m), 0))}</b><em>${plural(toCollect.length, "cuota vence", "cuotas vencen")} antes de fin de mes</em></div>
         <div><small>Deuda de cuotas vencidas</small><b class="${owed ? "bad" : ""}">${money(owed)}</b><em>${plural(late.length, "socio", "socios")}</em></div>
       </section>` : ""}
@@ -597,12 +597,12 @@ export function feesView(params, query) {
   const chips = [["", "Todos", act.length], ["late", "Vencidas", by.late.length], ["soon", "Por vencer", by.soon.length], ["ok", "Al día", by.ok.length], ["none", "Sin cuota", by.none.length]];
   return {
     layout: "panel", nav: "cuotas", title: "Cuotas",
-    html: `${pageHead({ title: "Cuotas", actions: isAdmin() ? `<button class="btn ghost sm" type="button" data-act="convs">${icon("card", "sm")} Convenios</button><button class="btn ghost sm" type="button" data-act="plans">${icon("settings", "sm")} Planes y precios</button>` : "" })}
+    html: `${pageHead({ title: "Cuotas", actions: isAdmin() ? `<a class="btn ghost sm" href="#/panel/recaudacion">${icon("trend", "sm")} Recaudación</a><button class="btn ghost sm" type="button" data-act="convs">${icon("card", "sm")} Convenios</button><button class="btn ghost sm" type="button" data-act="plans">${icon("settings", "sm")} Planes y precios</button>` : "" })}
       <section class="kpis">
         <div class="kpi"><b>${by.ok.length}</b><small>al día</small></div>
         <div class="kpi warn"><b>${by.soon.length}</b><small>vencen en ${S.db.gym.reminderDays} días</small></div>
         <div class="kpi bad"><b>${by.late.length}</b><small>vencidas</small></div>
-        <div class="kpi"><b>${money(cobrado)}</b><small>cobrado este mes</small></div>
+        ${isAdmin() ? `<a class="kpi" href="#/panel/recaudacion"><b>${money(cobrado)}</b><small>cobrado este mes · ver historial</small></a>` : `<div class="kpi"><b>${money(cobrado)}</b><small>cobrado este mes</small></div>`}
       </section>
       <p class="muted lead">El socio ve en la app cuándo vence su cuota y recibe el aviso ${S.db.gym.reminderDays} días antes.</p>
       <div class="chips-scroll">${chips.map(([k, l, n]) => `<a class="chip ${k === f ? "on" : ""}" href="#/panel/cuotas${k ? "?f=" + k : ""}">${l} <b>${n}</b></a>`).join("")}</div>
@@ -653,6 +653,86 @@ function plansSheet() {
       });
     },
   });
+}
+
+/* --------------------------------------------------------- recaudación
+   Historial de todo lo cobrado, mes por mes. Cada pago queda guardado con su
+   fecha: el 1° de cada mes arranca una recaudación nueva y la anterior queda
+   guardada en su mes (se puede ver, comparar y descargar). */
+const mkey = (t) => { const d = new Date(t); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+const mlabel = (k, short = false) => { const [y, mo] = k.split("-").map(Number); const t = new Date(y, mo - 1, 1).toLocaleDateString("es-AR", short ? { month: "short" } : { month: "long", year: "numeric" }); return short ? t.replace(".", "") : t[0].toUpperCase() + t.slice(1); };
+const sum = (l) => l.reduce((a, x) => a + (x.amount || 0), 0);
+
+export function recaudacionView(params, query) {
+  const now = mkey(Date.now());
+  const all = S.db.payments.slice().sort((a, b) => b.at - a.at);
+  const first = all.length ? mkey(all[all.length - 1].at) : now;
+  /* de el primer mes con pagos hasta este mes, sin huecos */
+  const months = [];
+  for (let [y, m] = first.split("-").map(Number); `${y}-${String(m).padStart(2, "0")}` <= now; m === 12 ? (y++, m = 1) : m++) months.push(`${y}-${String(m).padStart(2, "0")}`);
+  const sel = months.includes(query.m) ? query.m : now;
+  const i = months.indexOf(sel), prev = months[i - 1], next = months[i + 1];
+  const by = (k) => all.filter((p) => mkey(p.at) === k);
+  const list = by(sel), total = sum(list);
+  const prevTotal = prev ? sum(by(prev)) : null;
+  const diff = prevTotal ? Math.round(((total - prevTotal) / prevTotal) * 100) : null;
+  const disc = list.reduce((a, p) => a + (p.discount?.amount || 0), 0);
+  const group = (fn) => { const g = {}; list.forEach((p) => { const k = fn(p); (g[k] ||= { label: k, n: 0, c: 0 }); g[k].n += p.amount || 0; g[k].c++; }); return Object.values(g).sort((a, b) => b.n - a.n); };
+  const byPlan = group((p) => S.plan(p.planId)?.name || "Otro plan");
+  const byConv = group((p) => p.discount?.name || "Sin convenio");
+  const byWho = group((p) => S.user(p.by)?.name || "—");
+  const last12 = months.slice(-12).map((k) => ({ k, label: mlabel(k, true), n: sum(by(k)) }));
+  const max = Math.max(...last12.map((x) => x.n), 1);
+  const yearTotal = sum(all.filter((p) => mkey(p.at).slice(0, 4) === sel.slice(0, 4)));
+  return {
+    layout: "panel", nav: "cuotas", title: "Recaudación",
+    html: `${pageHead({ back: "#/panel/cuotas", kicker: "Cuotas", title: "Recaudación", actions: `<button class="btn ghost sm" type="button" data-csv="month">${icon("download", "sm")} Descargar mes</button><button class="btn ghost sm" type="button" data-csv="all">${icon("download", "sm")} Todo el historial</button>` })}
+      <div class="rc-nav">
+        <a class="icon-btn ${prev ? "" : "off"}" ${prev ? `href="#/panel/recaudacion?m=${prev}"` : 'aria-disabled="true"'} aria-label="Mes anterior">${icon("left")}</a>
+        <label class="rc-sel"><select data-month aria-label="Elegir mes">${months.slice().reverse().map((k) => `<option value="${k}" ${k === sel ? "selected" : ""}>${esc(mlabel(k))}${k === now ? " (este mes)" : ""}</option>`).join("")}</select></label>
+        <a class="icon-btn ${next ? "" : "off"}" ${next ? `href="#/panel/recaudacion?m=${next}"` : 'aria-disabled="true"'} aria-label="Mes siguiente">${icon("right")}</a>
+      </div>
+      <section class="money rc-money">
+        <div><small>Cobrado en ${esc(mlabel(sel))}</small><b>${money(total)}</b>${diff !== null ? `<em class="${diff >= 0 ? "up" : "down"}">${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)} % vs. ${esc(mlabel(prev))}</em>` : `<em>${prev ? "mes anterior sin pagos" : "primer mes con pagos"}</em>`}</div>
+        <div><small>Pagos registrados</small><b>${list.length}</b><em>${list.length ? `promedio ${money(total / list.length)}` : "—"}</em></div>
+        <div><small>Descuentos por convenio</small><b>${money(disc)}</b><em>no cobrado por convenios</em></div>
+      </section>
+      <section class="card"><div class="card-h"><h2>${icon("trend", "sm")} Mes por mes</h2><span class="muted">${esc(sel.slice(0, 4))}: ${money(yearTotal)}</span></div>
+        <div class="rc-cols">${last12.map((x) => `<a class="rc-col ${x.k === sel ? "on" : ""}" href="#/panel/recaudacion?m=${x.k}" title="${esc(mlabel(x.k))}: ${money(x.n)}"><b>${x.n ? money(x.n).replace("$ ", "") : "—"}</b><span class="rc-t"><i style="height:${Math.max(x.n ? 4 : 0, (x.n / max) * 100)}%"></i></span><small>${esc(x.label)}</small></a>`).join("")}</div>
+        <p class="muted tiny">Tocá un mes para verlo. Los meses anteriores quedan guardados para siempre.</p>
+      </section>
+      ${list.length ? `<div class="pgrid">
+        <section class="card"><div class="card-h"><h2>Por plan</h2></div>${hbars(byPlan.map((x) => ({ label: x.label, n: x.n })), total, { money: true })}</section>
+        <section class="card"><div class="card-h"><h2>Por convenio</h2></div>${hbars(byConv.map((x) => ({ label: x.label, n: x.n })), total, { money: true })}</section>
+        <section class="card"><div class="card-h"><h2>Quién cobró</h2></div>${hbars(byWho.map((x) => ({ label: x.label, n: x.n })), total, { money: true })}</section>
+      </div>` : ""}
+      <section class="card"><div class="card-h"><h2>Pagos de ${esc(mlabel(sel))}</h2><span class="muted">${plural(list.length, "pago", "pagos")}</span></div>
+        ${list.map((p) => { const u = S.user(p.userId); return `<button class="hrow payrow" type="button" data-payid="${esc(p.id)}"><span><b>${esc(u?.name || "Socio eliminado")} · ${money(p.amount)}</b><small>${fmtDate(p.at, { year: true })} · ${esc(S.plan(p.planId)?.name || "")} · ${plural(p.months || 1, "mes", "meses")}${p.discount ? ` · ${esc(p.discount.name)}` : ""} · cobró ${esc(S.user(p.by)?.name || "—")}${p.edited ? " · editado" : ""}</small></span>${icon("right", "sm")}</button>`; }).join("") || `<p class="muted">No hay pagos en este mes.</p>`}
+      </section>`,
+    mount(host) {
+      host.querySelector("[data-month]")?.addEventListener("change", (e) => go("/panel/recaudacion?m=" + e.target.value));
+      host.addEventListener("click", (e) => {
+        const r = e.target.closest("[data-payid]");
+        if (r) payDetailSheet(S.db.payments.find((x) => x.id === r.dataset.payid));
+        const c = e.target.closest("[data-csv]");
+        if (c) downloadPaymentsCsv(c.dataset.csv === "all" ? all : list, c.dataset.csv === "all" ? "historial" : sel);
+      });
+    },
+  };
+}
+
+/* Planilla (CSV) para abrir en Excel: una fila por pago */
+function downloadPaymentsCsv(rows, name) {
+  const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const head = ["Fecha de cobro", "Socio", "DNI", "Plan", "Meses", "Precio de lista", "Convenio", "Descuento", "Monto cobrado", "Cubre desde", "Cubre hasta", "Cobró", "Nota"];
+  const f = (t) => (t ? new Date(t).toLocaleDateString("es-AR") : "");
+  const body = rows.map((p) => { const u = S.user(p.userId); return [f(p.at), u?.name || "", u?.user || "", S.plan(p.planId)?.name || "", p.months || 1, p.list ?? "", p.discount?.name || "", p.discount?.amount || 0, p.amount || 0, f(p.from), f(p.to), S.user(p.by)?.name || "", p.note || ""].map(q).join(";"); });
+  const blob = new Blob(["\ufeff" + [head.map(q).join(";"), ...body].join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = `Vientos-recaudacion-${name}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast("Planilla descargada");
 }
 
 /* ------------------------------------------------------------- convenios

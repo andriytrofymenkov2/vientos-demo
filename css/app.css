@@ -910,7 +910,7 @@ a.mrow:hover, button.mrow:hover { background: var(--card2); }
 .payrow > span { flex: 1; }
 
 .money { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
-.money > div { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; display: grid; gap: 3px; }
+.money > div, .money > a.mlink { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; display: grid; gap: 3px; }
 .money small { color: var(--muted); font-size: 13px; }
 .money b { font: 700 30px/1.05 "Barlow Condensed", sans-serif; }
 .money b.bad { color: var(--bad); }
@@ -1147,3 +1147,23 @@ button.payrow > .i { color: var(--muted); flex: none; }
 }
 
 .dow { text-transform: capitalize; color: var(--text2); font-weight: 600; }
+
+/* Recaudación */
+.rc-nav { display: flex; align-items: center; gap: 10px; margin: 4px 0 14px; }
+.rc-nav .icon-btn.off { opacity: .3; pointer-events: none; }
+.rc-sel { flex: 1; }
+.rc-sel select { width: 100%; min-height: 48px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--bg2); color: var(--text); font: 700 18px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .02em; }
+.rc-money em { font-style: normal; color: var(--muted); font-size: 13px; }
+.rc-money em.up { color: var(--ok); } .rc-money em.down { color: var(--bad); }
+.rc-cols { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 4px; align-items: end; margin: 6px 0 10px; }
+.rc-col { display: grid; gap: 4px; justify-items: center; text-align: center; color: var(--text); min-width: 0; }
+.rc-col b { font: 700 11px "Barlow Condensed", sans-serif; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rc-t { display: flex; align-items: flex-end; width: 100%; height: 90px; background: var(--card2); border-radius: 6px; overflow: hidden; }
+.rc-t i { display: block; width: 100%; background: var(--card3); border-radius: 6px 6px 0 0; }
+.rc-col.on .rc-t i { background: var(--red); }
+.rc-col.on b, .rc-col.on small { color: var(--text); }
+.rc-col small { font-size: 11px; color: var(--muted); text-transform: capitalize; }
+@media (max-width: 560px) { .rc-cols { grid-template-columns: repeat(6, minmax(0, 1fr)); row-gap: 10px; } }
+.mlink { color: inherit; display: grid; gap: 3px; }
+
+@media (max-width: 560px) { .phead { flex-wrap: wrap; } .phead-a { flex: 1 1 100%; flex-wrap: wrap; padding-bottom: 4px; } }

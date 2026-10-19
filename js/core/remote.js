@@ -80,6 +80,19 @@ const toLog = (r) => ({ ...r.data, id: r.id, userId: r.user_id, at: ms(r.at) });
 const toPay = (r) => ({ ...r.data, id: r.id, userId: r.user_id, at: ms(r.at), amount: Number(r.amount) });
 
 /* ------------------------------------------------------------------ carga */
+/* Todos los pagos: el servidor entrega como máximo 1.000 filas por pedido, así que se piden por tandas.
+   Es el historial completo: la recaudación de cada mes queda guardada para siempre. */
+async function allPayments() {
+  const rows = [];
+  for (let from = 0; from < 50000; from += 1000) {
+    const { data, error } = await sb.from("payments").select("*").order("at", { ascending: false }).range(from, from + 999);
+    if (error) return { data: null, error };
+    rows.push(...data);
+    if (data.length < 1000) break;
+  }
+  return { data: rows, error: null };
+}
+
 async function loadAll(uid) {
   const D = emptyDb();
   const prof = must(await sb.from("profiles").select("*").eq("id", uid).maybeSingle());
@@ -99,7 +112,7 @@ async function loadAll(uid) {
     q("routines"),
     staff ? q("logs").gte("at", since).order("at", { ascending: false }).limit(5000) : q("logs").eq("user_id", uid).order("at", { ascending: false }).limit(1000),
     q("live"),
-    staff ? q("payments").gte("at", since) : q("payments").eq("user_id", uid),
+    staff ? allPayments() : q("payments").eq("user_id", uid),
   ]).then((rs) => rs.map(must));
 
   /* Primer ingreso de un profe o del dueño: carga ejercicios, plantillas y datos del gimnasio */

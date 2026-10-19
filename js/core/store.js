@@ -235,14 +235,16 @@ export function streakWeeks(userId) {
 }
 export const trainedDays = (userId) => new Set(logsOf(userId).map((l) => dayKey(l.at)));
 
-/* Semana fija: el Día 1 es del lunes, el Día 2 del martes, y así. No depende de lo
-   que se hizo la semana anterior: si el viernes (Día 5) no se fue, el lunes toca el Día 1.
-   Con menos de 5 días se reparten en la semana (3 días: lun, mié y vie). */
-const SLOTS = { 1: [0], 2: [0, 3], 3: [0, 2, 4], 4: [0, 1, 3, 4], 5: [0, 1, 2, 3, 4], 6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5, 6] };
+/* Semana que arranca el lunes:
+   · Rutinas de 5, 6 o 7 días: semana fija. El Día 1 es del lunes, el Día 2 del martes, y así.
+     No depende de la semana anterior: si el viernes (Día 5) no se fue, el lunes toca el Día 1.
+   · Rutinas de menos de 5 días: cada persona elige qué días va. Cada lunes vuelve a empezar
+     por el Día 1 y la app sugiere el primer día que todavía no hizo esa semana. */
+const SLOTS = { 5: [0, 1, 2, 3, 4], 6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5, 6] };
 export const WEEKDAYS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
 export const weekdayOf = (ts = Date.now()) => (new Date(ts).getDay() + 6) % 7;
 /* Día de la semana (0 = lunes) en que se hace cada día de la rutina */
-export const slotsOf = (r) => (r?.days.length ? SLOTS[Math.min(7, r.days.length)] || [] : []);
+export const slotsOf = (r) => (r?.days.length ? SLOTS[Math.min(7, r.days.length)] || [] : []);   // [] = sin días fijos
 export function dayOn(r, wd) {
   const i = slotsOf(r).indexOf(wd);
   return i < 0 ? null : r.days[i];
@@ -253,6 +255,13 @@ export function todayPlan(userId, ts = Date.now()) {
   if (!r || !r.days.length) return null;
   const wd = weekdayOf(ts);
   const slots = slotsOf(r);
+  if (!slots.length) {
+    /* menos de 5 días: el primero que no hizo desde el lunes (si hizo todos, vuelve a empezar) */
+    const w0 = weekStart(ts);
+    const done = new Set(logsOf(userId).filter((l) => l.routineId === r.id && l.at >= w0 && l.at < w0 + 7 * DAY).map((l) => l.dayId));
+    const pending = r.days.find((d) => !done.has(d.id));
+    return { day: pending || r.days[0], today: true, wd, weekDone: !pending };
+  }
   const now = dayOn(r, wd);
   if (now) return { day: now, today: true, wd };
   for (let k = 1; k <= 7; k++) {

@@ -926,7 +926,7 @@ a.mrow:hover, button.mrow:hover { background: var(--card2); }
 .hb-v em { font-style: normal; color: var(--muted); font-size: 13px; padding-left: 10px; border-left: 1px solid var(--line); }
 .hb-v b { color: var(--text); font-size: 14px; }
 .cols { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; align-items: end; height: 150px; }
-.col { display: grid; grid-template-rows: auto 1fr auto; justify-items: center; height: 100%; gap: 4px; }
+.col { display: grid; grid-template-rows: auto 1fr auto auto; justify-items: center; height: 100%; gap: 4px; }
 .col b { font-size: 14px; }
 .col-t { width: 60%; max-width: 34px; display: flex; align-items: flex-end; height: 100%; }
 .col-t i { display: block; width: 100%; background: var(--red); border-radius: 4px 4px 0 0; }
@@ -1167,3 +1167,21 @@ button.payrow > .i { color: var(--muted); flex: none; }
 .mlink { color: inherit; display: grid; gap: 3px; }
 
 @media (max-width: 560px) { .phead { flex-wrap: wrap; } .phead-a { flex: 1 1 100%; flex-wrap: wrap; padding-bottom: 4px; } }
+
+/* "Ver historial": se nota que se toca */
+.money > a.mlink, .kpi[href] { cursor: pointer; transition: border-color .15s, background .15s; }
+.money > a.mlink:hover, a.kpi:hover { border-color: var(--line2); background: var(--card2); }
+.cta { display: inline-flex; align-items: center; justify-content: center; gap: 4px; align-self: start; width: fit-content; margin-top: 8px; padding: 6px 12px; border-radius: 99px; background: var(--red); color: #fff; font-size: 13px; font-weight: 700; }
+.cta .i { width: 14px; height: 14px; stroke-width: 2.6; }
+a.kpi .cta { margin-top: 6px; }
+/* Altas por mes: se desliza cuando hay muchos meses */
+.cols-wrap.scroll { overflow-x: auto; padding-bottom: 6px; scrollbar-width: thin; }
+.cols-wrap .cols { display: grid; grid-template-columns: repeat(var(--n, 6), minmax(0, 1fr)); gap: 8px; }
+.cols-wrap.scroll .cols { grid-template-columns: repeat(var(--n), 46px); width: max-content; }
+.col em { font-style: normal; font-size: 10.5px; color: var(--muted); min-height: 13px; }
+.col.cur i { background: var(--red); } .col:not(.cur) i { background: var(--card3); }
+.col.cur b, .col.cur small { color: var(--text); }
+.cols-hint { display: flex; align-items: center; gap: 4px; }
+.rc-col.off { opacity: .35; pointer-events: none; }
+.pgrid > *, .card { min-width: 0; }
+.cols-wrap { max-width: 100%; }

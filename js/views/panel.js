@@ -31,10 +31,12 @@ function hbars(rows, total, { money: isMoney = false } = {}) {
       <span class="hb-v"><b>${isMoney ? money(r.n) : r.n}</b><em>${pct(r.n, total)} %</em></span></div>`).join("")}</div>`;
 }
 
-/* Columnas: altas de los últimos 6 meses */
+/* Columnas: altas mes a mes desde el primer socio. Con muchos meses (1 año, 2 años…)
+   se desliza hacia los lados y siempre arranca mirando el mes actual. */
 function cols(rows) {
   const max = Math.max(...rows.map((r) => r.n), 1);
-  return `<div class="cols">${rows.map((r) => `<div class="col" title="${esc(r.label)}: ${r.n} ${r.n === 1 ? "alta" : "altas"}"><b>${r.n}</b><span class="col-t"><i style="height:${Math.max(r.n ? 4 : 0, (r.n / max) * 100)}%"></i></span><small>${esc(r.label)}</small></div>`).join("")}</div>`;
+  const scroll = rows.length > 8;
+  return `<div class="cols-wrap ${scroll ? "scroll" : ""}" data-cols><div class="cols" style="--n:${rows.length}">${rows.map((r) => `<div class="col ${r.cur ? "cur" : ""}" title="${esc(r.title || r.label)}: ${r.n} ${r.n === 1 ? "alta" : "altas"}"><b>${r.n}</b><span class="col-t"><i style="height:${Math.max(r.n ? 4 : 0, (r.n / max) * 100)}%"></i></span><small>${esc(r.label)}</small><em>${esc(r.year || "")}</em></div>`).join("")}</div></div>${scroll ? `<p class="muted tiny cols-hint">${icon("left", "xs")} Deslizá para ver los meses anteriores</p>` : ""}`;
 }
 
 export function panelHome() {
@@ -72,9 +74,17 @@ export function panelHome() {
   const planRows = S.db.plans.map((p) => ({ label: p.name, n: act.filter((m) => m.fee?.planId === p.id).length }));
   const noPlan = act.filter((m) => !m.fee?.planId).length;
   if (noPlan) planRows.push({ label: "Sin plan", n: noPlan });
-  const altas = Array.from({ length: 6 }, (_, i) => {
-    const a = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1), b = new Date(now.getFullYear(), now.getMonth() - 4 + i, 1);
-    return { label: MONTHS[a.getMonth()], n: S.db.users.filter((x) => x.role === "socio" && x.joined >= a.getTime() && x.joined < b.getTime()).length };
+  /* Desde el mes del primer socio hasta hoy (en un año son 12 columnas, en dos años 24…) */
+  const socios = S.db.users.filter((x) => x.role === "socio" && x.joined);
+  const firstJoin = socios.length ? new Date(Math.min(...socios.map((x) => x.joined))) : now;
+  const nMonths = Math.max(1, (now.getFullYear() - firstJoin.getFullYear()) * 12 + now.getMonth() - firstJoin.getMonth() + 1);
+  const altas = Array.from({ length: nMonths }, (_, i) => {
+    const a = new Date(firstJoin.getFullYear(), firstJoin.getMonth() + i, 1), b = new Date(firstJoin.getFullYear(), firstJoin.getMonth() + i + 1, 1);
+    return {
+      label: MONTHS[a.getMonth()], year: i === 0 || a.getMonth() === 0 ? String(a.getFullYear()) : "", cur: i === nMonths - 1,
+      title: `${MONTHS[a.getMonth()]} ${a.getFullYear()}`,
+      n: socios.filter((x) => x.joined >= a.getTime() && x.joined < b.getTime()).length,
+    };
   });
   const avgAge = ages.filter((x) => x !== null);
   const convRows = S.convenios().map((c) => ({ label: c.name, n: act.filter((m) => m.fee?.convenioId === c.id).length }));
@@ -90,7 +100,7 @@ export function panelHome() {
         ${kpi(noRoutine.length, "sin rutina asignada", "#/panel/socios?f=sin", noRoutine.length ? "warn" : "")}
       </section>
       ${admin ? `<section class="money">
-        <a class="mlink" href="#/panel/recaudacion"><small>Cobrado en ${now.toLocaleDateString("es-AR", { month: "long" })} · ver historial</small><b>${money(thisMonth)}</b>${diff !== null ? `<em class="${diff >= 0 ? "up" : "down"}">${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)} % vs. ${MONTHS[new Date(pm0).getMonth()]}</em>` : ""}</a>
+        <a class="mlink" href="#/panel/recaudacion"><small>Cobrado en ${now.toLocaleDateString("es-AR", { month: "long" })}</small><b>${money(thisMonth)}</b>${diff !== null ? `<em class="${diff >= 0 ? "up" : "down"}">${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)} % vs. ${MONTHS[new Date(pm0).getMonth()]}</em>` : ""}<span class="cta">Ver historial ${icon("right", "xs")}</span></a>
         <div><small>Falta cobrar este mes</small><b>${money(toCollect.reduce((x, m) => x + priceOf(m), 0))}</b><em>${plural(toCollect.length, "cuota vence", "cuotas vencen")} antes de fin de mes</em></div>
         <div><small>Deuda de cuotas vencidas</small><b class="${owed ? "bad" : ""}">${money(owed)}</b><em>${plural(late.length, "socio", "socios")}</em></div>
       </section>` : ""}
@@ -107,7 +117,7 @@ export function panelHome() {
           ${neverIn.length ? `<p class="muted tiny">Ayudalos a instalarla la próxima vez que vengan:</p>${neverIn.slice(0, 5).map((m) => mrow(m, `Usuario ${esc(m.user)}`)).join("")}` : ""}
         </section>
         ${admin ? `
-        <section class="card"><div class="card-h"><h2>${icon("userplus", "sm")} Socios nuevos por mes</h2><span class="muted">últimos 6 meses</span></div>${cols(altas)}</section>
+        <section class="card"><div class="card-h"><h2>${icon("userplus", "sm")} Socios nuevos por mes</h2><span class="muted">desde ${esc(MONTHS[firstJoin.getMonth()])} ${firstJoin.getFullYear()}</span></div>${cols(altas)}</section>
         <section class="card"><div class="card-h"><h2>${icon("card", "sm")} Socios por plan</h2></div>${hbars(planRows, act.length)}</section>
         ${convRows.length ? `<section class="card"><div class="card-h"><h2>${icon("card", "sm")} Socios por convenio</h2></div>${hbars(convRows, act.length)}</section>` : ""}
         <section class="card"><div class="card-h"><h2>${icon("users", "sm")} Mujeres y hombres</h2></div>${hbars(genRows, act.length)}</section>
@@ -119,6 +129,7 @@ export function panelHome() {
       ${admin && (genRows.some((r) => r.label === "Sin dato" && r.n) || noAge) ? `<p class="muted tiny">“Sin dato”: socios a los que no se les cargó el género o la fecha de nacimiento. Se completa en la ficha de cada socio › Editar datos personales.</p>` : ""}`,
     mount(host) {
       $$("[data-count]", host).forEach((el) => countUp(el, +el.dataset.count));
+      $$("[data-cols].scroll", host).forEach((w) => { w.scrollLeft = w.scrollWidth; });
       host.addEventListener("click", (e) => { const b = e.target.closest("[data-approve]"); if (b) approveSheet(S.user(b.dataset.approve)); });
     },
   };
@@ -602,7 +613,7 @@ export function feesView(params, query) {
         <div class="kpi"><b>${by.ok.length}</b><small>al día</small></div>
         <div class="kpi warn"><b>${by.soon.length}</b><small>vencen en ${S.db.gym.reminderDays} días</small></div>
         <div class="kpi bad"><b>${by.late.length}</b><small>vencidas</small></div>
-        ${isAdmin() ? `<a class="kpi" href="#/panel/recaudacion"><b>${money(cobrado)}</b><small>cobrado este mes · ver historial</small></a>` : `<div class="kpi"><b>${money(cobrado)}</b><small>cobrado este mes</small></div>`}
+        ${isAdmin() ? `<a class="kpi" href="#/panel/recaudacion"><b>${money(cobrado)}</b><small>cobrado este mes</small><span class="cta">Ver historial ${icon("right", "xs")}</span></a>` : `<div class="kpi"><b>${money(cobrado)}</b><small>cobrado este mes</small></div>`}
       </section>
       <p class="muted lead">El socio ve en la app cuándo vence su cuota y recibe el aviso ${S.db.gym.reminderDays} días antes.</p>
       <div class="chips-scroll">${chips.map(([k, l, n]) => `<a class="chip ${k === f ? "on" : ""}" href="#/panel/cuotas${k ? "?f=" + k : ""}">${l} <b>${n}</b></a>`).join("")}</div>
@@ -681,7 +692,9 @@ export function recaudacionView(params, query) {
   const byPlan = group((p) => S.plan(p.planId)?.name || "Otro plan");
   const byConv = group((p) => p.discount?.name || "Sin convenio");
   const byWho = group((p) => S.user(p.by)?.name || "—");
-  const last12 = months.slice(-12).map((k) => ({ k, label: mlabel(k, true), n: sum(by(k)) }));
+  const year = sel.slice(0, 4);
+  const years = [...new Set(months.map((k) => k.slice(0, 4)))];
+  const last12 = Array.from({ length: 12 }, (_, i) => { const k = `${year}-${String(i + 1).padStart(2, "0")}`; return { k, label: mlabel(k, true), n: sum(by(k)), off: !months.includes(k) }; });
   const max = Math.max(...last12.map((x) => x.n), 1);
   const yearTotal = sum(all.filter((p) => mkey(p.at).slice(0, 4) === sel.slice(0, 4)));
   return {
@@ -697,9 +710,10 @@ export function recaudacionView(params, query) {
         <div><small>Pagos registrados</small><b>${list.length}</b><em>${list.length ? `promedio ${money(total / list.length)}` : "—"}</em></div>
         <div><small>Descuentos por convenio</small><b>${money(disc)}</b><em>no cobrado por convenios</em></div>
       </section>
-      <section class="card"><div class="card-h"><h2>${icon("trend", "sm")} Mes por mes</h2><span class="muted">${esc(sel.slice(0, 4))}: ${money(yearTotal)}</span></div>
-        <div class="rc-cols">${last12.map((x) => `<a class="rc-col ${x.k === sel ? "on" : ""}" href="#/panel/recaudacion?m=${x.k}" title="${esc(mlabel(x.k))}: ${money(x.n)}"><b>${x.n ? money(x.n).replace("$ ", "") : "—"}</b><span class="rc-t"><i style="height:${Math.max(x.n ? 4 : 0, (x.n / max) * 100)}%"></i></span><small>${esc(x.label)}</small></a>`).join("")}</div>
-        <p class="muted tiny">Tocá un mes para verlo. Los meses anteriores quedan guardados para siempre.</p>
+      <section class="card"><div class="card-h"><h2>${icon("trend", "sm")} Mes por mes</h2><span class="muted">Año ${esc(year)}: ${money(yearTotal)}</span></div>
+        ${years.length > 1 ? `<div class="chips-scroll">${years.slice().reverse().map((y) => `<a class="chip ${y === year ? "on" : ""}" href="#/panel/recaudacion?m=${(months.filter((k) => k.startsWith(y)).pop())}">${y}</a>`).join("")}</div>` : ""}
+        <div class="rc-cols">${last12.map((x) => `<a class="rc-col ${x.k === sel ? "on" : ""} ${x.off ? "off" : ""}" href="#/panel/recaudacion?m=${x.k}" title="${esc(mlabel(x.k))}: ${money(x.n)}"><b>${x.n ? money(x.n).replace("$ ", "") : "—"}</b><span class="rc-t"><i style="height:${Math.max(x.n ? 4 : 0, (x.n / max) * 100)}%"></i></span><small>${esc(x.label)}</small></a>`).join("")}</div>
+        <p class="muted tiny">Tocá un mes para verlo. Todos los meses y años anteriores quedan guardados para siempre.</p>
       </section>
       ${list.length ? `<div class="pgrid">
         <section class="card"><div class="card-h"><h2>Por plan</h2></div>${hbars(byPlan.map((x) => ({ label: x.label, n: x.n })), total, { money: true })}</section>

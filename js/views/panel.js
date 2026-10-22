@@ -250,7 +250,7 @@ function newMemberSheet() {
         <div class="grid2">${field({ label: "Plan", name: "plan", value: p0?.id, options: S.plansOf(sp).map((p) => [p.id, p.name]) })}${sp === "vientos" ? convField() || `<span></span>` : `<span></span>`}</div>
         ${field({ label: "Monto cobrado", name: "amount", type: "number", value: p0?.price || "", attrs: 'inputmode="numeric" min="0"' })}
         <div class="paypreview" data-preview></div>
-        <label class="check"><input type="checkbox" name="paid" checked><span>Ya pagó: registrar el pago y la cuota vence en un mes</span></label>
+        <label class="check"><input type="checkbox" name="paid" checked><span>Ya pagó: registrar el pago y la cuota vence en un mes. Si todavía no pagó, destildalo: queda debiendo la cuota hasta que registres el pago.</span></label>
       </fieldset>
       <p class="muted tiny">Va a entrar con su DNI como usuario y contraseña. La primera vez, la app le pide elegir su propia contraseña.</p>
       <p class="form-err" role="alert" hidden></p>
@@ -388,7 +388,7 @@ export async function memberView(params) {
           ${logs.slice(0, 5).map((l) => `<div class="hrow"><span><b>${esc(l.dayName)} · ${esc(l.focus)}</b><small>${esc(relDay(l.at))} · ${l.min} min${l.sets.length ? ` · ${l.sets.length} series` : ""}</small></span></div>`).join("") || `<p class="muted">Sin entrenamientos registrados.</p>`}
         </section>
         <section class="card"><div class="card-h"><h2>${icon("card", "sm")} Cuota</h2>${feePill(m)}</div>
-          ${m.fee?.dueAt ? `<dl class="kv"><div><dt>Plan</dt><dd>${esc(p?.name || "—")}</dd></div><div><dt>Vence</dt><dd>${fmtDate(m.fee.dueAt, { year: true })}</dd></div></dl>` : `<p class="muted">Sin cuota cargada.</p>`}
+          ${m.fee?.dueAt ? `<dl class="kv"><div><dt>Plan</dt><dd>${esc(p?.name || "—")}</dd></div><div><dt>${m.fee.unpaid ? "Debe desde" : "Vence"}</dt><dd>${fmtDate(m.fee.dueAt, { year: true })}</dd></div></dl>` : `<p class="muted">Sin cuota cargada.</p>`}
           ${S.convenios().length ? `<label class="field"><span>Convenio</span><select data-conv>${convOptions(m.fee?.convenioId).map(([v, l]) => `<option value="${esc(v)}" ${v === (m.fee?.convenioId || "") ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}
           <div class="row-btns"><button class="btn primary sm" type="button" data-act="pay">${icon("check", "sm")} Registrar pago</button><button class="btn ghost sm" type="button" data-act="due">Cambiar vencimiento</button></div>
           ${pays.length ? `<h3 class="sub">Últimos pagos</h3>${pays.map(payRow).join("")}
@@ -602,13 +602,15 @@ function dueSheet(m) {
   const v = m.fee?.dueAt ? dayKey(m.fee.dueAt) : dayKey(Date.now() + 30 * DAY);
   sheet({
     title: "Cambiar vencimiento",
-    html: `<form novalidate>${dateField({ label: "Vence el", name: "due", value: v, req: true })}${field({ label: "Plan", name: "plan", value: m.fee?.planId, options: S.plansOf(S.spaceOf(m)).map((p) => [p.id, p.name]) })}<button class="btn primary block" type="submit">Guardar</button></form>`,
+    html: `<form novalidate>${dateField({ label: "Vence el", name: "due", value: v, req: true })}${field({ label: "Plan", name: "plan", value: m.fee?.planId, options: S.plansOf(S.spaceOf(m)).map((p) => [p.id, p.name]) })}
+      <label class="check"><input type="checkbox" name="unpaid" ${m.fee?.unpaid ? "checked" : ""}><span>Todavía no pagó: queda debiendo la cuota hasta que registres el pago</span></label>
+      <button class="btn primary block" type="submit">Guardar</button></form>`,
     onMount(b, close) {
       $("form", b).addEventListener("submit", (e) => {
         e.preventDefault();
         const d = formData(e.target);
         const [y, mo, da] = d.due.split("-").map(Number);
-        S.api.setDue(m.id, new Date(y, mo - 1, da, 12).getTime(), d.plan);
+        S.api.setDue(m.id, new Date(y, mo - 1, da, 12).getTime(), d.plan, !!d.unpaid);
         close(); toast("Vencimiento actualizado"); refresh();
       });
     },

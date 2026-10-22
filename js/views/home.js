@@ -57,7 +57,7 @@ export function homeView() {
   const feeCard = fee.state === "soon" || fee.state === "late" ? `<div class="feecard ${fee.state}">
       ${icon(fee.state === "late" ? "alert" : "card")}
       <div><b>${fee.state === "late" ? "Tu cuota está vencida" : `Tu cuota ${fee.days === 0 ? "vence hoy" : `vence en ${fee.days} ${fee.days === 1 ? "día" : "días"}`}`}</b>
-      <small>${esc(p?.name || "Cuota mensual")} · ${fmtDate(u.fee.dueAt)}</small></div>
+      <small>${esc(p?.name || "Cuota mensual")} · ${u.fee.unpaid ? "desde el " : ""}${fmtDate(u.fee.dueAt)}</small></div>
       <a class="btn sm ${fee.state === "late" ? "primary" : "ghost"}" href="https://wa.me/${wa}?text=${encodeURIComponent(`Hola! Soy ${u.name}, les aviso que pagué la cuota.`)}" target="_blank" rel="noopener">Avisar pago</a>
     </div>` : "";
 

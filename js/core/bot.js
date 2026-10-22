@@ -212,7 +212,8 @@ const R = {
     const f = S.feeStatus(u), p = S.plan(u.fee?.planId);
     if (!u.fee) return { text: "No tenés una cuota cargada en la app. Consultalo en recepción.", actions: [profeAction(u, `Escribir a ${gymShort(u)}`)] };
     const g = gym(u);
-    const msg = f.state === "late" ? `Tu cuota (${esc(p?.name || "")}) <b>venció el ${fmtDate(u.fee.dueAt)}</b>. Pasá por recepción para regularizarla.`
+    const msg = u.fee.unpaid ? `Tu cuota (${esc(p?.name || "")}) <b>está pendiente de pago</b>. Pasá por recepción para pagarla.`
+      : f.state === "late" ? `Tu cuota (${esc(p?.name || "")}) <b>venció el ${fmtDate(u.fee.dueAt)}</b>. Pasá por recepción para regularizarla.`
       : f.state === "soon" ? `Tu cuota (${esc(p?.name || "")}) <b>vence ${f.days === 0 ? "hoy" : `en ${f.days} ${f.days === 1 ? "día" : "días"}`}</b>, el ${fmtDate(u.fee.dueAt)}.`
       : `Tu cuota (${esc(p?.name || "")}) está <b>al día</b>. Vence el ${fmtDate(u.fee.dueAt)}.`;
     return { text: msg, actions: f.state !== "ok" ? [{ label: "Avisar que pagué", href: `https://wa.me/${waNumber(g.whatsapp || S.user(u.coachId)?.phone || "")}?text=${encodeURIComponent(`Hola! Soy ${u.name}, les aviso que pagué la cuota.`)}`, icon: "whatsapp", ext: true }] : [] };

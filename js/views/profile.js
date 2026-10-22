@@ -19,7 +19,7 @@ export function profileView(params, query = {}) {
       <section class="pro-head">${avatar(u, "xl")}<div><h1>${esc(u.name)}</h1><p class="muted">${staff ? (u.role === "admin" ? "Administración" : "Entrenador") : `Socio desde ${fmtDate(u.joined, { year: true })}`}</p></div></section>
       ${!staff ? `<section class="card fee">
         <div class="card-h"><h2>${icon("card", "sm")} Mi cuota</h2>${feePill(u)}</div>
-        ${u.fee ? `<dl class="kv"><div><dt>Plan</dt><dd>${esc(p?.name || "—")}</dd></div><div><dt>Vence</dt><dd>${fmtDate(u.fee.dueAt, { year: true })}</dd></div></dl>` : `<p class="muted">Todavía no hay una cuota cargada.</p>`}
+        ${u.fee ? `<dl class="kv"><div><dt>Plan</dt><dd>${esc(p?.name || "—")}</dd></div><div><dt>${u.fee.unpaid ? "Debe desde" : "Vence"}</dt><dd>${fmtDate(u.fee.dueAt, { year: true })}</dd></div></dl>` : `<p class="muted">Todavía no hay una cuota cargada.</p>`}
         <a class="btn ghost block sm" href="https://wa.me/${waNumber(g.whatsapp || S.user(u.coachId)?.phone || "")}?text=${encodeURIComponent(`Hola! Soy ${u.name}, les aviso que pagué la cuota.`)}" target="_blank" rel="noopener">${icon("whatsapp", "sm")} Avisar que pagué</a>
       </section>` : ""}
       <form class="card" data-form="info" novalidate>

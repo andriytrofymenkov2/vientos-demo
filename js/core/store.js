@@ -439,6 +439,8 @@ export function openNow(open = db.gym.open) {
 export function feeStatus(u) {
   if (!u?.fee?.dueAt) return { state: "none", label: "Sin cuota cargada" };
   const days = Math.round((new Date(u.fee.dueAt).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / DAY);
+  /* Dado de alta (o aprobado) sin pagar: debe la cuota hasta que se registre el pago */
+  if (u.fee.unpaid) return { state: "late", days: Math.min(0, days), label: "Debe la cuota" };
   if (days < 0) return { state: "late", days, label: `Vencida hace ${-days} ${-days === 1 ? "día" : "días"}` };
   if (days === 0) return { state: "soon", days, label: "Vence hoy" };
   if (days <= (gymOf(spaceOf(u)).reminderDays || 5)) return { state: "soon", days, label: `Vence en ${days} ${days === 1 ? "día" : "días"}` };
@@ -474,7 +476,8 @@ export const api = {
     const username = (dni || email).trim().toLowerCase();
     if (findLogin(username) || (email && findLogin(email))) throw new Error(dni ? "Ya hay un socio con ese DNI." : "Ya hay una cuenta con ese email.");
     const mail = (email || `socio${dni}@sin-email.vientos.app`).trim().toLowerCase();
-    const fee = planId ? { planId, dueAt: Date.now() + 30 * DAY, ...(convenioId ? { convenioId } : {}) } : null;
+    /* con plan pero sin pago (el pago se registra aparte): queda debiendo desde hoy */
+    const fee = planId ? { planId, dueAt: Date.now(), unpaid: true, ...(convenioId ? { convenioId } : {}) } : null;
     const prefs = { theme: "dark", sound: true, tempPass: true, ...(space === "fitz" ? { space: "fitz" } : {}) };
     if (R) {
       const u = await R.createAccount({ name, email: mail, username, phone, birth, gender, pass, role: "socio", coachId: coachId || null, fee, prefs });
@@ -513,7 +516,7 @@ export const api = {
     const u = user(userId);
     u.status = "activo";
     u.coachId = coachId || u.coachId;
-    if (planId) u.fee = { planId, dueAt: Date.now() + 30 * DAY };
+    if (planId) u.fee = { planId, dueAt: Date.now(), unpaid: true };          /* debe hasta que pague */
     save();
     push("saveProfile", u);
   },
@@ -736,7 +739,12 @@ export const api = {
     save();
     push("updatePayment", p);
   },
-  setDue(userId, dueAt, planId) { const u = user(userId); u.fee = { ...u.fee, planId: planId || u.fee?.planId || db.plans[0].id, dueAt }; save(); push("saveProfile", u); },
+  setDue(userId, dueAt, planId, unpaid = false) {
+    const u = user(userId);
+    const { unpaid: _, ...rest } = u.fee || {};
+    u.fee = { ...rest, planId: planId || u.fee?.planId || plansOf(spaceOf(u))[0]?.id, dueAt, ...(unpaid ? { unpaid: true } : {}) };
+    save(); push("saveProfile", u);
+  },
   setConvenio(userId, convenioId) {
     const u = user(userId);
     const { convenioId: _, ...rest } = u.fee || {};

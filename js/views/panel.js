@@ -379,6 +379,7 @@ export async function memberView(params) {
               <span class="rcard-days">${r.days.map((d) => `<i>${esc(d.name)}: ${esc(d.focus)}</i>`).join("")}</span><span class="rcard-cta">${icon("edit", "xs")} Editar rutina</span></a>`
             : `<p class="muted">Todavía no tiene rutina.</p>`}
           <button class="btn primary block" type="button" data-act="assign">${icon("plus", "sm")} ${r ? "Nueva rutina" : "Asignar rutina"}</button>
+          ${r ? `<button class="btn ghost sm block danger-t" type="button" data-act="del-routine">${icon("trash", "sm")} Borrar esta rutina</button>` : ""}
           ${all.filter((x) => !x.active).length ? `<h3 class="sub">Historial</h3>${all.filter((x) => !x.active).map((x) => `<a class="hrow" href="#/panel/rutina/${x.id}"><span><b>${esc(S.routineTitle(x))}</b><small>${fmtDate(x.startedAt)} al ${fmtDate(x.endedAt || Date.now())}</small></span>${icon("right", "sm")}</a>`).join("")}` : ""}
         </section>
         <section class="card"><div class="card-h"><h2>${icon("trend", "sm")} Constancia</h2><span class="muted">últimos 3 meses</span></div>
@@ -406,6 +407,7 @@ export async function memberView(params) {
       host.addEventListener("click", async (e) => {
         const a = e.target.closest("[data-act]")?.dataset.act;
         if (a === "assign") assignSheet({ userId: m.id });
+        if (a === "del-routine") deleteRoutine(r);
         if (a === "pay") paySheet(m);
         const pr = e.target.closest("[data-payid]");
         if (pr) payDetailSheet(S.db.payments.find((x) => x.id === pr.dataset.payid));
@@ -1091,6 +1093,22 @@ export function gymView() {
       });
     },
   };
+}
+
+/* Borrar una rutina asignada por error (desde la ficha del socio o el editor).
+   Pide confirmación; lo que ya entrenó con ella queda guardado. */
+export async function deleteRoutine(r) {
+  const m = S.user(r.userId);
+  const n = S.logsOf(r.userId).filter((l) => l.routineId === r.id).length;
+  const ok = await confirmDialog({
+    title: "¿Borrar esta rutina?",
+    text: `${S.routineTitle(r)} de ${m?.name || "este socio"}. ${n ? `Ya entrenó ${plural(n, "vez", "veces")} con ella: esos entrenamientos, sus kilos y sus récords quedan guardados.` : "Todavía no entrenó con ella."}${r.active ? " Queda sin rutina hasta que le asignes otra." : ""}`,
+    ok: "Borrar rutina", danger: true,
+  });
+  if (!ok) return;
+  S.api.deleteRoutine(r.id);
+  toast("Rutina borrada");
+  if (location.hash === `#/panel/socios/${r.userId}`) refresh(); else go(`/panel/socios/${r.userId}`);
 }
 
 /* Sumar al equipo: administrador (acceso total) o profe */

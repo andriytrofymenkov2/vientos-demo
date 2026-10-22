@@ -361,6 +361,7 @@ export const remoteAdapter = {
   async saveRoutines(list) { must(await sb.from("routines").upsert(list.map((r) => ({ id: r.id, user_id: r.userId, active: !!r.active, data: strip(r, "id", "userId", "active"), updated_at: iso() })))); },
   async saveTemplate(t) { must(await sb.from("templates").upsert({ id: t.id, data: strip(t, "id", "createdBy"), created_by: t.createdBy || null, updated_at: iso() })); },
   async deleteTemplate(id) { must(await sb.from("templates").delete().eq("id", id)); },
+  async deleteRoutine(id) { must(await sb.from("routines").delete().eq("id", id)); },
   async saveExercise(e) { must(await sb.from("exercises").upsert({ id: e.id, data: strip(e, "id"), updated_at: iso() })); },
   async deleteExercise(id) { must(await sb.from("exercises").delete().eq("id", id)); },
 

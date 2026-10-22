@@ -8,7 +8,7 @@ import { field, dateField, formData, toast, sheet, confirmDialog, tag, pageHead,
 import { GROUPS, EQUIP } from "../data/exercises.js";
 import { LEVELS, AUDIENCES, GOALS, BLOCK_TYPES, CLASSIC_BLOCKS, PROGRAM_BLOCKS } from "../data/templates.js";
 import { exTile, letter, progLetter } from "./common.js";
-import { assignSheet } from "./panel.js";
+import { assignSheet, deleteRoutine } from "./panel.js";
 
 const RESTS = [0, 15, 30, 45, 60, 75, 90, 120, 150, 180, 240];
 const restOpts = (v) => {
@@ -210,7 +210,7 @@ function editor(obj, kind) {
         </section>
         <div class="ed-foot">
           ${isT ? `<button class="btn ghost sm" type="button" data-act="dup-t">${icon("copy", "sm")} Duplicar ${prog ? "programa" : "plantilla"}</button><button class="btn ghost sm danger-t" type="button" data-act="del-t">${icon("trash", "sm")} Borrar ${prog ? "programa" : "plantilla"}</button>`
-            : `<button class="btn ghost sm" type="button" data-act="as-t">${icon("layers", "sm")} Guardar como plantilla</button>${obj.active ? "" : `<button class="btn ghost sm" type="button" data-act="activate">${icon("bolt", "sm")} Volver a activar</button>`}`}
+            : `<button class="btn ghost sm" type="button" data-act="as-t">${icon("layers", "sm")} Guardar como plantilla</button>${obj.active ? "" : `<button class="btn ghost sm" type="button" data-act="activate">${icon("bolt", "sm")} Volver a activar</button>`}<button class="btn ghost sm danger-t" type="button" data-act="del-r">${icon("trash", "sm")} Borrar rutina</button>`}
         </div>
       </div>`,
     mount(host) {
@@ -360,6 +360,7 @@ function editor(obj, kind) {
           } });
         }
         if (act === "activate") { S.api.activateRoutine(obj.id); toast("Rutina activada"); refresh(); }
+        if (act === "del-r") deleteRoutine(obj);
       });
       host.querySelector(".phead-a")?.addEventListener("click", (e) => { if (e.target.closest("[data-act=assign]")) assignSheet({ templateId: obj.id }); });
     },

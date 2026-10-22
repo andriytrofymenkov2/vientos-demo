@@ -567,7 +567,20 @@ export const api = {
     return r;
   },
 
-  saveRoutine(r) { r.updated = Date.now(); save(); push("saveRoutines", [r]); },
+  saveRoutine(r) {
+    if (!db.routines.includes(r)) return;              /* se borró mientras se editaba: no revivirla */
+    r.updated = Date.now(); save(); push("saveRoutines", [r]);
+  },
+  /* Rutina asignada por error: se borra entera. Lo que ya entrenó con ella (historial,
+     kilos y récords) queda guardado; si la tenía abierta, se cierra sin guardar. */
+  deleteRoutine(id) {
+    const r = routine(id);
+    if (!r) return;
+    if (db.live[r.userId]?.routineId === id) { delete db.live[r.userId]; push("deleteLive", r.userId); }
+    db.routines = db.routines.filter((x) => x.id !== id);
+    save();
+    push("deleteRoutine", id);
+  },
   activateRoutine(id) {
     const r = routine(id);
     routinesOf(r.userId).forEach((x) => { if (x.active && x.id !== id) { x.active = false; x.endedAt = Date.now(); } });

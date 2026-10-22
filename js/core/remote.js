@@ -80,18 +80,21 @@ const toLog = (r) => ({ ...r.data, id: r.id, userId: r.user_id, at: ms(r.at) });
 const toPay = (r) => ({ ...r.data, id: r.id, userId: r.user_id, at: ms(r.at), amount: Number(r.amount) });
 
 /* ------------------------------------------------------------------ carga */
-/* Todos los pagos: el servidor entrega como máximo 1.000 filas por pedido, así que se piden por tandas.
-   Es el historial completo: la recaudación de cada mes queda guardada para siempre. */
-async function allPayments() {
+/* El servidor entrega como máximo 1.000 filas por pedido: si no se piden por tandas, con muchos
+   socios se perderían datos en silencio. Todo lo que puede pasar de 1.000 filas se trae completo. */
+async function allRows(table, { orderBy = "id", desc = false, tie = null } = {}) {
   const rows = [];
-  for (let from = 0; from < 50000; from += 1000) {
-    const { data, error } = await sb.from("payments").select("*").order("at", { ascending: false }).order("id").range(from, from + 999);
+  for (let from = 0; from < 100000; from += 1000) {
+    let q = sb.from(table).select("*").order(orderBy, { ascending: !desc });
+    if (tie) q = q.order(tie);             /* desempate para que ninguna fila se repita o se saltee entre tandas */
+    const { data, error } = await q.range(from, from + 999);
     if (error) return { data: null, error };
     rows.push(...data);
     if (data.length < 1000) break;
   }
   return { data: rows, error: null };
 }
+const allPayments = () => allRows("payments", { orderBy: "at", desc: true, tie: "id" });
 
 async function loadAll(uid) {
   const D = emptyDb();
@@ -108,10 +111,10 @@ async function loadAll(uid) {
     q("exercises"),
     staff ? q("templates") : Promise.resolve({ data: [] }),
     q("notices").order("at", { ascending: false }).limit(30),
-    q("profiles"),
-    q("routines"),
-    staff ? q("logs").gte("at", since).order("at", { ascending: false }).limit(5000) : q("logs").eq("user_id", uid).order("at", { ascending: false }).limit(1000),
-    q("live"),
+    allRows("profiles"),
+    allRows("routines"),
+    staff ? Promise.resolve({ data: [], error: null }) : q("logs").eq("user_id", uid).order("at", { ascending: false }).limit(1000),
+    allRows("live", { orderBy: "user_id" }),
     staff ? allPayments() : q("payments").eq("user_id", uid),
   ]).then((rs) => rs.map(must));
 
@@ -266,6 +269,15 @@ export const remoteAdapter = {
     if (mine) D.live[uid] = mine;
     S.setDb(D);
     return true;
+  },
+
+  /* El profe/dueño no descarga los entrenamientos de todos (con 500 socios serían decenas de miles):
+     al abrir la ficha de un socio se piden SUS entrenamientos del último año. */
+  async loadUserLogs(userId) {
+    if (!S.db?.me || S.db.users.find((x) => x.id === S.db.me)?.role === "socio") return;
+    const since = iso(Date.now() - 400 * 86400000);
+    const rows = must(await sb.from("logs").select("*").eq("user_id", userId).gte("at", since).order("at", { ascending: false }).limit(1500));
+    S.db.logs = S.db.logs.filter((l) => l.userId !== userId).concat(rows.map(toLog));
   },
 
   async login(ident, pass) {

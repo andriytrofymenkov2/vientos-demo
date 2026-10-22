@@ -80,6 +80,15 @@ export const dayKey = (ts = Date.now()) => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 /* Lunes de la semana de ts (00:00) */
+/* Suma meses sin "saltarse" de mes: el 31/1 + 1 mes = 28/2 (o 29/2), no el 3/3 */
+export function addMonths(ts, n) {
+  const d = new Date(ts), day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + n);
+  d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+  return d.getTime();
+}
+
 export function weekStart(ts = Date.now()) {
   const d = new Date(ts); d.setHours(0, 0, 0, 0);
   const wd = (d.getDay() + 6) % 7;

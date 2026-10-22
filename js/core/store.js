@@ -10,7 +10,7 @@
 import { EXERCISES } from "../data/exercises.js";
 import { TEMPLATES } from "../data/templates.js";
 import { buildDemo } from "../data/demo.js";
-import { uid, sha256, DAY, weekStart, dayKey, fold } from "./util.js";
+import { uid, sha256, DAY, weekStart, dayKey, fold, addMonths } from "./util.js";
 import { CONFIG } from "../config.js";
 
 const KEY = "vientos_db_v5";
@@ -128,7 +128,7 @@ export const activeMembers = () => members().filter((u) => u.status === "activo"
 
 /* Socios mes a mes, calculado contra los pagos y las altas guardados:
    · activos: tienen una cuota que cubre al menos 15 días de ese mes (según los pagos registrados);
-     en el mes en curso cuentan los que tienen la cuota vigente hoy.
+     en el mes en curso cuentan las cuentas activas con la cuota vigente hoy (igual que "al día" del tablero).
    · nuevos: su cuenta se creó ese mes. Cada persona cuenta como nueva UNA sola vez en la vida.
    · siguieron: estaban activos el mes anterior y siguen. · se fueron: estaban y ya no.
    · volvieron: ya habían sido socios, faltaron al menos un mes y regresan.
@@ -139,7 +139,7 @@ export function membershipByMonth(now = Date.now()) {
   db.payments.forEach((p) => {
     const from = p.from ?? p.at;
     let to = p.to;
-    if (!to) { const d = new Date(from); d.setMonth(d.getMonth() + (p.months || 1)); to = d.getTime(); }
+    if (!to) to = addMonths(from, p.months || 1);
     (cover[p.userId] ||= []).push([from, to]);
   });
   const starts = [...socios.map((u) => u.joined), ...db.payments.map((p) => p.at)].filter(Boolean);
@@ -155,7 +155,8 @@ export function membershipByMonth(now = Date.now()) {
     const isCur = i === n - 1;
     /* activo en el mes = la cuota cubre al menos 15 días de ese mes (o, en el mes en curso, está vigente hoy) */
     const days = (u) => (cover[u.id] || []).reduce((n, [x, y]) => n + Math.max(0, Math.min(y, b) - Math.max(x, a)) / 86400000, 0);
-    const active = new Set(socios.filter((u) => days(u) >= 15 || (isCur && ((cover[u.id] || []).some(([x, y]) => x <= now && y > now) || (u.status === "activo" && u.fee?.dueAt >= now)))).map((u) => u.id));
+    const vigenteHoy = (u) => u.status === "activo" && (["ok", "soon"].includes(feeStatus(u).state) || (cover[u.id] || []).some(([x, y]) => x <= now && y > now));
+    const active = new Set(socios.filter((u) => (isCur ? vigenteHoy(u) || (u.status === "activo" && days(u) >= 15) : days(u) >= 15)).map((u) => u.id));
     const nuevos = socios.filter((u) => u.joined >= a && u.joined < b).length;
     const kept = [...active].filter((id) => prev.has(id)).length;
     const left = [...prev].filter((id) => !active.has(id)).length;
@@ -582,7 +583,7 @@ export const api = {
     const u = user(userId);
     const pr = priceWith(planId, months, convenioId);
     const start = from ?? Math.max(Date.now(), u.fee?.dueAt || 0);
-    const d = new Date(start); d.setMonth(d.getMonth() + months);
+    const d = new Date(addMonths(start, months));
     const prev = u.fee ? { ...u.fee } : null;
     u.fee = { planId, dueAt: d.getTime(), ...(pr.conv ? { convenioId: pr.conv.id } : {}) };
     const pay = {
@@ -602,7 +603,7 @@ export const api = {
     const last = db.payments.filter((x) => x.userId === pay.userId).sort((a, b) => b.at - a.at)[0];
     if (u && last?.id === id) {
       if (pay.prev !== undefined) u.fee = pay.prev;
-      else if (u.fee?.dueAt) { const d = new Date(u.fee.dueAt); d.setMonth(d.getMonth() - (pay.months || 1)); u.fee = { ...u.fee, dueAt: d.getTime() }; }
+      else if (u.fee?.dueAt) u.fee = { ...u.fee, dueAt: addMonths(u.fee.dueAt, -(pay.months || 1)) };
       push("saveProfile", u);
     }
     db.payments = db.payments.filter((x) => x.id !== id);

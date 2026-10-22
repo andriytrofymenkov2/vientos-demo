@@ -1,6 +1,6 @@
 /* Panel del entrenador y del gimnasio */
 import { icon, logo } from "../core/icons.js";
-import { esc, fold, fmtDate, relDay, dayKey, plural, debounce, waNumber, firstName, DAY, $, $$, countUp } from "../core/util.js";
+import { esc, fold, addMonths, fmtDate, relDay, dayKey, plural, debounce, waNumber, firstName, DAY, $, $$, countUp } from "../core/util.js";
 import * as S from "../core/store.js";
 import { me, isAdmin, logout } from "../core/auth.js";
 import { go, refresh } from "../core/router.js";
@@ -49,7 +49,7 @@ export function panelHome() {
   const noRoutine = act.filter((m) => !S.activeRoutine(m.id));
   const neverIn = act.filter((m) => m.prefs?.tempPass);
   const pend = S.pending();
-  const kpi = (n, label, href, cls = "") => `<a class="kpi ${cls}" href="${href}"><b data-count="${n}">0</b><small>${label}</small></a>`;
+  const kpi = (n, label, href, cls = "", sub = "") => `<a class="kpi ${cls}" href="${href}"><b data-count="${n}">0</b><small>${label}</small>${sub ? `<em class="kpi-sub">${sub}</em>` : ""}</a>`;
   const mrow = (m, extra) => `<a class="mrow" href="#/panel/socios/${m.id}">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${extra}</small></span>${icon("right", "sm")}</a>`;
 
   /* Plata (solo el dueño) */
@@ -58,9 +58,14 @@ export function panelHome() {
   const paid = (a, b) => S.db.payments.filter((p) => p.at >= a && p.at < b).reduce((x, p) => x + (p.amount || 0), 0);
   const thisMonth = paid(m0, m1), lastMonth = paid(pm0, m0);
   const priceOf = (m) => S.priceWith(m.fee?.planId, 1, m.fee?.convenioId).total;
-  const toCollect = act.filter((m) => m.fee?.dueAt >= Date.now() && m.fee.dueAt < m1);
+  /* Falta cobrar este mes: cuotas que todavía no vencieron (o vencen hoy) y vencen antes de fin de mes.
+     Las que ya vencieron van en "Deuda". Usa el mismo criterio de días que el estado de cada socio. */
+  const toCollect = act.filter((m) => { const st = S.feeStatus(m); return st.state !== "none" && st.state !== "late" && m.fee.dueAt < m1; });
   const owed = late.reduce((x, m) => x + priceOf(m), 0);
-  const diff = lastMonth ? Math.round(((thisMonth - lastMonth) / lastMonth) * 100) : null;
+  /* Comparación justa: lo cobrado hasta hoy contra lo cobrado en el MISMO período del mes anterior */
+  const lastSame = paid(pm0, Math.min(m0, pm0 + (Date.now() - m0)));
+  const diff = lastSame ? Math.round(((thisMonth - lastSame) / lastSame) * 100) : null;
+  const alDia = act.length - late.length - act.filter((m) => S.feeStatus(m).state === "none").length;
   const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
   /* Perfil de los socios */
@@ -93,15 +98,15 @@ export function panelHome() {
     layout: "panel", nav: "resumen", title: "Resumen",
     html: `<section class="phello"><span class="kicker">${esc(fmtDate(Date.now()))}</span><h1>Hola, ${esc(firstName(u.name))}</h1></section>
       <section class="kpis">
-        ${kpi(act.length, "socios activos", "#/panel/socios")}
+        ${kpi(act.length, "socios activos", "#/panel/socios", "", `${alDia} con cuota al día · ${late.length} vencidas`)}
         ${kpi(soon.length, "cuotas por vencer", "#/panel/cuotas?f=soon", soon.length ? "warn" : "")}
         ${kpi(late.length, "cuotas vencidas", "#/panel/cuotas?f=late", late.length ? "bad" : "")}
         ${kpi(noRoutine.length, "sin rutina asignada", "#/panel/socios?f=sin", noRoutine.length ? "warn" : "")}
       </section>
       ${admin ? `<section class="money">
-        <a class="mlink" href="#/panel/recaudacion"><small>Cobrado en ${now.toLocaleDateString("es-AR", { month: "long" })}</small><b>${money(thisMonth)}</b>${diff !== null ? `<em class="${diff >= 0 ? "up" : "down"}">${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)} % vs. ${MONTHS[new Date(pm0).getMonth()]}</em>` : ""}<span class="cta">Ver historial ${icon("right", "xs")}</span></a>
-        <div><small>Falta cobrar este mes</small><b>${money(toCollect.reduce((x, m) => x + priceOf(m), 0))}</b><em>${plural(toCollect.length, "cuota vence", "cuotas vencen")} antes de fin de mes</em></div>
-        <div><small>Deuda de cuotas vencidas</small><b class="${owed ? "bad" : ""}">${money(owed)}</b><em>${plural(late.length, "socio", "socios")}</em></div>
+        <a class="mlink" href="#/panel/recaudacion"><small>Cobrado en ${now.toLocaleDateString("es-AR", { month: "long" })}</small><b>${money(thisMonth)}</b>${diff !== null ? `<em class="${diff >= 0 ? "up" : "down"}">${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)} % vs. ${MONTHS[new Date(pm0).getMonth()]} (mismos días)</em>` : `<em>${MONTHS[new Date(pm0).getMonth()]}: ${money(lastMonth)} en total</em>`}<span class="cta">Ver historial ${icon("right", "xs")}</span></a>
+        <div><small>Falta cobrar este mes</small><b>${money(toCollect.reduce((x, m) => x + priceOf(m), 0))}</b><em>${plural(toCollect.length, "cuota vence", "cuotas vencen")} hasta fin de mes</em></div>
+        <div><small>Cuotas vencidas sin pagar</small><b class="${owed ? "bad" : ""}">${money(owed)}</b><em>${plural(late.length, "socio", "socios")} · se cuenta 1 cuota por socio</em></div>
       </section>` : ""}
       ${pend.length ? `<section class="card alert-card"><div class="card-h"><h2>${icon("userplus", "sm")} Socios nuevos para aprobar</h2><span class="pill red">${pend.length}</span></div>
         ${pend.slice(0, 5).map((m) => `<div class="mrow">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${esc(m.email)} · ${esc(relDay(m.joined))}</small></span><button class="btn primary sm" type="button" data-approve="${m.id}">Revisar</button></div>`).join("")}
@@ -114,7 +119,7 @@ export function panelHome() {
         </section>
         <section class="card"><div class="card-h"><h2>${icon("download", "sm")} Uso de la app</h2><span class="muted">${pct(act.length - neverIn.length, act.length)} % ya entró</span></div>
           ${hbars([{ label: "Ya entraron", n: act.length - neverIn.length }, { label: "Nunca entraron", n: neverIn.length }], act.length)}
-          ${neverIn.length ? `<p class="muted tiny">Ayudalos a instalarla la próxima vez que vengan:</p>${neverIn.slice(0, 5).map((m) => mrow(m, `Usuario ${esc(m.user)}`)).join("")}` : ""}
+          ${neverIn.length ? `<a class="btn ghost sm block" href="#/panel/socios?f=app">${icon("users", "sm")} Ver los ${neverIn.length} que nunca entraron</a>` : `<p class="muted tiny">Todos los socios ya entraron a la app.</p>`}
         </section>
         ${admin ? `
         <section class="card"><div class="card-h"><h2>${icon("users", "sm")} Socios por mes</h2><span class="muted">activos · tocá un mes</span></div>${hist.length ? `${monthCols(mrows)}<div data-mdet>${detail(hist[hist.length - 1])}</div>
@@ -335,9 +340,10 @@ export function assignSheet({ userId = null, templateId = null } = {}) {
   });
 }
 
-export function memberView(params) {
+export async function memberView(params) {
   const m = S.user(params.id);
   if (!m || m.role !== "socio") return go("/panel/socios", { replace: true });
+  try { await S.remote()?.loadUserLogs(m.id); } catch { /* sin conexión: se muestra lo que haya */ }
   if (m.status === "pendiente") { setTimeout(() => approveSheet(m), 50); return go("/panel/socios?f=pend", { replace: true }); }
   const r = S.activeRoutine(m.id);
   const all = S.routinesOf(m.id);
@@ -414,7 +420,7 @@ export function paySheet(m, onDone) {
   const st = S.feeStatus(m);
   const day0 = new Date(); day0.setHours(12, 0, 0, 0);
   const canChain = m.fee?.dueAt && st.state !== "late" && st.state !== "none";
-  const plusMonths = (t, n) => { const d = new Date(t); d.setMonth(d.getMonth() + n); return d.getTime(); };
+  const plusMonths = (t, n) => addMonths(t, n);
   sheet({
     title: `Registrar pago`,
     html: `<form novalidate>
@@ -609,7 +615,8 @@ export function feesView(params, query) {
   const by = { ok: [], soon: [], late: [], none: [] };
   act.forEach((m) => by[S.feeStatus(m).state].push(m));
   const m0 = new Date(); m0.setDate(1); m0.setHours(0, 0, 0, 0);
-  const cobrado = S.db.payments.filter((p) => p.at >= m0.getTime()).reduce((a, p) => a + p.amount, 0);
+  const m1c = new Date(m0.getFullYear(), m0.getMonth() + 1, 1).getTime();
+  const cobrado = S.db.payments.filter((p) => p.at >= m0.getTime() && p.at < m1c).reduce((a, p) => a + (p.amount || 0), 0);
   let list = f ? by[f] || [] : act;
   list = list.slice().sort((a, b) => (a.fee?.dueAt || 0) - (b.fee?.dueAt || 0));
   const chips = [["", "Todos", act.length], ["late", "Vencidas", by.late.length], ["soon", "Por vencer", by.soon.length], ["ok", "Al día", by.ok.length], ["none", "Sin cuota", by.none.length]];
@@ -694,7 +701,10 @@ export function recaudacionView(params, query) {
   const i = months.indexOf(sel), prev = months[i - 1], next = months[i + 1];
   const by = (k) => all.filter((p) => mkey(p.at) === k);
   const list = by(sel), total = sum(list);
-  const prevTotal = prev ? sum(by(prev)) : null;
+  /* en el mes en curso se compara contra el mismo período (primeros N días) del mes anterior; en meses cerrados, mes completo */
+  const msStart = (k) => { const [y, mo] = k.split("-").map(Number); return new Date(y, mo - 1, 1).getTime(); };
+  const partial = sel === now ? Date.now() - msStart(sel) : null;
+  const prevTotal = prev ? sum(by(prev).filter((p) => partial === null || p.at < msStart(prev) + partial)) : null;
   const diff = prevTotal ? Math.round(((total - prevTotal) / prevTotal) * 100) : null;
   const disc = list.reduce((a, p) => a + (p.discount?.amount || 0), 0);
   const group = (fn) => { const g = {}; list.forEach((p) => { const k = fn(p); (g[k] ||= { label: k, n: 0, c: 0 }); g[k].n += p.amount || 0; g[k].c++; }); return Object.values(g).sort((a, b) => b.n - a.n); };
@@ -714,7 +724,7 @@ export function recaudacionView(params, query) {
         <a class="icon-btn ${next ? "" : "off"}" ${next ? `href="#/panel/recaudacion?m=${next}"` : 'aria-disabled="true"'} aria-label="Mes siguiente">${icon("right")}</a>
       </div>
       <section class="money rc-money">
-        <div><small>Cobrado en ${esc(mlabel(sel))}</small><b>${money(total)}</b>${diff !== null ? `<em class="${diff >= 0 ? "up" : "down"}">${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)} % vs. ${esc(mlabel(prev))}</em>` : `<em>${prev ? "mes anterior sin pagos" : "primer mes con pagos"}</em>`}</div>
+        <div><small>Cobrado en ${esc(mlabel(sel))}</small><b>${money(total)}</b>${diff !== null ? `<em class="${diff >= 0 ? "up" : "down"}">${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)} % vs. ${esc(mlabel(prev))}${partial !== null ? " (mismos días)" : ""}</em>` : `<em>${prev ? "mes anterior sin pagos" : "primer mes con pagos"}</em>`}</div>
         <div><small>Pagos registrados</small><b>${list.length}</b><em>${list.length ? `promedio ${money(total / list.length)}` : "—"}</em></div>
         <div><small>Descuentos por convenio</small><b>${money(disc)}</b><em>no cobrado por convenios</em></div>
       </section>

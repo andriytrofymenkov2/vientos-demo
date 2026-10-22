@@ -9,7 +9,7 @@ export const EQUIP = ["Barra", "Mancuernas", "Polea", "Máquina", "Peso corporal
 
 const E = (id, n, g, eq, sec, steps, tip) => ({ id, n, g, eq, sec, steps, tip, video: "" });
 
-export const EXERCISES = [
+const BASE = [
   /* Pecho */
   E("press-banca", "Press de banca con barra", "Pecho", "Barra", "Tríceps, hombro anterior", [
     "Acostate en el banco con los ojos debajo de la barra y los pies firmes en el piso.",
@@ -315,5 +315,16 @@ export const EXERCISES = [
     "De pie, bajá a apoyar las manos.",
     "Llevá los pies atrás, flexión opcional, volvé y saltá.",
   ], "Mantené un ritmo que puedas sostener."),
-  ...EXERCISES_FITZ,
 ];
+
+/* Fitz Club entrena sin máquinas y tiene su propio catálogo: sus ejercicios y copias de los
+   básicos de peso libre (id "fz-…", misma imagen). Cada negocio ve solo los suyos. */
+const FITZ_BASICS = {
+  "sentadilla": {}, "sentadilla-goblet": {}, "press-banca": {}, "press-militar": {}, "press-hombro-manc": {},
+  "peso-muerto": {}, "peso-muerto-rumano": {}, "hip-thrust": {}, "estocadas": {}, "dominadas": {},
+  "remo-barra": {}, "remo-mancuerna": {}, "flexiones": {}, "plancha": {},
+  "pallof": { n: "Press Pallof con banda", eq: "Banda", steps: ["Banda anclada a la altura del pecho, parado de costado.", "Extendé los brazos al frente sin dejar que el cuerpo gire.", "Sostené 2 segundos y volvé."] },
+};
+const fitzBasics = Object.entries(FITZ_BASICS).map(([id, o]) => ({ ...BASE.find((e) => e.id === id), ...o, id: `fz-${id}`, img: id, space: "fitz" }));
+
+export const EXERCISES = [...BASE, ...EXERCISES_FITZ.map((e) => ({ ...e, space: "fitz" })), ...fitzBasics];

@@ -125,8 +125,9 @@ async function loadAll(uid) {
   const ex = fresh ? must(await q("exercises")) : exercises;
   const tp = fresh ? must(await q("templates")) : templates;
 
-  /* Base cargada antes de Fitz Club: suma sus ejercicios, programa y plan (una sola vez) */
-  if (prof.role === "admin" && g && !(g.data?.seeded || []).includes("fitz-1")) await seedFitz(g, ex, tp);
+  /* Base cargada antes de Fitz Club (o de su última actualización): pone al día su catálogo,
+     sus programas y su plan (una sola vez por versión) */
+  if (prof.role === "admin" && g && !(g.data?.seeded || []).includes("fitz-2")) await seedFitz(g, ex, tp);
 
   if (g?.data) { const { plans, ...rest } = g.data; D.gym = { ...D.gym, ...rest }; if (plans?.length) D.plans = plans; }
   D.exercises = ex.map((r) => ({ ...r.data, id: r.id })).sort((a, b) => a.n.localeCompare(b.n, "es"));
@@ -143,24 +144,27 @@ async function loadAll(uid) {
 
 async function firstSetup(prof, gym, exercises, templates) {
   const d = S.defaults();
-  if (!gym && prof.role === "admin") must(await sb.from("gym").upsert({ id: 1, data: { ...d.gym, plans: d.plans, seeded: ["fitz-1"] } }));
+  if (!gym && prof.role === "admin") must(await sb.from("gym").upsert({ id: 1, data: { ...d.gym, plans: d.plans, seeded: ["fitz-1", "fitz-2"] } }));
   if (!exercises.length) must(await sb.from("exercises").upsert(d.exercises.map((e) => ({ id: e.id, data: strip(e, "id") }))));
   if (!templates.length) must(await sb.from("templates").upsert(d.templates.map((t) => ({ id: t.id, data: strip(t, "id", "createdBy"), created_by: null }))));
 }
 
-/* Lo que trajo Fitz Club, para una base que ya estaba en uso. No toca nada de lo que el
-   gimnasio editó o borró: suma solo lo que falta y anota que ya se hizo. */
+/* Fitz Club en una base que ya estaba en uso: carga (o pone al día) sus ejercicios y sus
+   programas de base, y suma su plan si no tiene. No toca nada de Vientos ni los programas
+   o ejercicios que haya creado el profe, y anota la versión para no repetirlo. */
 async function seedFitz(gym, exercises, templates) {
   const d = S.defaults();
-  const haveEx = new Set(exercises.map((r) => r.id));
-  const ex = d.exercises.filter((e) => S.FITZ_EXERCISE_IDS.has(e.id) && !haveEx.has(e.id)).map((e) => ({ id: e.id, data: strip(e, "id") }));
-  if (ex.length) { must(await sb.from("exercises").upsert(ex)); exercises.push(...ex); }
-  const keys = new Set(templates.map((r) => r.data?.key).filter(Boolean));
-  const tp = d.templates.filter((t) => t.space === "fitz" && t.key && !keys.has(t.key)).map((t) => ({ id: t.id, data: strip(t, "id", "createdBy"), created_by: null }));
-  if (tp.length) { must(await sb.from("templates").upsert(tp)); templates.push(...tp); }
+  const fx = d.exercises.filter((e) => e.space === "fitz").map((e) => ({ id: e.id, data: strip(e, "id") }));
+  must(await sb.from("exercises").upsert(fx));
+  const fxIds = new Set(fx.map((r) => r.id));
+  exercises.splice(0, exercises.length, ...exercises.filter((r) => !fxIds.has(r.id)), ...fx);
+  const ft = d.templates.filter((t) => t.space === "fitz").map((t) => ({ id: t.id, data: strip(t, "id", "createdBy"), created_by: null }));
+  must(await sb.from("templates").upsert(ft));
+  const ftIds = new Set(ft.map((r) => r.id));
+  templates.splice(0, templates.length, ...templates.filter((r) => !ftIds.has(r.id)), ...ft);
   const plans = gym.data?.plans || d.plans;
   const add = plans.some((p) => p.space === "fitz") ? [] : d.plans.filter((p) => p.space === "fitz");
-  gym.data = { ...gym.data, plans: [...plans, ...add], seeded: [...(gym.data?.seeded || []), "fitz-1"] };
+  gym.data = { ...gym.data, plans: [...plans, ...add], seeded: [...new Set([...(gym.data?.seeded || []), "fitz-1", "fitz-2"])] };
   must(await sb.from("gym").upsert({ id: 1, data: gym.data, updated_at: iso() }));
 }
 

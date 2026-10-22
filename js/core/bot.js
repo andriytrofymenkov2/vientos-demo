@@ -96,7 +96,7 @@ export function matchExercise(text, u) {
   const t = " " + fold(text).replace(/[^a-z0-9ñ ]/g, " ").replace(/\s+/g, " ") + " ";
   let best = null, score = 0;
   const mine = new Set(routineItems(u).map((x) => x.i.ex));
-  for (const e of S.db.exercises) {
+  for (const e of S.exercisesOf()) {
     let s = 0;
     for (const a of ALIASES[e.id] || []) if (t.includes(" " + fold(a) + " ")) s = Math.max(s, 10 + a.length);
     const words = fold(e.n).split(/\s+/).filter((w) => w.length > 2 && !STOP.has(w));
@@ -181,7 +181,7 @@ const R = {
 
   reemplazo(u, ex) {
     if (!ex) { ctx.pending = "reemplazo"; return { text: "¿Qué máquina o ejercicio no podés hacer?", chips: todayChips(u, "Reemplazar") }; }
-    const alts = S.db.exercises.filter((e) => e.g === ex.g && e.id !== ex.id).sort((a, b) => (a.eq === ex.eq) - (b.eq === ex.eq)).slice(0, 3);
+    const alts = S.exercisesOf().filter((e) => e.g === ex.g && e.id !== ex.id).sort((a, b) => (a.eq === ex.eq) - (b.eq === ex.eq)).slice(0, 3);
     if (!alts.length) return { text: `No tengo otro ejercicio de ${esc(ex.g)} para sugerirte. Consultalo con tu profe.`, actions: [profeAction(u)] };
     return {
       text: `Si no podés hacer <b>${esc(ex.n)}</b>, cambialo por otro de ${esc(ex.g.toLowerCase())} con las mismas series y repeticiones:<br><br>${alts.map((a) => `• <b>${esc(a.n)}</b> (${esc(a.eq.toLowerCase())})`).join("<br>")}<br><br>O hacé otro ejercicio del día y volvé después.`,

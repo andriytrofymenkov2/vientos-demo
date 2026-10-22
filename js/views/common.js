@@ -6,8 +6,10 @@ import { BLOCK_TYPES } from "../data/templates.js";
 import { EX_IMAGES, EX_CREDITS } from "../data/ex-images.js";
 
 /* Foto de referencia del ejercicio (posición inicial/final), si existe */
-export const exCredit = (ex) => (ex && EX_CREDITS?.[ex.id]) || "";
-export const exPhoto = (ex, n = 0) => (ex && EX_IMAGES[ex.id] > n ? `img/ej/${ex.id}-${n}.jpg` : null);
+/* Las copias de Fitz Club ("fz-…") usan la imagen del original (img) */
+const imgKey = (ex) => ex?.img || ex?.id;
+export const exCredit = (ex) => (ex && EX_CREDITS?.[imgKey(ex)]) || "";
+export const exPhoto = (ex, n = 0) => (ex && EX_IMAGES[imgKey(ex)] > n ? `img/ej/${imgKey(ex)}-${n}.jpg` : null);
 
 const ABBR = { "Pecho": "PEC", "Espalda": "ESP", "Hombros": "HOM", "Bíceps": "BÍC", "Tríceps": "TRÍ", "Cuádriceps": "CUÁ", "Isquiotibiales": "ISQ", "Glúteos": "GLÚ", "Pantorrillas": "PAN", "Abdomen": "ABD", "Core": "CORE", "Movilidad": "MOV", "Potencia": "POT", "Cardio": "CAR" };
 

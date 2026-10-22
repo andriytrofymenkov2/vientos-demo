@@ -8,7 +8,6 @@
    · Con "?demo" en la dirección se fuerza la demostración (para mostrarla).
    ========================================================================= */
 import { EXERCISES } from "../data/exercises.js";
-import { EXERCISES_FITZ } from "../data/exercises-fitz.js";
 import { TEMPLATES, PROGRAMS } from "../data/templates.js";
 import { buildDemo } from "../data/demo.js";
 import { uid, sha256, DAY, weekStart, dayKey, fold, addMonths } from "./util.js";
@@ -80,13 +79,13 @@ export function normDays(days, prefix = "d") {
   }));
 }
 
-/* Programa vacío: 3 sesiones con sus 4 bloques (movilidad y core, fuerza, accesorios, EMOM) */
+/* Programa vacío: 3 días con sus 4 bloques (movilidad y core, fuerza, accesorios, EMOM) */
 export function blankProgram(space = "fitz") {
-  const session = (n) => ({ name: `Sesión ${n}`, focus: "", blocks: [
+  const session = (n) => ({ name: `Día ${n}`, focus: "", blocks: [
     { type: "prep", rest: 0, items: [] }, { type: "strength", rest: 150, items: [] },
     { type: "accessory", rest: 90, items: [] }, { type: "emom", rest: 0, items: [] }] });
   return { kind: "program", space, name: "Programa personalizado", level: "Intermedio", audience: "Mixto", goal: "Fuerza y movimiento", weeks: 6,
-    meta: { deporte: "", metodo: "Fuerza y movimiento", etapa: "" }, days: normDays(["A", "B", "C"].map(session)) };
+    meta: { deporte: "", metodo: "Fuerza y movimiento", etapa: "" }, days: normDays([1, 2, 3].map(session)) };
 }
 
 /* Plantillas que vienen con la app: las de Vientos y los programas de Fitz Club */
@@ -164,7 +163,8 @@ export function bindMe(fn) { whoId = fn; }
 /* Son dos unidades de negocio: cada dueño, profe y socio ve solo lo de su espacio.
    El proveedor de la plataforma (prefs.space = "all", se pone desde Supabase) ve los
    dos y elige en cuál trabajar. */
-export const FITZ_EXERCISE_IDS = new Set(EXERCISES_FITZ.map((e) => e.id));
+export const exSpace = (e) => (e?.space === "fitz" ? "fitz" : "vientos");
+export const exercisesOf = (sp = currentSpace()) => db.exercises.filter((e) => exSpace(e) === sp);
 export const isProvider = (u = user(whoId())) => u?.prefs?.space === "all";
 const SPACE_KEY = "vientos_space";
 export function currentSpace() {
@@ -577,11 +577,11 @@ export const api = {
   },
 
   newTemplate(coachId, { program = false, space = "vientos" } = {}) {
-    const session = (n) => ({ name: `Sesión ${n}`, focus: "", blocks: [
+    const session = (n) => ({ name: `Día ${n}`, focus: "", blocks: [
       { type: "prep", rest: 0, items: [] }, { type: "strength", rest: 150, items: [] },
       { type: "accessory", rest: 90, items: [] }, { type: "emom", rest: 0, items: [] }] });
     const t = program
-      ? { id: uid("t"), key: "", kind: "program", space, name: "Nuevo programa", level: "Intermedio", audience: "Mixto", goal: "Fuerza y movimiento", weeks: 6, desc: "", meta: { deporte: "", metodo: "Fuerza y movimiento", etapa: "" }, days: normDays(["A", "B", "C"].map(session)), order: db.templates.length, createdBy: coachId, updated: Date.now() }
+      ? { id: uid("t"), key: "", kind: "program", space, name: "Nuevo programa", level: "Intermedio", audience: "Mixto", goal: "Fuerza y movimiento", weeks: 6, desc: "", meta: { deporte: "", metodo: "Fuerza y movimiento", etapa: "" }, days: normDays([1, 2, 3].map(session)), order: db.templates.length, createdBy: coachId, updated: Date.now() }
       : { id: uid("t"), key: "", name: "Nueva plantilla", level: "Intermedio", audience: "Mixto", goal: "Hipertrofia", weeks: 6, desc: "", space, days: normDays([{ name: "Día 1", focus: "", blocks: [] }]), order: db.templates.length, createdBy: coachId, updated: Date.now() };
     db.templates.push(t);
     save();

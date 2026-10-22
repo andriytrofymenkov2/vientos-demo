@@ -151,9 +151,9 @@ export async function buildDemo(D, { hashPass, uid, normDays }) {
     D.routines.push(r);
     return r;
   };
-  /* Historial del programa: lunes A, miércoles B, viernes C, con la carga subiendo cada semana */
-  const BASE = { sentadilla: 70, "press-vikingo": 25, "peso-muerto-asimetrico": 20, "remo-90": 45, "caminata-granjero": 24, "thruster-db": 10,
-    "press-banca": 55, "peso-muerto-rumano": 70, "bulgara-kb": 12, "rack-chin-up": 0, "transporte-valija": 20, "swing-americano": 16,
+  /* Historial del programa: lunes día 1, miércoles día 2, viernes día 3, con la carga subiendo cada semana */
+  const BASE = { "fz-sentadilla": 70, "press-vikingo": 25, "peso-muerto-asimetrico": 20, "remo-90": 45, "caminata-granjero": 24, "thruster-db": 10,
+    "fz-press-banca": 55, "fz-peso-muerto-rumano": 70, "bulgara-kb": 12, "rack-chin-up": 0, "transporte-valija": 20, "swing-americano": 16,
     "peso-muerto-trapbar": 90, "press-simultaneo-alterno": 12, "split-db": 14, "remo-polea-dividida": 20, "biceps-press": 8 };
   const programHistory = (u, r, skip = []) => {
     for (let t = progStart; t < T0; t += DAY) {

@@ -19,7 +19,7 @@ const restOpts = (v) => {
 /* ------------------------------------------------- selector de ejercicio */
 export function pickExercise(onPick, title = "Elegir ejercicio") {
   let g = "", q = "";
-  const list = () => S.db.exercises
+  const list = () => S.exercisesOf()
     .filter((e) => (!g || e.g === g) && (!q || fold(e.n).includes(fold(q)) || fold(e.g).includes(fold(q))))
     .sort((a, b) => a.n.localeCompare(b.n, "es"))
     .map((e) => `<button type="button" class="exrow pick" data-pick="${e.id}">${exTile(e, "sm")}<span class="exrow-t"><b>${esc(e.n)}</b><small>${esc(e.g)} · ${esc(e.eq)}</small></span>${icon("plus", "sm")}</button>`).join("") || `<p class="muted">No hay ejercicios con ese nombre.</p>`;
@@ -161,7 +161,7 @@ function editor(obj, kind) {
         <button type="button" class="btn ghost sm" data-act="right-day" ${cur === obj.days.length - 1 ? "disabled" : ""}>Mover después ${icon("right", "sm")}</button>
       </div>
       <div class="grid2">
-        ${field({ label: prog ? "Nombre de la sesión" : "Nombre del día", name: "dname", value: d.name, attrs: 'data-day-f="name"' })}
+        ${field({ label: "Nombre del día", name: "dname", value: d.name, attrs: 'data-day-f="name"' })}
         ${field({ label: "Grupos musculares / foco", name: "dfocus", value: d.focus, ph: "Ej: Espalda, bíceps y abdomen", attrs: 'data-day-f="focus"' })}
       </div>
       ${prog ? `<p class="muted tiny">${st.ex} ejercicios · ~${st.min} min (semana 1) · Cada casillero es una semana del programa. El peso lo anota cada socio.</p>${progBody(d)}` : `<p class="muted tiny">${st.ex} ejercicios · ${st.sets} series · ~${st.min} min · El peso lo carga cada socio. Para repeticiones distintas por serie, separalas con coma: 12,10,8.</p>
@@ -184,8 +184,8 @@ function editor(obj, kind) {
         <button type="button" class="btn ghost sm" data-add="circuit">${icon("plus", "sm")} Circuito</button>
       </div>`}
       <div class="dayops">
-        <button type="button" class="btn ghost sm" data-act="dup-day">${icon("copy", "sm")} Duplicar ${prog ? "sesión" : "día"}</button>
-        <button type="button" class="btn ghost sm danger-t" data-act="del-day" ${obj.days.length < 2 ? "disabled" : ""}>${icon("trash", "sm")} Borrar ${prog ? "sesión" : "día"}</button>
+        <button type="button" class="btn ghost sm" data-act="dup-day">${icon("copy", "sm")} Duplicar día</button>
+        <button type="button" class="btn ghost sm danger-t" data-act="del-day" ${obj.days.length < 2 ? "disabled" : ""}>${icon("trash", "sm")} Borrar día</button>
       </div>
     </div>`;
   };
@@ -204,7 +204,7 @@ function editor(obj, kind) {
           ${isT ? `<p class="muted tiny">${users ? `${plural(users, "socio la tiene", "socios la tienen")} asignada. Cambiar la plantilla no modifica sus rutinas (cada socio tiene su copia).` : "Ningún socio la tiene asignada todavía."}</p>` : ""}
         </form>
         <section class="card ed-days">
-          <div class="card-h"><h2>${prog ? "Sesiones" : "Días"}</h2><span class="muted">${prog ? `${plural(obj.days.length, "sesión", "sesiones")} por semana · ${plural(W(), "semana", "semanas")}` : `${plural(obj.days.length, "día", "días")} por semana`}</span></div>
+          <div class="card-h"><h2>Días</h2><span class="muted">${plural(obj.days.length, "día", "días")} por semana${prog ? ` · ${plural(W(), "semana", "semanas")}` : ""}</span></div>
           <div data-tabs>${tabs()}</div>
           <div data-body>${dayBody()}</div>
         </section>
@@ -345,7 +345,7 @@ function editor(obj, kind) {
         const t = e.target.closest("[data-day]");
         if (t) { cur = +t.dataset.day; tabsEl.innerHTML = tabs(); body.innerHTML = dayBody(); return; }
         if (e.target.closest("[data-act=add-day]")) {
-          if (prog) { const letter = String.fromCharCode(65 + obj.days.length); obj.days.push(S.normDays([{ name: `Sesión ${letter}`, focus: "", blocks: PROGRAM_BLOCKS.map((type) => ({ type, rest: type === "strength" ? 150 : type === "accessory" ? 90 : 0, items: [] })) }])[0]); }
+          if (prog) { obj.days.push(S.normDays([{ name: `Día ${obj.days.length + 1}`, focus: "", blocks: PROGRAM_BLOCKS.map((type) => ({ type, rest: type === "strength" ? 150 : type === "accessory" ? 90 : 0, items: [] })) }])[0]); }
           else obj.days.push(S.normDays([{ name: `Día ${obj.days.length + 1}`, focus: "", blocks: [] }])[0]);
           cur = obj.days.length - 1; renumber(); redraw();
         }
@@ -395,7 +395,7 @@ export function templatesView(params, query) {
   return {
     layout: "panel", nav: "plantillas", title: fitz ? "Programas" : "Plantillas",
     html: `${pageHead({ title: fitz ? "Programas de Fitz Club" : "Plantillas de rutina", actions: `<button class="btn primary sm" type="button" data-act="new">${icon("plus", "sm")} ${fitz ? "Nuevo programa" : "Nueva"}</button>` })}
-      <p class="muted lead">${fitz ? "Programas de varias semanas: sesiones A/B/C con movilidad y core, fuerza, accesorios y EMOM, y la progresión semana a semana. Al asignar, cada socio recibe su copia con su fecha de inicio." : "Rutinas modelo que se asignan a muchos socios. Al asignar, cada socio recibe su copia y se puede personalizar sin tocar la plantilla."}</p>
+      <p class="muted lead">${fitz ? "Programas de varias semanas: cada día con movilidad y core, fuerza, accesorios y EMOM, y la progresión semana a semana. Al asignar, cada socio recibe su copia con su fecha de inicio." : "Rutinas modelo que se asignan a muchos socios. Al asignar, cada socio recibe su copia y se puede personalizar sin tocar la plantilla."}</p>
       <div class="filters">
         <label class="search">${icon("search", "sm")}<input type="search" data-filter="q" value="${esc(f.q)}" placeholder="Buscar" aria-label="Buscar plantilla"></label>
         ${fitz ? "" : `${sel("nivel", "Nivel", f.level, LEVELS)}${sel("publico", "Público", f.aud, AUDIENCES)}${sel("dias", "Días", f.days, dayCounts.map((d) => [d, plural(d, "día", "días")]))}`}
@@ -404,7 +404,7 @@ export function templatesView(params, query) {
         const n = using(t.id);
         return `<article class="tcard">
           <a class="tcard-main" href="#/panel/plantilla/${t.id}">
-            <div class="tags">${S.isProgram(t) ? `${tag(`${t.weeks || 6} semanas`)}${tag(plural(t.days.length, "sesión", "sesiones"))}${tag(t.meta?.metodo || "Programa", "red")}` : `${tag(t.level)}${tag(t.audience)}${tag(t.goal, "red")}`}</div>
+            <div class="tags">${S.isProgram(t) ? `${tag(`${t.weeks || 6} semanas`)}${tag(`${plural(t.days.length, "día", "días")} por semana`)}${tag(t.meta?.metodo || "Programa", "red")}` : `${tag(t.level)}${tag(t.audience)}${tag(t.goal, "red")}`}</div>
             <h2>${esc(t.name)}</h2>
             <p class="muted">${esc(t.desc || "")}</p>
             <ol class="tdays">${t.days.map((d) => `<li><b>${esc(d.name)}</b> ${esc(d.focus)}</li>`).join("")}</ol>
@@ -436,12 +436,13 @@ export function templatesView(params, query) {
 /* --------------------------------------------------- biblioteca de ejercicios */
 export function exercisesView(params, query) {
   const g = query.g || "", q = query.q || "";
-  const list = S.db.exercises.filter((e) => (!g || e.g === g) && (!q || fold(e.n).includes(fold(q)))).sort((a, b) => a.n.localeCompare(b.n, "es"));
-  const noVideo = S.db.exercises.filter((e) => !e.video).length;
+  const mine = S.exercisesOf();
+  const list = mine.filter((e) => (!g || e.g === g) && (!q || fold(e.n).includes(fold(q)))).sort((a, b) => a.n.localeCompare(b.n, "es"));
+  const noVideo = mine.filter((e) => !e.video).length;
   return {
     layout: "panel", nav: "ejercicios", title: "Ejercicios",
     html: `${pageHead({ title: "Biblioteca de ejercicios", actions: `<button class="btn primary sm" type="button" data-act="new">${icon("plus", "sm")} Nuevo</button>` })}
-      <p class="muted lead">${plural(S.db.exercises.length, "ejercicio", "ejercicios")} con instrucciones. ${noVideo ? `${noVideo} sin video todavía: se pueden cargar enlaces de YouTube a medida que los graben.` : ""}</p>
+      <p class="muted lead">${plural(mine.length, "ejercicio", "ejercicios")} con instrucciones. ${noVideo ? `${noVideo} sin video todavía: se pueden cargar enlaces de YouTube a medida que los graben.` : ""}</p>
       <div class="filters">
         <label class="search">${icon("search", "sm")}<input type="search" data-q value="${esc(q)}" placeholder="Buscar ejercicio" aria-label="Buscar ejercicio"></label>
       </div>
@@ -480,7 +481,7 @@ function exerciseSheet(ex) {
         e.preventDefault();
         const d = formData(f);
         if (!d.n.trim()) return toast("Escribí el nombre del ejercicio.", "err");
-        S.api.saveExercise({ ...(isNew ? {} : { id: ex.id }), n: d.n.trim(), g: d.g, eq: d.eq, sec: d.sec, steps: d.steps.split("\n").map((s) => s.trim()).filter(Boolean), tip: d.tip, video: d.video.trim() });
+        S.api.saveExercise({ ...(isNew ? (S.currentSpace() === "fitz" ? { space: "fitz" } : {}) : { id: ex.id }), n: d.n.trim(), g: d.g, eq: d.eq, sec: d.sec, steps: d.steps.split("\n").map((s) => s.trim()).filter(Boolean), tip: d.tip, video: d.video.trim() });
         close(); toast(isNew ? "Ejercicio creado" : "Ejercicio guardado"); refresh();
       });
       $("[data-del]", b)?.addEventListener("click", async () => {

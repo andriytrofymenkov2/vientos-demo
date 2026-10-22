@@ -314,8 +314,8 @@ export function assignSheet({ userId = null, templateId = null } = {}) {
     b.innerHTML = `<div class="mrow plain">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${cur ? "Rutina actual: " + esc(S.routineTitle(cur)) + " (pasa al historial)" : "Todavía sin rutina"}</small></span></div>
       <form novalidate>
         <fieldset class="radios"><legend>Punto de partida</legend>
-          <label class="radio"><input type="radio" name="from" value="__blank" ${chosenT ? "" : "checked"}><span><b>Desde cero</b><small>${fitzM ? "Programa de 6 semanas vacío: sesiones A, B y C con sus bloques." : "Armás la rutina ejercicio por ejercicio."}</small></span></label>
-          ${opts.map((t) => `<label class="radio"><input type="radio" name="from" value="${t.id}" ${t.id === chosenT ? "checked" : ""}><span><b>${esc(t.name)}</b><small>${S.isProgram(t) ? `Programa de ${t.weeks || 6} semanas · ${plural(t.days.length, "sesión", "sesiones")}` : `${esc(t.level)} · ${plural(t.days.length, "día", "días")} · ${esc(t.goal)}`}</small></span></label>`).join("")}
+          <label class="radio"><input type="radio" name="from" value="__blank" ${chosenT ? "" : "checked"}><span><b>Desde cero</b><small>${fitzM ? "Programa de 6 semanas vacío: días 1, 2 y 3 con sus bloques." : "Armás la rutina ejercicio por ejercicio."}</small></span></label>
+          ${opts.map((t) => `<label class="radio"><input type="radio" name="from" value="${t.id}" ${t.id === chosenT ? "checked" : ""}><span><b>${esc(t.name)}</b><small>${S.isProgram(t) ? `Programa de ${t.weeks || 6} semanas · ${plural(t.days.length, "día", "días")} por semana` : `${esc(t.level)} · ${plural(t.days.length, "día", "días")} · ${esc(t.goal)}`}</small></span></label>`).join("")}
         </fieldset>
         ${fitzM ? `<div class="grid2">${dateField({ label: "Inicio del programa (lunes)", name: "start", value: dayKey(monday), req: true })}${field({ label: "Deporte", name: "deporte", ph: "Ej: pádel, fútbol" })}</div>
           ${field({ label: "Etapa", name: "etapa", ph: "Ej: base, pretemporada" })}` : ""}

@@ -174,7 +174,7 @@ export function exerciseView(params) {
             ${exPhoto(ex, 1) ? `<img class="f1" src="${exPhoto(ex, 1)}" alt="${esc(ex.n)}: posición final">` : ""}
             <span class="ph-tag">${icon("video", "xs")} ${exCredit(ex) ? esc(exCredit(ex)) : "Imagen de referencia · video próximamente"}</span>
             <span class="ph-zoom">${icon("search", "xs")} Tocá para agrandar</span></button>`
-        : `<div class="video-ph">${exTile(ex, "xl")}<span>${icon("video", "sm")} Video próximamente</span><small>Lo graba el equipo de Vientos con las máquinas del gimnasio</small>${WAVES}</div>`}</div>
+        : `<div class="video-ph">${exTile(ex, "xl")}<span>${icon("video", "sm")} Video próximamente</span><small>Lo graba el equipo de ${esc(S.gymOf(S.spaceOf(S.user(r.userId))).name)}</small>${WAVES}</div>`}</div>
       <section class="exhead">
         <div class="tags">${tag(ex.g)}${ex.eq ? tag(ex.eq) : ""}${prog ? (isPrep ? tag(i.col === "core" ? "Core" : "Movilidad", "red") : tag(`${BLOCK_TYPES[b.type].label} · ${progLetter(d, bi, ii)}`, "red")) : b.type !== "single" ? tag(`${BLOCK_TYPES[b.type].label} ${letter(bi, ii)}`, "red") : ""}</div>
         ${isPrep ? `<div class="targets"><div><small>Repeticiones</small><b>${esc(i.reps || "10")}</b></div><div><small>Parte de</small><b>Entrada en calor</b></div></div>`
@@ -255,7 +255,7 @@ export function exerciseView(params) {
 
 /* ------------------------------------------------- programa por semanas
    Pantalla "Mi rutina" cuando el profe asignó un programa (Fitz Club): semana actual,
-   calendario de las semanas, sesiones A/B/C y datos del programa. */
+   calendario de las semanas, los días y datos del programa. */
 function programView(u, r) {
   const own = r.userId === u.id;
   const N = r.weeks || 6, wk = S.programWeek(r);
@@ -274,7 +274,7 @@ function programView(u, r) {
       : doneWeek.has(d.id) ? `<span class="pill ok">${icon("check", "xs")} Hecha</span>`
       : next?.id === d.id ? `<span class="pill red">Hoy</span>` : "";
     return `<a class="dayrow" href="#/rutina/${r.id}/dia/${d.id}">
-      <span class="dayrow-n">${esc(d.name.replace(/^Sesión\s*/i, "") || d.name)}</span>
+      <span class="dayrow-n">${esc(d.name)}</span>
       <span class="dayrow-t"><b>${esc(d.name)}${d.focus ? ` · ${esc(d.focus)}` : ""}</b><small>${st.ex} ejercicios · ~${st.min} min</small></span>
       ${pill}${icon("right", "sm")}</a>`;
   }).join("");
@@ -289,7 +289,7 @@ function programView(u, r) {
         <a class="btn ghost sm rhero-print" href="#/imprimir/${r.id}">${icon("print", "sm")} Imprimir mi programa</a>
       </section>
       <section class="card prog-week">
-        <div class="card-h"><h2>${esc(state)}</h2><span class="muted">${logs.length} de ${total} sesiones</span></div>
+        <div class="card-h"><h2>${esc(state)}</h2><span class="muted">${logs.length} de ${total} entrenamientos</span></div>
         <div class="bar"><i style="width:${pct}%"></i></div>
       </section>
       <section class="card"><div class="card-h"><h2>${icon("calendar", "sm")} Calendario del programa</h2><span class="muted">${plural(new Set(logs.map((l) => new Date(l.at).toDateString())).size, "día entrenado", "días entrenados")}</span></div>

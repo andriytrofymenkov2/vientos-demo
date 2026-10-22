@@ -125,6 +125,9 @@ async function loadAll(uid) {
   const ex = fresh ? must(await q("exercises")) : exercises;
   const tp = fresh ? must(await q("templates")) : templates;
 
+  /* Base cargada antes de Fitz Club: suma sus ejercicios, programa y plan (una sola vez) */
+  if (prof.role === "admin" && g && !(g.data?.seeded || []).includes("fitz-1")) await seedFitz(g, ex, tp);
+
   if (g?.data) { const { plans, ...rest } = g.data; D.gym = { ...D.gym, ...rest }; if (plans?.length) D.plans = plans; }
   D.exercises = ex.map((r) => ({ ...r.data, id: r.id })).sort((a, b) => a.n.localeCompare(b.n, "es"));
   D.templates = tp.map((r) => ({ ...r.data, id: r.id, createdBy: r.created_by })).sort((a, b) => (a.order ?? 99) - (b.order ?? 99));
@@ -140,9 +143,25 @@ async function loadAll(uid) {
 
 async function firstSetup(prof, gym, exercises, templates) {
   const d = S.defaults();
-  if (!gym && prof.role === "admin") must(await sb.from("gym").upsert({ id: 1, data: { ...d.gym, plans: d.plans } }));
+  if (!gym && prof.role === "admin") must(await sb.from("gym").upsert({ id: 1, data: { ...d.gym, plans: d.plans, seeded: ["fitz-1"] } }));
   if (!exercises.length) must(await sb.from("exercises").upsert(d.exercises.map((e) => ({ id: e.id, data: strip(e, "id") }))));
   if (!templates.length) must(await sb.from("templates").upsert(d.templates.map((t) => ({ id: t.id, data: strip(t, "id", "createdBy"), created_by: null }))));
+}
+
+/* Lo que trajo Fitz Club, para una base que ya estaba en uso. No toca nada de lo que el
+   gimnasio editó o borró: suma solo lo que falta y anota que ya se hizo. */
+async function seedFitz(gym, exercises, templates) {
+  const d = S.defaults();
+  const haveEx = new Set(exercises.map((r) => r.id));
+  const ex = d.exercises.filter((e) => S.FITZ_EXERCISE_IDS.has(e.id) && !haveEx.has(e.id)).map((e) => ({ id: e.id, data: strip(e, "id") }));
+  if (ex.length) { must(await sb.from("exercises").upsert(ex)); exercises.push(...ex); }
+  const keys = new Set(templates.map((r) => r.data?.key).filter(Boolean));
+  const tp = d.templates.filter((t) => t.space === "fitz" && t.key && !keys.has(t.key)).map((t) => ({ id: t.id, data: strip(t, "id", "createdBy"), created_by: null }));
+  if (tp.length) { must(await sb.from("templates").upsert(tp)); templates.push(...tp); }
+  const plans = gym.data?.plans || d.plans;
+  const add = plans.some((p) => p.space === "fitz") ? [] : d.plans.filter((p) => p.space === "fitz");
+  gym.data = { ...gym.data, plans: [...plans, ...add], seeded: [...(gym.data?.seeded || []), "fitz-1"] };
+  must(await sb.from("gym").upsert({ id: 1, data: gym.data, updated_at: iso() }));
 }
 
 /* ------------------------------------------------------- cola de envíos

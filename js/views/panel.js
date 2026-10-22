@@ -97,7 +97,7 @@ export function panelHome() {
 
   return {
     layout: "panel", nav: "resumen", title: "Resumen",
-    html: `<section class="phello"><span class="kicker">${esc(fmtDate(Date.now()))}</span><h1>Hola, ${esc(firstName(u.name))}</h1></section>
+    html: `<section class="phello"><span class="kicker">${esc(fmtDate(Date.now()))}${S.isProvider() ? ` · ${esc(S.spaceInfo(sp).name)}` : ""}</span><h1>Hola, ${esc(firstName(u.name))}</h1></section>
       <section class="kpis">
         ${kpi(act.length, "socios activos", "#/panel/socios", "", `${alDia} con cuota al día · ${late.length} vencidas`)}
         ${kpi(soon.length, "cuotas por vencer", "#/panel/cuotas?f=soon", soon.length ? "warn" : "")}

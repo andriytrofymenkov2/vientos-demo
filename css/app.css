@@ -1329,3 +1329,11 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .gym-photo.no-photo img.fitz-logo { width: 130px; height: auto; object-fit: contain; background: none; margin-bottom: 18px; }
 .gym-photo.no-photo::after { display: none; }
 .mtop-logo.is-fitz { width: 92px; }
+.space-sw { display: grid; grid-auto-flow: column; gap: 4px; padding: 4px; margin: 0 8px 18px; border-radius: 12px; background: var(--card2); border: 1px solid var(--line); }
+.space-sw button { padding: 8px 6px; border-radius: 9px; border: 0; background: none; color: var(--muted); font: 700 13px "Barlow", sans-serif; cursor: pointer; white-space: nowrap; }
+.space-sw button.on { background: var(--red); color: #fff; }
+.space-sw.sm { margin: 0 8px 0 auto; padding: 3px; }
+.space-sw.sm button { padding: 6px 9px; font-size: 12px; }
+
+/* Aviso de versión nueva */
+.upd { position: fixed; z-index: 90; left: 12px; right: 12px; top: calc(env(safe-area-inset-top, 0px) + 10px); max-width: 460px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 10px 10px 14px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); box-shadow: 0 10px 30px rgba(0, 0, 0, .45); font-weight: 600; font-size: 14px; }

@@ -4,6 +4,7 @@ import { esc, fmtDate, waNumber, $ } from "../core/util.js";
 import * as S from "../core/store.js";
 import { me, logout, remembered, setRemember, passwordIssues, isStaff } from "../core/auth.js";
 import { go, refresh } from "../core/router.js";
+import { appVersion } from "../core/update.js";
 import { avatar, field, dateField, formData, toast, sheet, applyTheme, feePill, pageHead } from "../core/ui.js";
 
 const toggle = (name, label, on, hint = "") => `<label class="toggle"><span><b>${esc(label)}</b>${hint ? `<small>${esc(hint)}</small>` : ""}</span><input type="checkbox" name="${name}" ${on ? "checked" : ""} role="switch"><i aria-hidden="true"></i></label>`;
@@ -45,7 +46,7 @@ export function profileView(params, query = {}) {
         <button class="lrow" type="button" data-act="logout">${icon("logout", "sm")}<span>Cerrar sesión</span>${icon("right", "sm")}</button>
         ${!staff ? `<button class="lrow danger" type="button" data-act="delete">${icon("trash", "sm")}<span>Eliminar mi cuenta</span>${icon("right", "sm")}</button>` : ""}
       </section>
-      <p class="foot-note">${esc(g.name)} · App de socios${S.MODE === "demo" ? " · demostración" : ""}</p>`,
+      <p class="foot-note">${esc(g.name)} · App de socios · versión ${esc(appVersion() || "—")}${S.MODE === "demo" ? " · demostración" : ""}</p>`,
     mount(host) {
       if (query.clave) setTimeout(() => changePassword(u), 250);
       $("[data-form=info]", host).addEventListener("submit", (e) => {

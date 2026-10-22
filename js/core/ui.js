@@ -46,6 +46,21 @@ export const spaceLogo = (sp) => (sp === "fitz" ? `<img class="logo fitz-logo" s
 const brand = (href, sp = "vientos") => `<a class="brand ${sp === "fitz" ? "is-fitz" : ""}" href="${href}" aria-label="${sp === "fitz" ? "Fitz Club" : "Vientos GYM"}, inicio">${spaceLogo(sp)}</a>`;
 /* En Fitz Club las plantillas son programas por semanas */
 const navLabel = (n) => (n.id === "plantillas" && S.currentSpace() === "fitz" ? "Programas" : n.label);
+/* Selector de negocio: solo lo ve el proveedor de la plataforma */
+function spaceSwitch(cls = "") {
+  if (!S.isProvider()) return "";
+  const cur = S.currentSpace();
+  return `<div class="space-sw ${cls}" role="group" aria-label="Negocio">${S.SPACES.map((s) => `<button type="button" class="${s.id === cur ? "on" : ""}" data-space-set="${s.id}" aria-pressed="${s.id === cur}">${esc(s.short)}</button>`).join("")}</div>`;
+}
+if (typeof document !== "undefined") {
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest?.("[data-space-set]");
+    if (!b || b.classList.contains("on")) return;
+    S.setCurrentSpace(b.dataset.spaceSet);
+    if (location.hash !== "#/panel") location.hash = "#/panel";
+    else dispatchEvent(new HashChangeEvent("hashchange"));
+  });
+}
 
 function panelSide() {
   const u = me();
@@ -54,7 +69,8 @@ function panelSide() {
   return `<aside class="side" aria-label="Panel">
     ${brand("#/panel", S.currentSpace())}
     <span class="side-tag">Panel del ${u.role === "admin" ? "gimnasio" : "entrenador"}</span>
-        <nav class="side-nav">${items.map((n) => `<a class="side-link" data-nav="${n.id}" href="${n.href}">${icon(n.icon)}<span>${navLabel(n)}</span>${n.id === "socios" && pend ? `<b class="count">${pend}</b>` : ""}</a>`).join("")}</nav>
+    ${spaceSwitch()}
+    <nav class="side-nav">${items.map((n) => `<a class="side-link" data-nav="${n.id}" href="${n.href}">${icon(n.icon)}<span>${navLabel(n)}</span>${n.id === "socios" && pend ? `<b class="count">${pend}</b>` : ""}</a>`).join("")}</nav>
     <div class="side-foot">
       <a class="side-me" href="#/panel/cuenta">${avatar(u)}<span><b>${esc(u.name)}</b><small>${u.role === "admin" ? "Administración" : "Entrenador"}</small></span></a>
       ${S.MODE === "demo" ? `<span class="demo-pill">${icon("info", "sm")} Demostración</span>` : ""}
@@ -81,7 +97,7 @@ export function shell(layout, nav) {
       r.innerHTML = `<main id="view" class="view"></main>`;
     } else if (layout === "panel") {
       r.className = "layout-panel";
-      r.innerHTML = `${panelSide()}<div class="panel-main"><header class="ptop">${brand("#/panel", S.currentSpace())}<a class="ptop-me" href="#/panel/cuenta" aria-label="Mi cuenta">${avatar(me(), "sm")}</a></header><main id="view" class="view"></main></div>${panelTabs()}`;
+      r.innerHTML = `${panelSide()}<div class="panel-main"><header class="ptop">${brand("#/panel", S.currentSpace())}${spaceSwitch("sm")}<a class="ptop-me" href="#/panel/cuenta" aria-label="Mi cuenta">${avatar(me(), "sm")}</a></header><main id="view" class="view"></main></div>${panelTabs()}`;
     } else {
       r.className = "layout-app";
       r.innerHTML = `<main id="view" class="view"></main>${memberTabs()}`;
@@ -90,7 +106,7 @@ export function shell(layout, nav) {
   $$("[data-nav]", r).forEach((a) => a.classList.toggle("on", a.dataset.nav === nav));
   /* Colores del espacio: el panel según el espacio elegido; el socio según el suyo */
   const u = me();
-  document.documentElement.dataset.space = S.spaceOf(u);
+  document.documentElement.dataset.space = u ? S.currentSpace() : "vientos";
   return $("#view", r);
 }
 

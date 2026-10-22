@@ -4,6 +4,7 @@ import { restore, me, refreshMe, logout } from "./core/auth.js";
 import { route, start, setShell, refresh, go } from "./core/router.js";
 import { shell, applyTheme, toast } from "./core/ui.js";
 import { resumeRest } from "./core/timer.js";
+import { watchUpdates } from "./core/update.js";
 import { loginView, registerView, recoverView, firstPasswordView } from "./views/auth.js";
 import { homeView } from "./views/home.js";
 import { routineView, dayView, exerciseView, summaryView, printView } from "./views/routine.js";
@@ -92,6 +93,7 @@ async function boot() {
   start();
   if (me()) resumeRest();
   document.getElementById("boot")?.remove();
+  watchUpdates(new URL(import.meta.url).searchParams.get("v"));
 
   if ("serviceWorker" in navigator && location.protocol === "https:") {
     navigator.serviceWorker.register("sw.js").catch(() => { /* sin modo sin conexión */ });

@@ -8,6 +8,7 @@
    · Con "?demo" en la dirección se fuerza la demostración (para mostrarla).
    ========================================================================= */
 import { EXERCISES } from "../data/exercises.js";
+import { EXERCISES_FITZ } from "../data/exercises-fitz.js";
 import { TEMPLATES, PROGRAMS } from "../data/templates.js";
 import { buildDemo } from "../data/demo.js";
 import { uid, sha256, DAY, weekStart, dayKey, fold, addMonths } from "./util.js";
@@ -160,8 +161,20 @@ export const planSpace = (p) => (p?.space === "fitz" ? "fitz" : "vientos");
 /* Quién está usando la app (lo informa auth.js, que importa este módulo) */
 let whoId = () => db?.me;
 export function bindMe(fn) { whoId = fn; }
-/* Son dos unidades de negocio: cada dueño, profe y socio ve solo lo de su espacio */
-export const currentSpace = () => spaceOf(user(whoId()));
+/* Son dos unidades de negocio: cada dueño, profe y socio ve solo lo de su espacio.
+   El proveedor de la plataforma (prefs.space = "all", se pone desde Supabase) ve los
+   dos y elige en cuál trabajar. */
+export const FITZ_EXERCISE_IDS = new Set(EXERCISES_FITZ.map((e) => e.id));
+export const isProvider = (u = user(whoId())) => u?.prefs?.space === "all";
+const SPACE_KEY = "vientos_space";
+export function currentSpace() {
+  const u = user(whoId());
+  if (!isProvider(u)) return spaceOf(u);
+  let v = null;
+  try { v = localStorage.getItem(SPACE_KEY); } catch { /* sin almacenamiento */ }
+  return v === "fitz" ? "fitz" : "vientos";
+}
+export function setCurrentSpace(id) { try { localStorage.setItem(SPACE_KEY, id); } catch { /* sin almacenamiento */ } }
 export const inSpace = (u, sp = currentSpace()) => spaceOf(u) === sp;
 export const plansOf = (sp = currentSpace()) => db.plans.filter((p) => planSpace(p) === sp);
 export const paySpace = (p) => (p.space ? (p.space === "fitz" ? "fitz" : "vientos") : spaceOf(user(p.userId)));

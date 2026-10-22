@@ -8,12 +8,12 @@
    · Con "?demo" en la dirección se fuerza la demostración (para mostrarla).
    ========================================================================= */
 import { EXERCISES } from "../data/exercises.js";
-import { TEMPLATES } from "../data/templates.js";
+import { TEMPLATES, PROGRAMS } from "../data/templates.js";
 import { buildDemo } from "../data/demo.js";
 import { uid, sha256, DAY, weekStart, dayKey, fold, addMonths } from "./util.js";
 import { CONFIG } from "../config.js";
 
-const KEY = "vientos_db_v5";
+const KEY = "vientos_db_v6";
 const forceDemo = (() => { try { return new URLSearchParams(location.search).has("demo"); } catch { return false; } })();
 export const MODE = CONFIG.mode === "supabase" && CONFIG.supabaseUrl && CONFIG.supabaseAnonKey && !forceDemo ? "supabase" : "demo";
 
@@ -50,7 +50,7 @@ export async function init() {
     return db;
   }
   try { db = JSON.parse(localStorage.getItem(KEY) || "null"); } catch { db = null; }
-  if (!db || db.v !== 5) { db = await seed(); localStorage.setItem(KEY, JSON.stringify(db)); }
+  if (!db || db.v !== 6) { db = await seed(); localStorage.setItem(KEY, JSON.stringify(db)); }
   return db;
 }
 
@@ -70,19 +70,42 @@ export function normDays(days, prefix = "d") {
       id: b.id || uid("b"),
       type: b.type || "single",
       rest: b.rest ?? 0,
-      items: b.items.map((i) => ({ id: i.id || uid("i"), ex: i.ex, sets: +i.sets || 1, reps: String(i.reps ?? ""), kg: i.kg ?? null, rest: i.rest ?? 60, note: i.note || "" })),
+      items: b.items.map((i) => ({
+        id: i.id || uid("i"), ex: i.ex, sets: +i.sets || 1, reps: String(i.reps ?? ""), kg: i.kg ?? null, rest: i.rest ?? 60, note: i.note || "",
+        ...(i.wk ? { wk: i.wk.map((w) => ({ s: +w.s || 1, r: String(w.r ?? "") })) } : {}),
+        ...(i.col ? { col: i.col } : {}),
+      })),
     })),
   }));
 }
+
+/* Programa vacío: 3 sesiones con sus 4 bloques (movilidad y core, fuerza, accesorios, EMOM) */
+export function blankProgram(space = "fitz") {
+  const session = (n) => ({ name: `Sesión ${n}`, focus: "", blocks: [
+    { type: "prep", rest: 0, items: [] }, { type: "strength", rest: 150, items: [] },
+    { type: "accessory", rest: 90, items: [] }, { type: "emom", rest: 0, items: [] }] });
+  return { kind: "program", space, name: "Programa personalizado", level: "Intermedio", audience: "Mixto", goal: "Fuerza y movimiento", weeks: 6,
+    meta: { deporte: "", metodo: "Fuerza y movimiento", etapa: "" }, days: normDays(["A", "B", "C"].map(session)) };
+}
+
+/* Plantillas que vienen con la app: las de Vientos y los programas de Fitz Club */
+export function baseTemplates() {
+  return [...TEMPLATES, ...PROGRAMS].map((t, i) => ({
+    id: "t-" + t.key, key: t.key, name: t.name, level: t.level, audience: t.audience, goal: t.goal, weeks: t.weeks, desc: t.desc,
+    ...(t.kind ? { kind: t.kind } : {}), ...(t.space ? { space: t.space } : {}), ...(t.meta ? { meta: { ...t.meta } } : {}),
+    days: normDays(JSON.parse(JSON.stringify(t.days))), order: i, createdBy: null, updated: Date.now(),
+  }));
+}
+/* Planes del espacio Fitz Club (precio de referencia: lo cambia el dueño en Planes y precios) */
+export const FITZ_PLANS = [
+  { id: "p-fitz-3x", name: "Fitz Club · 3 veces por semana", price: 45000, space: "fitz" },
+];
 
 export async function hashPass(pass, salt) { return sha256(salt + ":" + pass); }
 
 /* Datos iniciales del gimnasio: la demostración y el primer ingreso del dueño al servidor */
 export function defaults() {
-  const templates = TEMPLATES.map((t, i) => ({
-    id: "t-" + t.key, key: t.key, name: t.name, level: t.level, audience: t.audience, goal: t.goal, weeks: t.weeks, desc: t.desc,
-    days: normDays(t.days), order: i, createdBy: null, updated: Date.now(),
-  }));
+  const templates = baseTemplates();
   /* Las plantillas no traen peso: lo pone cada socio */
   templates.forEach((t) => t.days.forEach((d) => d.blocks.forEach((b) => b.items.forEach((i) => (i.kg = null)))));
   return {
@@ -106,6 +129,7 @@ export function defaults() {
       { id: "p-3x", name: "Musculación · 3 veces por semana", price: 36000 },
       { id: "p-ciclo", name: "Ciclo indoor", price: 30000 },
       { id: "p-combo", name: "Combo musculación + ciclo", price: 55000 },
+      ...FITZ_PLANS,
     ],
   };
 }
@@ -113,16 +137,72 @@ export function defaults() {
 async function seed() {
   const d = defaults();
   /* La demo arma sus plantillas desde los datos con peso (para inventar el historial) */
-  const templates = TEMPLATES.map((t, i) => ({
-    id: "t-" + t.key, key: t.key, name: t.name, level: t.level, audience: t.audience, goal: t.goal, weeks: t.weeks, desc: t.desc,
-    days: normDays(t.days), order: i, createdBy: null, updated: Date.now(),
-  }));
-  const base = { v: 5, seededAt: Date.now(), ...d, templates, users: [], routines: [], logs: [], payments: [], notices: [], live: {} };
+  const templates = baseTemplates();
+  const base = { v: 6, seededAt: Date.now(), ...d, templates, users: [], routines: [], logs: [], payments: [], notices: [], live: {} };
   return buildDemo(base, { hashPass, uid, normDays });
 }
 
 /* ------------------------------------------------------------- lecturas */
 export const user = (id) => db.users.find((u) => u.id === id);
+
+/* ------------------------------------------------------------- espacios
+   Un mismo gimnasio puede tener espacios con su propia marca, socios, planes y
+   cobros (hoy: Vientos y Fitz Club, que alquila un piso). Lo que no tiene espacio
+   cargado es de Vientos, así todo lo anterior sigue igual. */
+export const SPACES = [
+  { id: "vientos", name: "Vientos GYM", short: "Vientos" },
+  { id: "fitz", name: "Fitz Club", short: "Fitz Club", logo: "img/fitz-logo.png", tagline: "Programas por semanas" },
+];
+export const spaceInfo = (id) => SPACES.find((x) => x.id === id) || SPACES[0];
+export const spaceOf = (u) => (u?.prefs?.space === "fitz" ? "fitz" : "vientos");
+export const tplSpace = (t) => (t?.space === "fitz" ? "fitz" : "vientos");
+export const planSpace = (p) => (p?.space === "fitz" ? "fitz" : "vientos");
+/* Quién está usando la app (lo informa auth.js, que importa este módulo) */
+let whoId = () => db?.me;
+export function bindMe(fn) { whoId = fn; }
+/* Son dos unidades de negocio: cada dueño, profe y socio ve solo lo de su espacio */
+export const currentSpace = () => spaceOf(user(whoId()));
+export const inSpace = (u, sp = currentSpace()) => spaceOf(u) === sp;
+export const plansOf = (sp = currentSpace()) => db.plans.filter((p) => planSpace(p) === sp);
+export const paySpace = (p) => (p.space ? (p.space === "fitz" ? "fitz" : "vientos") : spaceOf(user(p.userId)));
+export const paymentsOf = (sp = currentSpace()) => db.payments.filter((p) => paySpace(p) === sp);
+export const noticesOf = (sp = currentSpace()) => db.notices.filter((n) => (n.space === "fitz" ? "fitz" : "vientos") === sp);
+/* Contacto y horario de cada espacio. Fitz Club guarda los suyos aparte; lo que no
+   cargó (dirección, ciudad, horario) sale del edificio que comparten */
+export function gymOf(sp = currentSpace()) {
+  if (sp !== "fitz") return db.gym;
+  return { name: "Fitz Club", address: db.gym.address, city: db.gym.city, whatsapp: "", phone: "", instagram: "", open: db.gym.open, reminderDays: 5, ...(db.gym.spaces?.fitz || {}) };
+}
+export const spaceMembers = (sp = currentSpace()) => activeMembers().filter((u) => inSpace(u, sp));
+
+/* ------------------------------------------------- programas por semanas
+   Un programa (kind "program") dura `weeks` semanas desde `startAt` (lunes de inicio).
+   Cada ejercicio tiene su prescripción por semana en `wk`. */
+export const isProgram = (r) => r?.kind === "program";
+export const programStart = (r) => weekStart(r.startAt || r.startedAt || Date.now());
+export const programEnd = (r) => programStart(r) + (r.weeks || 6) * 7 * DAY - 1;
+export function programWeek(r, ts = Date.now()) {
+  if (!isProgram(r)) return 1;
+  const w = Math.floor((weekStart(ts) - programStart(r)) / (7 * DAY)) + 1;
+  return Math.max(1, Math.min(r.weeks || 6, w));
+}
+/* El ejercicio con la prescripción de una semana (series y repeticiones de esa semana) */
+export function weekItem(i, w) {
+  const x = i.wk?.[w - 1] || i.wk?.[i.wk.length - 1];
+  return x ? { ...i, sets: x.s, reps: x.r } : i;
+}
+export const weekDay = (d, w) => ({ ...d, blocks: d.blocks.map((b) => ({ ...b, items: b.items.map((i) => weekItem(i, w)) })) });
+/* Cargas anotadas por semana para un ejercicio del programa: [{ w, at, sets: [{kg, reps}] }] (la última sesión de cada semana) */
+export function weekLoads(userId, r, itemId) {
+  const out = {};
+  logsOf(userId).filter((l) => l.routineId === r.id).forEach((l) => {
+    const sets = l.sets.filter((x) => x.item === itemId);
+    if (!sets.length) return;
+    const w = l.week || programWeek(r, l.at);
+    if (!out[w] || out[w].at < l.at) out[w] = { w, at: l.at, sets: sets.sort((a, b) => a.set - b.set) };
+  });
+  return out;
+}
 export const members = () => db.users.filter((u) => u.role === "socio" && u.status !== "baja");
 export const activeMembers = () => members().filter((u) => u.status === "activo");
 
@@ -133,16 +213,17 @@ export const activeMembers = () => members().filter((u) => u.status === "activo"
    · siguieron: estaban activos el mes anterior y siguen. · se fueron: estaban y ya no.
    · volvieron: ya habían sido socios, faltaron al menos un mes y regresan.
    Desde que hay pagos en la app: antes de eso no hay datos para saber quién estaba. */
-export function membershipByMonth(now = Date.now()) {
-  const socios = db.users.filter((u) => u.role === "socio");
+export function membershipByMonth(now = Date.now(), sp = null) {
+  const socios = db.users.filter((u) => u.role === "socio" && (!sp || spaceOf(u) === sp));
   const cover = {};
   db.payments.forEach((p) => {
+    if (sp && paySpace(p) !== sp) return;
     const from = p.from ?? p.at;
     let to = p.to;
     if (!to) to = addMonths(from, p.months || 1);
     (cover[p.userId] ||= []).push([from, to]);
   });
-  const starts = [...socios.map((u) => u.joined), ...db.payments.map((p) => p.at)].filter(Boolean);
+  const starts = [...socios.map((u) => u.joined), ...db.payments.filter((p) => !sp || paySpace(p) === sp).map((p) => p.at)].filter(Boolean);
   if (!starts.length) return [];
   const first = new Date(Math.min(...starts)), cur = new Date(now);
   const n = (cur.getFullYear() - first.getFullYear()) * 12 + cur.getMonth() - first.getMonth() + 1;
@@ -168,7 +249,7 @@ export function membershipByMonth(now = Date.now()) {
   return out;
 }
 export const pending = () => db.users.filter((u) => u.role === "socio" && u.status === "pendiente");
-export const coaches = () => db.users.filter((u) => (u.role === "profe" || u.role === "admin") && u.status === "activo");
+export const coaches = (sp = currentSpace()) => db.users.filter((u) => (u.role === "profe" || u.role === "admin") && u.status === "activo" && spaceOf(u) === sp);
 export const exercise = (id) => db.exercises.find((e) => e.id === id);
 export const template = (id) => db.templates.find((t) => t.id === id);
 export const routine = (id) => db.routines.find((r) => r.id === id);
@@ -224,6 +305,8 @@ export function routineTitle(r) {
 export function dayStats(d) {
   let ex = 0, sets = 0, sec = 0;
   for (const b of d.blocks) {
+    if (b.type === "prep") { sec += b.items.length * 45; continue; }
+    if (b.type === "emom") { b.items.forEach((i) => { ex++; sets += i.sets; sec += i.sets * 60; }); continue; }
     for (const i of b.items) {
       ex++;
       sets += i.sets;
@@ -345,7 +428,7 @@ export function feeStatus(u) {
   const days = Math.round((new Date(u.fee.dueAt).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / DAY);
   if (days < 0) return { state: "late", days, label: `Vencida hace ${-days} ${-days === 1 ? "día" : "días"}` };
   if (days === 0) return { state: "soon", days, label: "Vence hoy" };
-  if (days <= (db.gym.reminderDays || 5)) return { state: "soon", days, label: `Vence en ${days} ${days === 1 ? "día" : "días"}` };
+  if (days <= (gymOf(spaceOf(u)).reminderDays || 5)) return { state: "soon", days, label: `Vence en ${days} ${days === 1 ? "día" : "días"}` };
   return { state: "ok", days, label: "Al día" };
 }
 
@@ -374,12 +457,12 @@ export const api = {
   },
 
   /* Alta en recepción: el usuario es el DNI; el email es opcional */
-  async createMember({ name, dni, email = "", phone, birth = "", gender = "", pass, coachId, planId, convenioId = null }) {
+  async createMember({ name, dni, email = "", phone, birth = "", gender = "", pass, coachId, planId, convenioId = null, space = "vientos" }) {
     const username = (dni || email).trim().toLowerCase();
     if (findLogin(username) || (email && findLogin(email))) throw new Error(dni ? "Ya hay un socio con ese DNI." : "Ya hay una cuenta con ese email.");
     const mail = (email || `socio${dni}@sin-email.vientos.app`).trim().toLowerCase();
     const fee = planId ? { planId, dueAt: Date.now() + 30 * DAY, ...(convenioId ? { convenioId } : {}) } : null;
-    const prefs = { theme: "dark", sound: true, tempPass: true };
+    const prefs = { theme: "dark", sound: true, tempPass: true, ...(space === "fitz" ? { space: "fitz" } : {}) };
     if (R) {
       const u = await R.createAccount({ name, email: mail, username, phone, birth, gender, pass, role: "socio", coachId: coachId || null, fee, prefs });
       db.users.push(u); save();
@@ -395,17 +478,18 @@ export const api = {
     return u;
   },
 
-  async createCoach({ name, email, phone, pass, role }) {
+  async createCoach({ name, email, phone, pass, role, space = "vientos" }) {
     if (findLogin(email)) throw new Error("Ya hay una cuenta con ese email o usuario.");
+    const prefs = { theme: "dark", sound: true, ...(space === "fitz" ? { space: "fitz" } : {}) };
     if (R) {
-      const u = await R.createAccount({ name, email, username: email, phone, pass, role: role === "admin" ? "admin" : "profe" });
+      const u = await R.createAccount({ name, email, username: email, phone, pass, role: role === "admin" ? "admin" : "profe", prefs });
       db.users.push(u); save();
       return u;
     }
     const salt = uid("s");
     const u = {
       id: uid("u"), role: role === "admin" ? "admin" : "profe", status: "activo", name: name.trim(), user: email.trim().toLowerCase(), email: email.trim().toLowerCase(),
-      phone, salt, hash: await hashPass(pass, salt), joined: Date.now(), prefs: { theme: "dark", sound: true },
+      phone, salt, hash: await hashPass(pass, salt), joined: Date.now(), prefs,
     };
     db.users.push(u);
     save();
@@ -453,14 +537,15 @@ export const api = {
   },
 
   /* Asignar: copia la plantilla al socio (editarla después no toca a los demás) */
-  assign(userId, { templateId, coachId, personal = false, name = "", note = "" }) {
-    const t = templateId ? template(templateId) : null;
+  assign(userId, { templateId, coachId, personal = false, name = "", note = "", startAt = null, meta = null, program = false }) {
+    const t = templateId ? template(templateId) : program ? blankProgram(spaceOf(user(userId))) : null;
     const prev = routinesOf(userId);
     prev.forEach((r) => { if (r.active) { r.active = false; r.endedAt = Date.now(); } });
     const r = {
       id: uid("r"), userId, number: (prev[0]?.number || 0) + 1, personal: !!personal,
       name: name || t?.name || "Rutina personalizada", level: t?.level || "Intermedio", goal: t?.goal || "", audience: t?.audience || "Mixto",
-      fromTemplate: t?.id || null, coachId, note, active: true, startedAt: Date.now(), endedAt: null,
+      fromTemplate: templateId ? t?.id || null : null, coachId, note, active: true, startedAt: Date.now(), endedAt: null,
+      ...(isProgram(t) ? { kind: "program", weeks: t.weeks || 6, startAt: weekStart(startAt || Date.now()), meta: { ...(t.meta || {}), ...(meta || {}) }, space: tplSpace(t) } : {}),
       days: t ? normDays(JSON.parse(JSON.stringify(t.days)).map(stripIds)) : normDays([{ name: "Día 1", focus: "", blocks: [] }]),
     };
     db.routines.push(r);
@@ -478,8 +563,13 @@ export const api = {
     push("saveRoutines", routinesOf(r.userId));
   },
 
-  newTemplate(coachId) {
-    const t = { id: uid("t"), key: "", name: "Nueva plantilla", level: "Intermedio", audience: "Mixto", goal: "Hipertrofia", weeks: 6, desc: "", days: normDays([{ name: "Día 1", focus: "", blocks: [] }]), order: db.templates.length, createdBy: coachId, updated: Date.now() };
+  newTemplate(coachId, { program = false, space = "vientos" } = {}) {
+    const session = (n) => ({ name: `Sesión ${n}`, focus: "", blocks: [
+      { type: "prep", rest: 0, items: [] }, { type: "strength", rest: 150, items: [] },
+      { type: "accessory", rest: 90, items: [] }, { type: "emom", rest: 0, items: [] }] });
+    const t = program
+      ? { id: uid("t"), key: "", kind: "program", space, name: "Nuevo programa", level: "Intermedio", audience: "Mixto", goal: "Fuerza y movimiento", weeks: 6, desc: "", meta: { deporte: "", metodo: "Fuerza y movimiento", etapa: "" }, days: normDays(["A", "B", "C"].map(session)), order: db.templates.length, createdBy: coachId, updated: Date.now() }
+      : { id: uid("t"), key: "", name: "Nueva plantilla", level: "Intermedio", audience: "Mixto", goal: "Hipertrofia", weeks: 6, desc: "", space, days: normDays([{ name: "Día 1", focus: "", blocks: [] }]), order: db.templates.length, createdBy: coachId, updated: Date.now() };
     db.templates.push(t);
     save();
     push("saveTemplate", t);
@@ -497,7 +587,8 @@ export const api = {
   /* Guarda la rutina de un socio como plantilla nueva */
   templateFromRoutine(routineId, coachId, name) {
     const r = routine(routineId);
-    const t = { id: uid("t"), key: "", name, level: r.level, audience: r.audience, goal: r.goal, weeks: 6, desc: "", days: normDays(JSON.parse(JSON.stringify(r.days)).map(stripIds)), order: db.templates.length, createdBy: coachId, updated: Date.now() };
+    const t = { id: uid("t"), key: "", name, level: r.level, audience: r.audience, goal: r.goal, weeks: r.weeks || 6, desc: "", days: normDays(JSON.parse(JSON.stringify(r.days)).map(stripIds)), order: db.templates.length, createdBy: coachId, updated: Date.now(),
+      ...(isProgram(r) ? { kind: "program", meta: { ...(r.meta || {}) } } : {}), ...(r.space ? { space: r.space } : {}) };
     db.templates.push(t);
     save();
     push("saveTemplate", t);
@@ -566,6 +657,7 @@ export const api = {
     const log = {
       id: uid("l"), userId, routineId: s.routineId, dayId: s.dayId, dayName: d?.name || "", focus: d?.focus || "",
       startedAt: Math.min(first, last), at: Math.min(endAt, last + 120000), min, sets,
+      ...(isProgram(r) ? { week: programWeek(r, Math.min(first, last)) } : {}),
       volume: sets.reduce((a, x) => a + (x.kg || 0) * (parseInt(x.reps) || 0), 0),
     };
     delete db.live[userId];
@@ -587,7 +679,7 @@ export const api = {
     const prev = u.fee ? { ...u.fee } : null;
     u.fee = { planId, dueAt: d.getTime(), ...(pr.conv ? { convenioId: pr.conv.id } : {}) };
     const pay = {
-      id: uid("pay"), userId, planId, months, amount: amount ?? pr.total, at: Date.now(), by, from: start, to: d.getTime(), prev,
+      id: uid("pay"), userId, planId, months, amount: amount ?? pr.total, at: Date.now(), by, from: start, to: d.getTime(), prev, space: spaceOf(u),
       list: pr.list, discount: pr.c ? { id: pr.c.id, name: pr.c.name, type: pr.c.type, value: pr.c.value, amount: pr.disc } : null,
     };
     db.payments.push(pay);
@@ -627,7 +719,11 @@ export const api = {
   },
   saveConvenios(list) { db.gym.convenios = list; save(); push("saveGym"); },
 
-  saveGym(patch) { Object.assign(db.gym, patch); save(); push("saveGym"); },
+  saveGym(patch, sp = "vientos") {
+    if (sp === "fitz") db.gym.spaces = { ...(db.gym.spaces || {}), fitz: { ...(db.gym.spaces?.fitz || {}), ...patch } };
+    else Object.assign(db.gym, patch);
+    save(); push("saveGym");
+  },
   savePlans(plans) { db.plans = plans; save(); push("saveGym"); },
   addNotice(n) { const x = { id: uid("n"), at: Date.now(), ...n }; db.notices.unshift(x); save(); push("saveNotice", x); },
   deleteNotice(id) { db.notices = db.notices.filter((n) => n.id !== id); save(); push("deleteNotice", id); },

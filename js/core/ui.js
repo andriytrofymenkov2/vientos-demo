@@ -41,16 +41,20 @@ export function avatar(u, size = "") {
   return `<span class="av ${size} t${tone}" aria-hidden="true">${esc(initials(u.name))}</span>`;
 }
 
-const brand = (href) => `<a class="brand" href="${href}" aria-label="Vientos GYM, inicio">${logo()}</a>`;
+/* Logo según el espacio: Vientos (vectorial) o Fitz Club (imagen) */
+export const spaceLogo = (sp) => (sp === "fitz" ? `<img class="logo fitz-logo" src="img/fitz-logo.png" alt="Fitz Club" width="194" height="143">` : logo());
+const brand = (href, sp = "vientos") => `<a class="brand ${sp === "fitz" ? "is-fitz" : ""}" href="${href}" aria-label="${sp === "fitz" ? "Fitz Club" : "Vientos GYM"}, inicio">${spaceLogo(sp)}</a>`;
+/* En Fitz Club las plantillas son programas por semanas */
+const navLabel = (n) => (n.id === "plantillas" && S.currentSpace() === "fitz" ? "Programas" : n.label);
 
 function panelSide() {
   const u = me();
   const items = PANEL.filter((n) => !n.admin || isAdmin());
-  const pend = S.pending().length;
+  const pend = S.pending().filter((m) => S.inSpace(m)).length;
   return `<aside class="side" aria-label="Panel">
-    ${brand("#/panel")}
+    ${brand("#/panel", S.currentSpace())}
     <span class="side-tag">Panel del ${u.role === "admin" ? "gimnasio" : "entrenador"}</span>
-    <nav class="side-nav">${items.map((n) => `<a class="side-link" data-nav="${n.id}" href="${n.href}">${icon(n.icon)}<span>${n.label}</span>${n.id === "socios" && pend ? `<b class="count">${pend}</b>` : ""}</a>`).join("")}</nav>
+        <nav class="side-nav">${items.map((n) => `<a class="side-link" data-nav="${n.id}" href="${n.href}">${icon(n.icon)}<span>${navLabel(n)}</span>${n.id === "socios" && pend ? `<b class="count">${pend}</b>` : ""}</a>`).join("")}</nav>
     <div class="side-foot">
       <a class="side-me" href="#/panel/cuenta">${avatar(u)}<span><b>${esc(u.name)}</b><small>${u.role === "admin" ? "Administración" : "Entrenador"}</small></span></a>
       ${S.MODE === "demo" ? `<span class="demo-pill">${icon("info", "sm")} Demostración</span>` : ""}
@@ -59,8 +63,8 @@ function panelSide() {
 }
 
 function panelTabs() {
-  const pend = S.pending().length;
-  return `<nav class="tabbar" aria-label="Panel">${PANEL.filter((n) => n.tab).map((n) => `<a data-nav="${n.id}" href="${n.href}">${icon(n.icon)}<span>${n.label}</span>${n.id === "socios" && pend ? `<b class="dot"></b>` : ""}</a>`).join("")}<a data-nav="mas" href="#/panel/mas">${icon("dots")}<span>Más</span></a></nav>`;
+  const pend = S.pending().filter((m) => S.inSpace(m)).length;
+  return `<nav class="tabbar" aria-label="Panel">${PANEL.filter((n) => n.tab).map((n) => `<a data-nav="${n.id}" href="${n.href}">${icon(n.icon)}<span>${navLabel(n)}</span>${n.id === "socios" && pend ? `<b class="dot"></b>` : ""}</a>`).join("")}<a data-nav="mas" href="#/panel/mas">${icon("dots")}<span>Más</span></a></nav>`;
 }
 
 function memberTabs() {
@@ -77,13 +81,16 @@ export function shell(layout, nav) {
       r.innerHTML = `<main id="view" class="view"></main>`;
     } else if (layout === "panel") {
       r.className = "layout-panel";
-      r.innerHTML = `${panelSide()}<div class="panel-main"><header class="ptop">${brand("#/panel")}<a class="ptop-me" href="#/panel/cuenta" aria-label="Mi cuenta">${avatar(me(), "sm")}</a></header><main id="view" class="view"></main></div>${panelTabs()}`;
+      r.innerHTML = `${panelSide()}<div class="panel-main"><header class="ptop">${brand("#/panel", S.currentSpace())}<a class="ptop-me" href="#/panel/cuenta" aria-label="Mi cuenta">${avatar(me(), "sm")}</a></header><main id="view" class="view"></main></div>${panelTabs()}`;
     } else {
       r.className = "layout-app";
       r.innerHTML = `<main id="view" class="view"></main>${memberTabs()}`;
     }
   }
   $$("[data-nav]", r).forEach((a) => a.classList.toggle("on", a.dataset.nav === nav));
+  /* Colores del espacio: el panel según el espacio elegido; el socio según el suyo */
+  const u = me();
+  document.documentElement.dataset.space = S.spaceOf(u);
   return $("#view", r);
 }
 

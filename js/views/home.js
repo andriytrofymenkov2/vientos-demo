@@ -3,13 +3,13 @@ import { icon, logo, WAVES } from "../core/icons.js";
 import { esc, fmtWeekday, greeting, firstName, waNumber, telHref, fmtDate, weekStart, dayKey, DAY, relDay, countUp, $$ } from "../core/util.js";
 import * as S from "../core/store.js";
 import { me } from "../core/auth.js";
-import { avatar } from "../core/ui.js";
+import { avatar, spaceLogo } from "../core/ui.js";
 import { platform } from "./install.js";
 
 const WL = ["L", "M", "M", "J", "V", "S", "D"];
 
 export function homeView() {
-  const u = me(), g = S.db.gym;
+  const u = me(), sp = S.spaceOf(u), fz = sp === "fitz", g = S.gymOf(sp);
   S.api.closeStale(u.id);
   const r = S.activeRoutine(u.id);
   const live = S.session(u.id);
@@ -29,8 +29,8 @@ export function homeView() {
     return `<span class="wk ${trained.has(k) ? "on" : ""} ${k === todayKey ? "is-today" : ""}"><small>${k === todayKey ? "Hoy" : l}</small><i>${trained.has(k) ? "" : new Date(w0 + i * DAY).getDate()}</i></span>`;
   }).join("");
   const thisWeek = WL.filter((_, i) => trained.has(dayKey(w0 + i * DAY))).length;
-  const open = S.openNow();
-  const wa = waNumber(g.whatsapp);
+  const open = S.openNow(g.open);
+  const wa = waNumber(g.whatsapp || coach?.phone || "");
   const p = S.plan(u.fee?.planId);
 
   /* Tarjeta principal: lo que toca hoy */
@@ -61,11 +61,11 @@ export function homeView() {
       <a class="btn sm ${fee.state === "late" ? "primary" : "ghost"}" href="https://wa.me/${wa}?text=${encodeURIComponent(`Hola! Soy ${u.name}, les aviso que pagué la cuota.`)}" target="_blank" rel="noopener">Avisar pago</a>
     </div>` : "";
 
-  const notices = S.db.notices.slice(0, 2).map((n) => `<article class="notice"><span class="notice-d">${relDay(n.at)}</span><h3>${esc(n.title)}</h3><p>${esc(n.body)}</p></article>`).join("");
+  const notices = S.noticesOf(sp).slice(0, 2).map((n) => `<article class="notice"><span class="notice-d">${relDay(n.at)}</span><h3>${esc(n.title)}</h3><p>${esc(n.body)}</p></article>`).join("");
 
   return {
     title: "Inicio", nav: "inicio",
-    html: `<header class="mtop"><a class="mtop-logo" href="#/inicio" aria-label="Vientos GYM">${logo()}</a><span class="mtop-a">${S.MODE === "supabase" ? `<button class="icon-btn" type="button" data-sync aria-label="Actualizar">${icon("repeat")}</button>` : ""}<a href="#/perfil" aria-label="Mi perfil">${avatar(u, "sm")}</a></span></header>
+    html: `<header class="mtop"><a class="mtop-logo ${fz ? "is-fitz" : ""}" href="#/inicio" aria-label="${esc(g.name)}">${spaceLogo(sp)}</a><span class="mtop-a">${S.MODE === "supabase" ? `<button class="icon-btn" type="button" data-sync aria-label="Actualizar">${icon("repeat")}</button>` : ""}<a href="#/perfil" aria-label="Mi perfil">${avatar(u, "sm")}</a></span></header>
     <section class="hello">
       <span class="kicker">${esc(fmtDate(Date.now()))}</span>
       <h1>${greeting()},<br><b>${esc(firstName(u.name))}</b></h1>
@@ -82,25 +82,25 @@ export function homeView() {
         <div><b>${logs[0] ? esc(relDay(logs[0].at)) : "—"}</b><small>último</small></div>
       </div>
     </section>
-    ${notices ? `<section class="sec"><h2 class="sec-t">Novedades de Vientos</h2>${notices}</section>` : ""}
+    ${notices ? `<section class="sec"><h2 class="sec-t">Novedades de ${fz ? "Fitz Club" : "Vientos"}</h2>${notices}</section>` : ""}
     ${coach ? `<section class="sec"><h2 class="sec-t">Tu profe</h2>
-      <div class="coach">${avatar(coach, "lg")}<div><b>${esc(coach.name)}</b><small>Entrenador · Vientos GYM</small></div>
+      <div class="coach">${avatar(coach, "lg")}<div><b>${esc(coach.name)}</b><small>Entrenador · ${esc(g.name)}</small></div>
         <div class="coach-a"><a class="round" href="${telHref(coach.phone)}" aria-label="Llamar a ${esc(coach.name)}">${icon("phone")}</a><a class="round wa" href="https://wa.me/${waNumber(coach.phone)}?text=${encodeURIComponent(`Hola ${firstName(coach.name)}! Soy ${u.name}.`)}" target="_blank" rel="noopener" aria-label="WhatsApp a ${esc(coach.name)}">${icon("whatsapp")}</a></div>
       </div></section>` : ""}
     <section class="sec gymcard">
-      <div class="gym-photo"><img src="img/fachada.jpg" alt="Fachada de Vientos GYM" loading="lazy"><span class="open-pill ${open.open ? "on" : ""}"><i></i>${esc(open.label)}</span></div>
+      <div class="gym-photo ${fz ? "no-photo" : ""}">${fz ? spaceLogo(sp) : `<img src="img/fachada.jpg" alt="Fachada de Vientos GYM" loading="lazy">`}<span class="open-pill ${open.open ? "on" : ""}"><i></i>${esc(open.label)}</span></div>
       <div class="gym-b">
         <h2>${esc(g.name)}</h2>
         <p class="muted">${esc(g.address)} · ${esc(g.city)}</p>
         <div class="gym-a">
           <a class="btn ghost sm" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${g.address}, ${g.city}`)}" target="_blank" rel="noopener">${icon("pin", "sm")} Cómo llegar</a>
-          <a class="btn ghost sm" href="https://wa.me/${wa}" target="_blank" rel="noopener">${icon("whatsapp", "sm")} WhatsApp</a>
-          <a class="btn ghost sm" href="https://www.instagram.com/${esc(g.instagram)}/" target="_blank" rel="noopener">${icon("instagram", "sm")} Instagram</a>
+          ${g.whatsapp ? `<a class="btn ghost sm" href="https://wa.me/${wa}" target="_blank" rel="noopener">${icon("whatsapp", "sm")} WhatsApp</a>` : ""}
+          ${g.instagram ? `<a class="btn ghost sm" href="https://www.instagram.com/${esc(g.instagram)}/" target="_blank" rel="noopener">${icon("instagram", "sm")} Instagram</a>` : ""}
         </div>
-        <dl class="hours">${S.hoursList().map((h) => `<div class="${h.days.includes(new Date().getDay()) ? "now" : ""}"><dt>${esc(h.d)}</dt><dd>${esc(h.h)}</dd></div>`).join("")}</dl>
+        <dl class="hours">${S.hoursList(g.open).map((h) => `<div class="${h.days.includes(new Date().getDay()) ? "now" : ""}"><dt>${esc(h.d)}</dt><dd>${esc(h.h)}</dd></div>`).join("")}</dl>
       </div>
     </section>
-    <p class="foot-note">${icon("wind", "xs")} Vientos GYM · Río Gallegos</p>`,
+    <p class="foot-note">${fz ? "" : `${icon("wind", "xs")} `}${esc(g.name)} · Río Gallegos</p>`,
     mount(host) {
       $$("[data-count]", host).forEach((el) => countUp(el, +el.dataset.count));
       host.querySelector("[data-sync]")?.addEventListener("click", async (e) => {

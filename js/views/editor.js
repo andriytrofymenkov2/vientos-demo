@@ -1,13 +1,13 @@
 /* Panel: editor de rutinas y plantillas, lista de plantillas y biblioteca de ejercicios */
 import { icon } from "../core/icons.js";
-import { esc, fold, fmtRest, plural, debounce, $, $$ } from "../core/util.js";
+import { esc, fold, fmtRest, plural, debounce, dayKey, $, $$ } from "../core/util.js";
 import * as S from "../core/store.js";
 import { me } from "../core/auth.js";
 import { go, refresh } from "../core/router.js";
-import { field, formData, toast, sheet, confirmDialog, tag, pageHead, empty, limitList } from "../core/ui.js";
+import { field, dateField, formData, toast, sheet, confirmDialog, tag, pageHead, empty, limitList } from "../core/ui.js";
 import { GROUPS, EQUIP } from "../data/exercises.js";
-import { LEVELS, AUDIENCES, GOALS, BLOCK_TYPES } from "../data/templates.js";
-import { exTile, letter } from "./common.js";
+import { LEVELS, AUDIENCES, GOALS, BLOCK_TYPES, CLASSIC_BLOCKS, PROGRAM_BLOCKS } from "../data/templates.js";
+import { exTile, letter, progLetter } from "./common.js";
 import { assignSheet } from "./panel.js";
 
 const RESTS = [0, 15, 30, 45, 60, 75, 90, 120, 150, 180, 240];
@@ -49,7 +49,21 @@ function editor(obj, kind) {
   let cur = 0;
   const back = isT ? "#/panel/plantillas" : `#/panel/socios/${obj.userId}`;
 
-  const meta = () => isT ? `
+  const prog = S.isProgram(obj);
+  const W = () => obj.weeks || 6;
+  const progMeta = () => `
+      ${field({ label: "Nombre del programa", name: "name", value: obj.name, req: true })}
+      <div class="grid3">
+        ${field({ label: "Deporte", name: "deporte", value: obj.meta?.deporte || "", ph: "Ej: pádel", attrs: "data-meta-f" })}
+        ${field({ label: "Método", name: "metodo", value: obj.meta?.metodo || "", attrs: "data-meta-f" })}
+        ${field({ label: "Etapa", name: "etapa", value: obj.meta?.etapa || "", ph: "Ej: base", attrs: "data-meta-f" })}
+      </div>
+      <div class="grid2">
+        ${field({ label: "Semanas", name: "weeks", value: W(), options: [4, 5, 6, 7, 8, 10, 12].map((n) => [n, plural(n, "semana", "semanas")]) })}
+        ${isT ? "" : dateField({ label: "Inicio (se toma el lunes de esa semana)", name: "startAt", value: dayKey(S.programStart(obj)) })}
+      </div>
+      ${isT ? field({ label: "Descripción", name: "desc", type: "textarea", value: obj.desc, ph: "Para quién es y cómo se trabaja" }) : field({ label: "Nota para el socio", name: "note", type: "textarea", value: obj.note, ph: "Objetivo, indicaciones generales…" })}`;
+  const meta = () => prog ? progMeta() : isT ? `
       ${field({ label: "Nombre de la plantilla", name: "name", value: obj.name, req: true })}
       <div class="grid3">
         ${field({ label: "Nivel", name: "level", value: obj.level, options: LEVELS })}
@@ -93,10 +107,53 @@ function editor(obj, kind) {
     </div>`;
   };
 
+  /* Programa: prescripción por semana. Cada casillero es "series × repeticiones" (en EMOM, minutos × reps por minuto) */
+  const ensureWk = (i) => {
+    if (!i.wk?.length) i.wk = [{ s: i.sets, r: i.reps }];
+    while (i.wk.length < W()) i.wk.push({ ...i.wk[i.wk.length - 1] });
+    i.wk.length = W();
+  };
+  const progRow = (d, b, bi, i, ii) => {
+    const ex = S.exercise(i.ex);
+    const tools = `<div class="eitem-a">
+        <button type="button" class="icon-btn sm" data-act="up" aria-label="Subir">${icon("up", "sm")}</button>
+        <button type="button" class="icon-btn sm" data-act="down" aria-label="Bajar">${icon("down", "sm")}</button>
+        <button type="button" class="icon-btn sm" data-act="del-item" aria-label="Quitar ejercicio">${icon("trash", "sm")}</button></div>`;
+    if (b.type === "prep") {
+      return `<div class="eitem prep" data-b="${bi}" data-i="${ii}">
+        <button type="button" class="eitem-ex" data-act="swap">${exTile(ex, "sm")}<span><b>${esc(ex?.n || "Elegí un ejercicio")}</b><small>${esc(ex?.g || "")} · cambiar</small></span></button>
+        <div class="eitem-f"><label><small>Reps</small><input type="text" data-f="reps" value="${esc(i.reps || "10")}"></label>
+          <label><small>Columna</small><select data-f="col"><option value="mob" ${i.col !== "core" ? "selected" : ""}>Movilidad</option><option value="core" ${i.col === "core" ? "selected" : ""}>Core</option></select></label></div>
+        ${tools}</div>`;
+    }
+    ensureWk(i);
+    return `<div class="eitem" data-b="${bi}" data-i="${ii}">
+      <button type="button" class="eitem-ex" data-act="swap">${exTile(ex, "sm")}<span><b><em class="lt">${progLetter(d, bi, ii)}</em>${esc(ex?.n || "Elegí un ejercicio")}</b><small>${esc(ex?.g || "")} · cambiar</small></span></button>
+      <div class="wkgrid" role="group" aria-label="Progresión por semana">${i.wk.map((w, k) => `<label><small>Sem ${k + 1}</small><input type="text" data-wk="${k}" value="${esc(w.s)}×${esc(w.r)}" aria-label="Semana ${k + 1}: ${b.type === "emom" ? "minutos × reps por minuto" : "series × repeticiones"}"></label>`).join("")}</div>
+      <div class="wk-help"><small class="muted">${b.type === "emom" ? "Minutos × reps por minuto (ej: 5×6/8/10/12/14)" : "Series × repeticiones (ej: 4×8 · 4×30 s)"}</small><button type="button" class="btn ghost sm" data-act="wk-fill">${icon("copy", "xs")} Copiar semana 1 a todas</button></div>
+      <input class="eitem-note" type="text" data-f="note" value="${esc(i.note)}" placeholder="Indicación (ej: última serie AMRAP)">
+      ${tools}</div>`;
+  };
+  const progBody = (d) => `${d.blocks.map((b, bi) => `<div class="eblock pb-${b.type}" data-b="${bi}">
+        <div class="eblock-h">
+          <b class="eb-t">${esc(BLOCK_TYPES[b.type]?.label || b.type)}</b>
+          ${b.type === "strength" || b.type === "accessory" ? `<label class="inline"><small>Descanso al final de la vuelta</small><select data-bf="rest">${restOpts(b.rest)}</select></label>` : ""}
+          <span class="grow"></span>
+          <button type="button" class="icon-btn sm" data-act="bup" aria-label="Subir bloque">${icon("up", "sm")}</button>
+          <button type="button" class="icon-btn sm" data-act="bdown" aria-label="Bajar bloque">${icon("down", "sm")}</button>
+          <button type="button" class="icon-btn sm" data-act="del-block" aria-label="Quitar bloque">${icon("trash", "sm")}</button>
+        </div>
+        ${b.items.map((i, ii) => progRow(d, b, bi, i, ii)).join("") || `<p class="muted tiny">Sin ejercicios todavía.</p>`}
+        ${b.type === "prep"
+          ? `<div class="row-btns"><button type="button" class="btn ghost sm" data-addp="prep-mob">${icon("plus", "sm")} Movilidad</button><button type="button" class="btn ghost sm" data-addp="prep-core">${icon("plus", "sm")} Core</button></div>`
+          : `<button type="button" class="btn ghost sm" data-addp="${b.type}">${icon("plus", "sm")} Sumar ejercicio</button>`}
+      </div>`).join("")}
+      <div class="addbar">${PROGRAM_BLOCKS.filter((t) => !d.blocks.some((b) => b.type === t)).map((t) => `<button type="button" class="btn ghost sm" data-newblock="${t}">${icon("plus", "sm")} ${esc(BLOCK_TYPES[t].label)}</button>`).join("")}</div>`;
+
   const dayBody = () => {
     const d = obj.days[cur];
     if (!d) return "";
-    const st = S.dayStats(d);
+    const st = S.dayStats(prog ? S.weekDay(d, 1) : d);
     return `<div class="eday">
       <div class="daymove">
         <button type="button" class="btn ghost sm" data-act="left-day" ${cur === 0 ? "disabled" : ""}>${icon("left", "sm")} Mover antes</button>
@@ -104,13 +161,13 @@ function editor(obj, kind) {
         <button type="button" class="btn ghost sm" data-act="right-day" ${cur === obj.days.length - 1 ? "disabled" : ""}>Mover después ${icon("right", "sm")}</button>
       </div>
       <div class="grid2">
-        ${field({ label: "Nombre del día", name: "dname", value: d.name, attrs: 'data-day-f="name"' })}
+        ${field({ label: prog ? "Nombre de la sesión" : "Nombre del día", name: "dname", value: d.name, attrs: 'data-day-f="name"' })}
         ${field({ label: "Grupos musculares / foco", name: "dfocus", value: d.focus, ph: "Ej: Espalda, bíceps y abdomen", attrs: 'data-day-f="focus"' })}
       </div>
-      <p class="muted tiny">${st.ex} ejercicios · ${st.sets} series · ~${st.min} min · El peso lo carga cada socio. Para repeticiones distintas por serie, separalas con coma: 12,10,8.</p>
+      ${prog ? `<p class="muted tiny">${st.ex} ejercicios · ~${st.min} min (semana 1) · Cada casillero es una semana del programa. El peso lo anota cada socio.</p>${progBody(d)}` : `<p class="muted tiny">${st.ex} ejercicios · ${st.sets} series · ~${st.min} min · El peso lo carga cada socio. Para repeticiones distintas por serie, separalas con coma: 12,10,8.</p>
       ${d.blocks.map((b, bi) => `<div class="eblock bt-${b.type}" data-b="${bi}">
         <div class="eblock-h">
-          <select data-bf="type" aria-label="Tipo de bloque">${Object.entries(BLOCK_TYPES).map(([k, v]) => `<option value="${k}" ${k === b.type ? "selected" : ""}>${v.label}</option>`).join("")}</select>
+          <select data-bf="type" aria-label="Tipo de bloque">${Object.entries(BLOCK_TYPES).filter(([k]) => CLASSIC_BLOCKS.includes(k)).map(([k, v]) => `<option value="${k}" ${k === b.type ? "selected" : ""}>${v.label}</option>`).join("")}</select>
           ${b.type !== "single" ? `<label class="inline"><small>Descanso al final</small><select data-bf="rest">${restOpts(b.rest)}</select></label>` : ""}
           <span class="grow"></span>
           <button type="button" class="icon-btn sm" data-act="bup" aria-label="Subir bloque">${icon("up", "sm")}</button>
@@ -125,10 +182,10 @@ function editor(obj, kind) {
         <button type="button" class="btn ghost sm" data-add="super">${icon("plus", "sm")} Superserie</button>
         <button type="button" class="btn ghost sm" data-add="contrast">${icon("plus", "sm")} Contraste</button>
         <button type="button" class="btn ghost sm" data-add="circuit">${icon("plus", "sm")} Circuito</button>
-      </div>
+      </div>`}
       <div class="dayops">
-        <button type="button" class="btn ghost sm" data-act="dup-day">${icon("copy", "sm")} Duplicar día</button>
-        <button type="button" class="btn ghost sm danger-t" data-act="del-day" ${obj.days.length < 2 ? "disabled" : ""}>${icon("trash", "sm")} Borrar día</button>
+        <button type="button" class="btn ghost sm" data-act="dup-day">${icon("copy", "sm")} Duplicar ${prog ? "sesión" : "día"}</button>
+        <button type="button" class="btn ghost sm danger-t" data-act="del-day" ${obj.days.length < 2 ? "disabled" : ""}>${icon("trash", "sm")} Borrar ${prog ? "sesión" : "día"}</button>
       </div>
     </div>`;
   };
@@ -140,19 +197,19 @@ function editor(obj, kind) {
 
   return {
     layout: "panel", nav: isT ? "plantillas" : "socios", title: obj.name,
-    html: `${pageHead({ back, kicker: isT ? "Plantilla" : `Rutina ${obj.number} de ${owner?.name || ""}${obj.active ? " · activa" : ""}`, title: isT ? obj.name : S.routineTitle(obj), actions })}
+    html: `${pageHead({ back, kicker: isT ? (prog ? "Programa" : "Plantilla") : `${prog ? "Programa" : "Rutina"} ${obj.number} de ${owner?.name || ""}${obj.active ? " · activa" : ""}`, title: isT ? obj.name : S.routineTitle(obj), actions })}
       <div class="saved" aria-live="polite"><span data-saved>${icon("check", "xs")} Los cambios se guardan solos</span></div>
       <div class="ed">
         <form class="card ed-meta" data-meta novalidate>${meta()}
           ${isT ? `<p class="muted tiny">${users ? `${plural(users, "socio la tiene", "socios la tienen")} asignada. Cambiar la plantilla no modifica sus rutinas (cada socio tiene su copia).` : "Ningún socio la tiene asignada todavía."}</p>` : ""}
         </form>
         <section class="card ed-days">
-          <div class="card-h"><h2>Días</h2><span class="muted">${plural(obj.days.length, "día", "días")} por semana</span></div>
+          <div class="card-h"><h2>${prog ? "Sesiones" : "Días"}</h2><span class="muted">${prog ? `${plural(obj.days.length, "sesión", "sesiones")} por semana · ${plural(W(), "semana", "semanas")}` : `${plural(obj.days.length, "día", "días")} por semana`}</span></div>
           <div data-tabs>${tabs()}</div>
           <div data-body>${dayBody()}</div>
         </section>
         <div class="ed-foot">
-          ${isT ? `<button class="btn ghost sm" type="button" data-act="dup-t">${icon("copy", "sm")} Duplicar plantilla</button><button class="btn ghost sm danger-t" type="button" data-act="del-t">${icon("trash", "sm")} Borrar plantilla</button>`
+          ${isT ? `<button class="btn ghost sm" type="button" data-act="dup-t">${icon("copy", "sm")} Duplicar ${prog ? "programa" : "plantilla"}</button><button class="btn ghost sm danger-t" type="button" data-act="del-t">${icon("trash", "sm")} Borrar ${prog ? "programa" : "plantilla"}</button>`
             : `<button class="btn ghost sm" type="button" data-act="as-t">${icon("layers", "sm")} Guardar como plantilla</button>${obj.active ? "" : `<button class="btn ghost sm" type="button" data-act="activate">${icon("bolt", "sm")} Volver a activar</button>`}`}
         </div>
       </div>`,
@@ -176,9 +233,19 @@ function editor(obj, kind) {
       /* Datos generales */
       $("[data-meta]", host).addEventListener("input", (e) => {
         const f = e.target;
-        if (f.name === "personal") return;
+        if (f.name === "personal" || f.dataset.p) return;
+        if (f.hasAttribute("data-meta-f")) { obj.meta = { ...(obj.meta || {}), [f.name]: f.value }; commit(); return; }
+        if (f.name === "weeks") return;
         obj[f.name] = f.value;
         commit();
+      });
+      $("[data-meta]", host).addEventListener("change", (e) => {
+        const f = e.target;
+        if (f.name === "weeks") { obj.weeks = +f.value; obj.days.forEach((d) => d.blocks.forEach((b) => b.items.forEach((i) => b.type !== "prep" && ensureWk(i)))); redraw(false); return; }
+        if (f.closest("[data-datef]") && prog && !isT) {
+          const v = f.closest("[data-datef]").querySelector("input[type=hidden]").value;
+          if (v) { const [y, mo, da] = v.split("-").map(Number); obj.startAt = S.programStart({ startAt: new Date(y, mo - 1, da, 12).getTime() }); commit(); }
+        }
       });
       $("[data-meta]", host).addEventListener("change", (e) => {
         if (e.target.name === "personal") { obj.personal = e.target.checked; commit(); refreshSoon(); }
@@ -190,6 +257,17 @@ function editor(obj, kind) {
         const f = e.target;
         if (f.dataset.dayF) { day()[f.dataset.dayF] = f.value; tabsEl.innerHTML = tabs(); commit(); return; }
         const { b, i } = ref(f);
+        if (f.dataset.wk !== undefined && i) {
+          const m = f.value.match(/^\s*(\d+)\s*['’]?\s*[x×*]\s*(.+?)\s*$/i);
+          const k = +f.dataset.wk;
+          if (m) { i.wk[k] = { s: Math.max(1, Math.min(20, +m[1])), r: m[2] }; f.classList.remove("bad"); }
+          else if (/^\s*\d+\s*$/.test(f.value)) { i.wk[k] = { s: i.wk[k].s, r: f.value.trim() }; f.classList.remove("bad"); }
+          else { f.classList.add("bad"); return; }
+          i.sets = i.wk[0].s; i.reps = i.wk[0].r;
+          commit();
+          return;
+        }
+        if (f.dataset.f === "col" && i) { i.col = f.value; commit(); return; }
         if (f.dataset.f && i) {
           const k = f.dataset.f;
           i[k] = k === "sets" ? Math.max(1, Math.min(20, parseInt(f.value) || 1)) : k === "kg" ? (f.value === "" ? null : parseFloat(f.value.replace(",", "."))) : k === "rest" ? +f.value : f.value;
@@ -229,9 +307,26 @@ function editor(obj, kind) {
           }, add === "single" ? "Agregar ejercicio" : `${BLOCK_TYPES[add].label}: primer ejercicio`);
           return;
         }
+        const addp = e.target.closest("[data-addp]")?.dataset.addp;
+        if (addp) {
+          const type = addp.startsWith("prep") ? "prep" : addp;
+          pickExercise((ex) => {
+            let blk = day().blocks.find((x) => x.type === type);
+            if (!blk) { blk = { id: crypto.randomUUID?.() || String(Math.random()), type, rest: type === "strength" ? 150 : type === "accessory" ? 90 : 0, items: [] }; day().blocks.push(blk); }
+            const six = (s, r) => Array.from({ length: W() }, () => ({ s, r }));
+            const base = { id: crypto.randomUUID?.() || String(Math.random()), ex, kg: null, rest: 0, note: "" };
+            if (type === "prep") blk.items.push({ ...base, sets: 1, reps: "10", col: addp === "prep-core" ? "core" : "mob" });
+            else { const wk = type === "emom" ? six(5, "6/8/10/12/14") : type === "strength" ? six(4, "5") : six(4, "10"); blk.items.push({ ...base, sets: wk[0].s, reps: wk[0].r, wk }); }
+            redraw(false);
+          }, "Agregar ejercicio");
+          return;
+        }
+        const nb = e.target.closest("[data-newblock]")?.dataset.newblock;
+        if (nb) { day().blocks.push({ id: crypto.randomUUID?.() || String(Math.random()), type: nb, rest: nb === "strength" ? 150 : nb === "accessory" ? 90 : 0, items: [] }); redraw(false); return; }
         const act = e.target.closest("[data-act]")?.dataset.act;
         if (!act) return;
         const { b, bi, i, ii } = ref(e.target);
+        if (act === "wk-fill" && i) { ensureWk(i); i.wk = i.wk.map(() => ({ ...i.wk[0] })); redraw(false); return; }
         const blocks = day().blocks;
         const mv = (arr, a, to) => { if (to < 0 || to >= arr.length) return; arr.splice(to, 0, arr.splice(a, 1)[0]); redraw(false); };
         if (act === "swap") pickExercise((ex) => { i.ex = ex; redraw(false); }, "Cambiar ejercicio");
@@ -249,7 +344,11 @@ function editor(obj, kind) {
       tabsEl.addEventListener("click", (e) => {
         const t = e.target.closest("[data-day]");
         if (t) { cur = +t.dataset.day; tabsEl.innerHTML = tabs(); body.innerHTML = dayBody(); return; }
-        if (e.target.closest("[data-act=add-day]")) { obj.days.push(S.normDays([{ name: `Día ${obj.days.length + 1}`, focus: "", blocks: [] }])[0]); cur = obj.days.length - 1; renumber(); redraw(); }
+        if (e.target.closest("[data-act=add-day]")) {
+          if (prog) { const letter = String.fromCharCode(65 + obj.days.length); obj.days.push(S.normDays([{ name: `Sesión ${letter}`, focus: "", blocks: PROGRAM_BLOCKS.map((type) => ({ type, rest: type === "strength" ? 150 : type === "accessory" ? 90 : 0, items: [] })) }])[0]); }
+          else obj.days.push(S.normDays([{ name: `Día ${obj.days.length + 1}`, focus: "", blocks: [] }])[0]);
+          cur = obj.days.length - 1; renumber(); redraw();
+        }
       });
       host.querySelector(".ed-foot").addEventListener("click", async (e) => {
         const act = e.target.closest("[data-act]")?.dataset.act;
@@ -275,36 +374,37 @@ function strip(d) {
 
 export function routineEditorView(params) {
   const r = S.routine(params.id);
-  if (!r) return go("/panel/socios", { replace: true });
+  if (!r || !S.inSpace(S.user(r.userId))) return go("/panel/socios", { replace: true });
   return editor(r, "routine");
 }
 export function templateEditorView(params) {
   const t = S.template(params.id);
-  if (!t) return go("/panel/plantillas", { replace: true });
+  if (!t || S.tplSpace(t) !== S.currentSpace()) return go("/panel/plantillas", { replace: true });
   return editor(t, "template");
 }
 
 /* --------------------------------------------------- lista de plantillas */
 export function templatesView(params, query) {
   const f = { q: query.q || "", level: query.nivel || "", aud: query.publico || "", days: query.dias || "" };
-  const all = S.db.templates.slice().sort((a, b) => a.order - b.order);
+  const sp = S.currentSpace(), fitz = sp === "fitz";
+  const all = S.db.templates.filter((t) => S.tplSpace(t) === sp).sort((a, b) => a.order - b.order);
   const list = all.filter((t) => (!f.level || t.level === f.level) && (!f.aud || t.audience === f.aud) && (!f.days || String(t.days.length) === f.days) && (!f.q || fold(t.name + " " + t.goal + " " + t.desc).includes(fold(f.q))));
   const using = (id) => S.db.routines.filter((r) => r.active && r.fromTemplate === id).length;
   const dayCounts = [...new Set(all.map((t) => t.days.length))].sort();
   const sel = (name, label, val, opts) => `<label class="field compact"><span class="sr">${label}</span><select data-filter="${name}"><option value="">${label}</option>${opts.map((o) => { const [v, l] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(v)}" ${String(v) === val ? "selected" : ""}>${esc(l)}</option>`; }).join("")}</select></label>`;
   return {
-    layout: "panel", nav: "plantillas", title: "Plantillas",
-    html: `${pageHead({ title: "Plantillas de rutina", actions: `<button class="btn primary sm" type="button" data-act="new">${icon("plus", "sm")} Nueva</button>` })}
-      <p class="muted lead">Rutinas modelo que se asignan a muchos socios. Al asignar, cada socio recibe su copia y se puede personalizar sin tocar la plantilla.</p>
+    layout: "panel", nav: "plantillas", title: fitz ? "Programas" : "Plantillas",
+    html: `${pageHead({ title: fitz ? "Programas de Fitz Club" : "Plantillas de rutina", actions: `<button class="btn primary sm" type="button" data-act="new">${icon("plus", "sm")} ${fitz ? "Nuevo programa" : "Nueva"}</button>` })}
+      <p class="muted lead">${fitz ? "Programas de varias semanas: sesiones A/B/C con movilidad y core, fuerza, accesorios y EMOM, y la progresión semana a semana. Al asignar, cada socio recibe su copia con su fecha de inicio." : "Rutinas modelo que se asignan a muchos socios. Al asignar, cada socio recibe su copia y se puede personalizar sin tocar la plantilla."}</p>
       <div class="filters">
         <label class="search">${icon("search", "sm")}<input type="search" data-filter="q" value="${esc(f.q)}" placeholder="Buscar" aria-label="Buscar plantilla"></label>
-        ${sel("nivel", "Nivel", f.level, LEVELS)}${sel("publico", "Público", f.aud, AUDIENCES)}${sel("dias", "Días", f.days, dayCounts.map((d) => [d, plural(d, "día", "días")]))}
+        ${fitz ? "" : `${sel("nivel", "Nivel", f.level, LEVELS)}${sel("publico", "Público", f.aud, AUDIENCES)}${sel("dias", "Días", f.days, dayCounts.map((d) => [d, plural(d, "día", "días")]))}`}
       </div>
       <div class="tgrid">${list.map((t) => {
         const n = using(t.id);
         return `<article class="tcard">
           <a class="tcard-main" href="#/panel/plantilla/${t.id}">
-            <div class="tags">${tag(t.level)}${tag(t.audience)}${tag(t.goal, "red")}</div>
+            <div class="tags">${S.isProgram(t) ? `${tag(`${t.weeks || 6} semanas`)}${tag(plural(t.days.length, "sesión", "sesiones"))}${tag(t.meta?.metodo || "Programa", "red")}` : `${tag(t.level)}${tag(t.audience)}${tag(t.goal, "red")}`}</div>
             <h2>${esc(t.name)}</h2>
             <p class="muted">${esc(t.desc || "")}</p>
             <ol class="tdays">${t.days.map((d) => `<li><b>${esc(d.name)}</b> ${esc(d.focus)}</li>`).join("")}</ol>
@@ -323,7 +423,7 @@ export function templatesView(params, query) {
       host.addEventListener("input", (e) => e.target.dataset.filter === "q" && upd());
       host.addEventListener("change", (e) => e.target.dataset.filter && e.target.dataset.filter !== "q" && upd());
       host.addEventListener("click", (e) => {
-        if (e.target.closest("[data-act=new]")) { const t = S.api.newTemplate(me().id); go("/panel/plantilla/" + t.id); }
+        if (e.target.closest("[data-act=new]")) { const t = S.api.newTemplate(me().id, { program: fitz, space: sp }); go("/panel/plantilla/" + t.id); }
         const a = e.target.closest("[data-assign]");
         if (a) assignSheet({ templateId: a.dataset.assign });
       });

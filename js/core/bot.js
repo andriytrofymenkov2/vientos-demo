@@ -123,10 +123,13 @@ const todayChips = (u, prefix) => {
   if (!d) return [];
   return d.blocks.flatMap((b) => b.items).slice(0, 6).map((i) => `${prefix} ${S.exercise(i.ex)?.n || ""}`);
 };
+/* El gimnasio del socio: Vientos o Fitz Club */
+const gym = (u) => S.gymOf(S.spaceOf(u));
+const gymShort = (u) => (S.spaceOf(u) === "fitz" ? "Fitz Club" : "Vientos");
 const profeAction = (u, text = "Escribir a mi profe") => {
   const c = S.user(u.coachId);
-  const n = waNumber(c?.phone || S.db.gym.whatsapp);
-  return { label: c ? `${text}` : "Escribir a Vientos", href: `https://wa.me/${n}?text=${encodeURIComponent(`Hola${c ? " " + firstName(c.name) : ""}! Soy ${u.name}.`)}`, icon: "whatsapp", ext: true };
+  const n = waNumber(c?.phone || gym(u).whatsapp);
+  return { label: c ? text : `Escribir a ${gymShort(u)}`, href: `https://wa.me/${n}?text=${encodeURIComponent(`Hola${c ? " " + firstName(c.name) : ""}! Soy ${u.name}.`)}`, icon: "whatsapp", ext: true };
 };
 
 /* Límite superior del rango de repeticiones: "8-10" → 10 */
@@ -135,7 +138,7 @@ const topReps = (reps) => { const m = String(reps).match(/(\d+)\s*(?:-\s*(\d+))?
 /* ------------------------------------------------------------ respuestas */
 const R = {
   saludo(u) {
-    return { text: `¡Hola, ${esc(firstName(u.name))}! Soy el asistente de Vientos. Te puedo ayudar con tu rutina, cuánto peso poner, cómo se hace un ejercicio, qué hacer si la máquina está ocupada, tu cuota y los horarios. Tocá una opción o preguntame.`, chips: QUICK.slice(0, 6) };
+    return { text: `¡Hola, ${esc(firstName(u.name))}! Soy el asistente de ${gymShort(u)}. Te puedo ayudar con tu rutina, cuánto peso poner, cómo se hace un ejercicio, qué hacer si la máquina está ocupada, tu cuota y los horarios. Tocá una opción o preguntame.`, chips: QUICK.slice(0, 6) };
   },
   gracias() { return { text: "¡De nada! Buen entrenamiento 💪", chips: ["¿Qué me toca hoy?", "¿Qué peso pongo?"] }; },
 
@@ -207,18 +210,18 @@ const R = {
 
   cuota(u) {
     const f = S.feeStatus(u), p = S.plan(u.fee?.planId);
-    if (!u.fee) return { text: "No tenés una cuota cargada en la app. Consultalo en recepción.", actions: [profeAction(u, "Escribir a Vientos")] };
-    const g = S.db.gym;
+    if (!u.fee) return { text: "No tenés una cuota cargada en la app. Consultalo en recepción.", actions: [profeAction(u, `Escribir a ${gymShort(u)}`)] };
+    const g = gym(u);
     const msg = f.state === "late" ? `Tu cuota (${esc(p?.name || "")}) <b>venció el ${fmtDate(u.fee.dueAt)}</b>. Pasá por recepción para regularizarla.`
       : f.state === "soon" ? `Tu cuota (${esc(p?.name || "")}) <b>vence ${f.days === 0 ? "hoy" : `en ${f.days} ${f.days === 1 ? "día" : "días"}`}</b>, el ${fmtDate(u.fee.dueAt)}.`
       : `Tu cuota (${esc(p?.name || "")}) está <b>al día</b>. Vence el ${fmtDate(u.fee.dueAt)}.`;
-    return { text: msg, actions: f.state !== "ok" ? [{ label: "Avisar que pagué", href: `https://wa.me/${waNumber(g.whatsapp)}?text=${encodeURIComponent(`Hola! Soy ${u.name}, les aviso que pagué la cuota.`)}`, icon: "whatsapp", ext: true }] : [] };
+    return { text: msg, actions: f.state !== "ok" ? [{ label: "Avisar que pagué", href: `https://wa.me/${waNumber(g.whatsapp || S.user(u.coachId)?.phone || "")}?text=${encodeURIComponent(`Hola! Soy ${u.name}, les aviso que pagué la cuota.`)}`, icon: "whatsapp", ext: true }] : [] };
   },
 
-  horario() {
-    const g = S.db.gym, o = S.openNow();
+  horario(u) {
+    const g = gym(u), o = S.openNow(g.open);
     return {
-      text: `<b>${esc(o.label)}.</b><br><br>${S.hoursList().map((h) => `${esc(h.d)}: ${esc(h.h)}`).join("<br>")}<br><br>📍 ${esc(g.address)}, ${esc(g.city)}`,
+      text: `<b>${esc(o.label)}.</b><br><br>${S.hoursList(g.open).map((h) => `${esc(h.d)}: ${esc(h.h)}`).join("<br>")}<br><br>📍 ${esc(g.address)}, ${esc(g.city)}`,
       actions: [{ label: "Cómo llegar", href: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${g.address}, ${g.city}`)}`, icon: "pin", ext: true }],
     };
   },
@@ -235,7 +238,7 @@ const R = {
 
   profe(u) {
     const c = S.user(u.coachId);
-    if (!c) return { text: "Todavía no tenés un profe asignado. Escribile al gimnasio:", actions: [profeAction(u, "Escribir a Vientos")] };
+    if (!c) return { text: "Todavía no tenés un profe asignado. Escribile al gimnasio:", actions: [profeAction(u, `Escribir a ${gymShort(u)}`)] };
     return { text: `Tu profe es <b>${esc(c.name)}</b>.`, actions: [profeAction(u, `WhatsApp a ${firstName(c.name)}`), { label: "Llamar", href: telHref(c.phone), icon: "phone", ext: true }] };
   },
 

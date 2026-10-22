@@ -4,7 +4,7 @@ import { esc, fold, addMonths, fmtDate, relDay, dayKey, plural, debounce, waNumb
 import * as S from "../core/store.js";
 import { me, isAdmin, logout } from "../core/auth.js";
 import { go, refresh } from "../core/router.js";
-import { field, dateField, limitList, formData, toast, sheet, confirmDialog, pageHead, empty, avatar, feePill } from "../core/ui.js";
+import { field, dateField, limitList, formData, toast, sheet, confirmDialog, pageHead, empty, avatar, feePill, spaceLogo } from "../core/ui.js";
 import { heatmap } from "./progress.js";
 import { makeXlsx } from "../core/xlsx.js";
 import { routineView } from "./routine.js";
@@ -42,20 +42,21 @@ function monthCols(rows) {
 
 export function panelHome() {
   const u = me(), admin = u.role === "admin";
-  const act = S.activeMembers();
+  const sp = S.currentSpace(), isFitz = sp === "fitz";
+  const act = S.spaceMembers();
   const mine = S.membersOf(u.id);
   const soon = act.filter((m) => S.feeStatus(m).state === "soon");
   const late = act.filter((m) => S.feeStatus(m).state === "late");
   const noRoutine = act.filter((m) => !S.activeRoutine(m.id));
   const neverIn = act.filter((m) => m.prefs?.tempPass);
-  const pend = S.pending();
+  const pend = S.pending().filter((m) => S.inSpace(m));
   const kpi = (n, label, href, cls = "", sub = "") => `<a class="kpi ${cls}" href="${href}"><b data-count="${n}">0</b><small>${label}</small>${sub ? `<em class="kpi-sub">${sub}</em>` : ""}</a>`;
   const mrow = (m, extra) => `<a class="mrow" href="#/panel/socios/${m.id}">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${extra}</small></span>${icon("right", "sm")}</a>`;
 
   /* Plata (solo el dueño) */
   const now = new Date(), m0 = new Date(now.getFullYear(), now.getMonth(), 1).getTime(), m1 = new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime();
   const pm0 = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
-  const paid = (a, b) => S.db.payments.filter((p) => p.at >= a && p.at < b).reduce((x, p) => x + (p.amount || 0), 0);
+  const paid = (a, b) => S.paymentsOf().filter((p) => p.at >= a && p.at < b).reduce((x, p) => x + (p.amount || 0), 0);
   const thisMonth = paid(m0, m1), lastMonth = paid(pm0, m0);
   const priceOf = (m) => S.priceWith(m.fee?.planId, 1, m.fee?.convenioId).total;
   /* Falta cobrar este mes: cuotas que todavía no vencieron (o vencen hoy) y vencen antes de fin de mes.
@@ -77,11 +78,11 @@ export function panelHome() {
   const ageRows = AGE.map(([label, a, b]) => ({ label, n: ages.filter((x) => x !== null && x >= a && x <= b).length }));
   const noAge = ages.filter((x) => x === null).length;
   if (noAge) ageRows.push({ label: "Sin dato", n: noAge });
-  const planRows = S.db.plans.map((p) => ({ label: p.name, n: act.filter((m) => m.fee?.planId === p.id).length }));
+  const planRows = S.plansOf().map((p) => ({ label: p.name, n: act.filter((m) => m.fee?.planId === p.id).length }));
   const noPlan = act.filter((m) => !m.fee?.planId).length;
   if (noPlan) planRows.push({ label: "Sin plan", n: noPlan });
   /* Socios mes a mes: activos, nuevos, siguieron, se fueron y volvieron (contra altas y pagos guardados) */
-  const hist = S.membershipByMonth();
+  const hist = S.membershipByMonth(Date.now(), sp);
   const mrows = hist.map((h, i) => { const d = new Date(h.start); return { label: MONTHS[d.getMonth()], year: i === 0 || d.getMonth() === 0 ? String(d.getFullYear()) : "", title: `${MONTHS[d.getMonth()]} ${d.getFullYear()}`, n: h.active, cur: h.cur }; });
   const detail = (h) => { const d = new Date(h.start); const nm = d.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
     return `<h3 class="sub">${esc(nm[0].toUpperCase() + nm.slice(1))}</h3><div class="mstats">
@@ -91,7 +92,7 @@ export function panelHome() {
       <div><b>${h.left}</b><small>se fueron</small></div>
       <div><b>${h.back}</b><small>volvieron</small></div></div>`; };
   const avgAge = ages.filter((x) => x !== null);
-  const convRows = S.convenios().map((c) => ({ label: c.name, n: act.filter((m) => m.fee?.convenioId === c.id).length }));
+  const convRows = isFitz ? [] : S.convenios().map((c) => ({ label: c.name, n: act.filter((m) => m.fee?.convenioId === c.id).length }));
   if (convRows.length) convRows.push({ label: "Sin convenio", n: act.filter((m) => !S.convenio(m.fee?.convenioId)).length });
 
   return {
@@ -152,7 +153,7 @@ export function approveSheet(m) {
     html: `<div class="mrow plain">${avatar(m)}<span><b>${esc(m.name)}</b><small>${esc(realEmail(m.email) || "Sin email")}${m.phone ? " · " + esc(m.phone) : ""}</small></span></div>
       <form novalidate>
         ${field({ label: "Profe a cargo", name: "coach", value: me().role === "profe" ? me().id : "", options: [["", "Sin asignar"], ...S.coaches().map((c) => [c.id, c.name])] })}
-        ${field({ label: "Plan", name: "plan", options: [["", "Cargar después"], ...S.db.plans.map((p) => [p.id, p.name])] })}
+        ${field({ label: "Plan", name: "plan", options: [["", "Cargar después"], ...S.plansOf(S.spaceOf(m)).map((p) => [p.id, p.name])] })}
         <div class="row-btns"><button class="btn ghost danger-t" type="button" data-reject>Rechazar</button><button class="btn primary" type="submit">${icon("check", "sm")} Aprobar</button></div>
       </form>`,
     onMount(b, close) {
@@ -177,14 +178,14 @@ const FILTERS = [["", "Todos"], ["mios", "Mis socios"], ["sin", "Sin rutina"], [
 export function membersView(params, query) {
   const f = query.f || "", q = query.q || "";
   const today = dayKey();
-  let list = f === "pend" ? S.pending() : S.activeMembers();
+  let list = (f === "pend" ? S.pending() : S.activeMembers()).filter((m) => S.inSpace(m));
   if (f === "mios") list = list.filter((m) => m.coachId === me().id);
   if (f === "app") list = list.filter((m) => m.prefs?.tempPass);
   if (f === "sin") list = list.filter((m) => !S.activeRoutine(m.id));
   if (f === "soon" || f === "late") list = list.filter((m) => S.feeStatus(m).state === f);
   if (q) list = list.filter((m) => fold(m.name + " " + m.email + " " + m.phone).includes(fold(q)));
   list.sort((a, b) => a.name.localeCompare(b.name, "es"));
-  const pend = S.pending().length;
+  const pend = S.pending().filter((m) => S.inSpace(m)).length;
 
   return {
     layout: "panel", nav: "socios", title: "Socios",
@@ -235,7 +236,8 @@ function credentialsSheet(m, pass, title = "Socio listo") {
 /* Alta en recepción: el socio pagó, se cargan sus datos y la app le genera
    usuario (su DNI) y una contraseña provisoria para mandarle por WhatsApp. */
 function newMemberSheet() {
-  const p0 = S.db.plans[0];
+  const sp = S.currentSpace();
+  const p0 = S.plansOf(sp)[0];
   sheet({
     title: "Nuevo socio",
     html: `<form novalidate>
@@ -245,7 +247,7 @@ function newMemberSheet() {
       ${field({ label: "Email (opcional)", name: "email", type: "email", ph: "Para recuperar la contraseña" })}
       ${field({ label: "Profe a cargo", name: "coach", value: me().role === "profe" ? me().id : "", options: [["", "Sin asignar"], ...S.coaches().map((c) => [c.id, c.name])] })}
       <fieldset class="paybox"><legend>Cuota</legend>
-        <div class="grid2">${field({ label: "Plan", name: "plan", value: p0?.id, options: S.db.plans.map((p) => [p.id, p.name]) })}${convField() || `<span></span>`}</div>
+        <div class="grid2">${field({ label: "Plan", name: "plan", value: p0?.id, options: S.plansOf(sp).map((p) => [p.id, p.name]) })}${sp === "vientos" ? convField() || `<span></span>` : `<span></span>`}</div>
         ${field({ label: "Monto cobrado", name: "amount", type: "number", value: p0?.price || "", attrs: 'inputmode="numeric" min="0"' })}
         <div class="paypreview" data-preview></div>
         <label class="check"><input type="checkbox" name="paid" checked><span>Ya pagó: registrar el pago y la cuota vence en un mes</span></label>
@@ -277,7 +279,7 @@ function newMemberSheet() {
         const btn = $("button[type=submit]", f);
         btn.disabled = true;
         try {
-          const m = await S.api.createMember({ name: `${d.first.trim()} ${d.last.trim()}`, dni, email: d.email.trim(), phone: d.phone, birth: d.birth, gender: d.gender, pass, coachId: d.coach, planId: d.paid ? null : d.plan, convenioId: d.conv || null });
+          const m = await S.api.createMember({ name: `${d.first.trim()} ${d.last.trim()}`, dni, email: d.email.trim(), phone: d.phone, birth: d.birth, gender: d.gender, pass, coachId: d.coach, planId: d.paid ? null : d.plan, convenioId: d.conv || null, space: sp });
           if (d.paid) S.api.registerPayment(m.id, { planId: d.plan, months: 1, amount: +d.amount || 0, by: me().id, convenioId: d.conv || null });
           close(); go("/panel/socios/" + m.id);
           setTimeout(() => credentialsSheet(S.user(m.id) || m, pass), 300);
@@ -298,7 +300,7 @@ export function assignSheet({ userId = null, templateId = null } = {}) {
         <label class="search">${icon("search", "sm")}<input type="search" data-uq placeholder="Buscar socio" aria-label="Buscar socio"></label>
         <div class="pick-list" data-ul></div>`;
       const ul = $("[data-ul]", b);
-      const fill = (q = "") => { const all = S.activeMembers().filter((m) => !q || fold(m.name).includes(fold(q))).sort((a, c) => a.name.localeCompare(c.name, "es")); ul.innerHTML = all.slice(0, 12).map((m) => { const r = S.activeRoutine(m.id); return `<button type="button" class="mrow" data-u="${m.id}">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${r ? "Tiene: " + esc(S.routineTitle(r)) : "Sin rutina"}</small></span>${icon("right", "sm")}</button>`; }).join("") + (all.length > 12 ? `<p class="muted tiny center">Mostrando 12 de ${all.length}. Escribí el nombre para encontrar al resto.</p>` : ""); };
+      const fill = (q = "") => { const all = S.spaceMembers(S.tplSpace(t)).filter((m) => !q || fold(m.name).includes(fold(q))).sort((a, c) => a.name.localeCompare(c.name, "es")); ul.innerHTML = all.slice(0, 12).map((m) => { const r = S.activeRoutine(m.id); return `<button type="button" class="mrow" data-u="${m.id}">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${r ? "Tiene: " + esc(S.routineTitle(r)) : "Sin rutina"}</small></span>${icon("right", "sm")}</button>`; }).join("") + (all.length > 12 ? `<p class="muted tiny center">Mostrando 12 de ${all.length}. Escribí el nombre para encontrar al resto.</p>` : ""); };
       fill();
       $("[data-uq]", b).addEventListener("input", (e) => fill(e.target.value));
       return;
@@ -306,13 +308,17 @@ export function assignSheet({ userId = null, templateId = null } = {}) {
     const m = S.user(chosenUser);
     const cur = S.activeRoutine(m.id);
     const n = (S.routinesOf(m.id)[0]?.number || 0) + 1;
-    const opts = S.db.templates.slice().sort((a, c) => a.order - c.order);
+    const msp = S.spaceOf(m), fitzM = msp === "fitz";
+    const opts = S.db.templates.filter((t) => S.tplSpace(t) === msp).sort((a, c) => a.order - c.order);
+    const monday = S.programStart({ startAt: Date.now() });
     b.innerHTML = `<div class="mrow plain">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${cur ? "Rutina actual: " + esc(S.routineTitle(cur)) + " (pasa al historial)" : "Todavía sin rutina"}</small></span></div>
       <form novalidate>
         <fieldset class="radios"><legend>Punto de partida</legend>
-          <label class="radio"><input type="radio" name="from" value="__blank" ${chosenT ? "" : "checked"}><span><b>Desde cero</b><small>Armás la rutina ejercicio por ejercicio.</small></span></label>
-          ${opts.map((t) => `<label class="radio"><input type="radio" name="from" value="${t.id}" ${t.id === chosenT ? "checked" : ""}><span><b>${esc(t.name)}</b><small>${esc(t.level)} · ${plural(t.days.length, "día", "días")} · ${esc(t.goal)}</small></span></label>`).join("")}
+          <label class="radio"><input type="radio" name="from" value="__blank" ${chosenT ? "" : "checked"}><span><b>Desde cero</b><small>${fitzM ? "Programa de 6 semanas vacío: sesiones A, B y C con sus bloques." : "Armás la rutina ejercicio por ejercicio."}</small></span></label>
+          ${opts.map((t) => `<label class="radio"><input type="radio" name="from" value="${t.id}" ${t.id === chosenT ? "checked" : ""}><span><b>${esc(t.name)}</b><small>${S.isProgram(t) ? `Programa de ${t.weeks || 6} semanas · ${plural(t.days.length, "sesión", "sesiones")}` : `${esc(t.level)} · ${plural(t.days.length, "día", "días")} · ${esc(t.goal)}`}</small></span></label>`).join("")}
         </fieldset>
+        ${fitzM ? `<div class="grid2">${dateField({ label: "Inicio del programa (lunes)", name: "start", value: dayKey(monday), req: true })}${field({ label: "Deporte", name: "deporte", ph: "Ej: pádel, fútbol" })}</div>
+          ${field({ label: "Etapa", name: "etapa", ph: "Ej: base, pretemporada" })}` : ""}
         <label class="toggle"><span><b>Rutina personalizada</b><small>Se llama “${esc(m.name)} · Rutina ${n}”.</small></span><input type="checkbox" name="personal" role="switch" ${chosenT ? "" : "checked"}><i aria-hidden="true"></i></label>
         ${field({ label: "Nota para el socio (opcional)", name: "note", type: "textarea", ph: "Objetivo, indicaciones generales…" })}
         <button class="btn primary block" type="submit">Asignar y editar</button>
@@ -325,7 +331,9 @@ export function assignSheet({ userId = null, templateId = null } = {}) {
       e.preventDefault();
       const d = formData(e.target);
       const blank = d.from === "__blank";
-      const r = S.api.assign(m.id, { templateId: blank ? null : d.from, coachId: me().id, personal: !!d.personal || blank, name: blank ? "Rutina personalizada" : "", note: d.note });
+      const st = d.start ? (() => { const [y, mo, da] = d.start.split("-").map(Number); return new Date(y, mo - 1, da, 12).getTime(); })() : null;
+      const r = S.api.assign(m.id, { templateId: blank ? null : d.from, coachId: me().id, personal: !!d.personal || blank, name: blank ? (fitzM ? "Programa personalizado" : "Rutina personalizada") : "", note: d.note,
+        program: fitzM && blank, startAt: st, meta: fitzM ? { deporte: (d.deporte || "").trim(), etapa: (d.etapa || "").trim() } : null });
       b.closest(".sheet-wrap").querySelector("[data-close]").click();
       toast(`Rutina ${r.number} asignada a ${firstName(m.name)}`);
       go("/panel/rutina/" + r.id);
@@ -342,7 +350,7 @@ export function assignSheet({ userId = null, templateId = null } = {}) {
 
 export async function memberView(params) {
   const m = S.user(params.id);
-  if (!m || m.role !== "socio") return go("/panel/socios", { replace: true });
+  if (!m || m.role !== "socio" || !S.inSpace(m)) return go("/panel/socios", { replace: true });
   try { await S.remote()?.loadUserLogs(m.id); } catch { /* sin conexión: se muestra lo que haya */ }
   if (m.status === "pendiente") { setTimeout(() => approveSheet(m), 50); return go("/panel/socios?f=pend", { replace: true }); }
   const r = S.activeRoutine(m.id);
@@ -416,7 +424,8 @@ export async function memberView(params) {
 
 /* Registrar pago: muestra antes qué período cubre y la nueva fecha de vencimiento */
 export function paySheet(m, onDone) {
-  const cur = m.fee?.planId || S.db.plans[0]?.id;
+  const mplans = S.plansOf(S.spaceOf(m));
+  const cur = m.fee?.planId || mplans[0]?.id;
   const st = S.feeStatus(m);
   const day0 = new Date(); day0.setHours(12, 0, 0, 0);
   const canChain = m.fee?.dueAt && st.state !== "late" && st.state !== "none";
@@ -425,7 +434,7 @@ export function paySheet(m, onDone) {
     title: `Registrar pago`,
     html: `<form novalidate>
       <div class="mrow plain">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${m.fee ? `Cuota actual: ${esc(st.label)}${m.fee.dueAt ? ` · vence ${fmtDate(m.fee.dueAt)}` : ""}` : "Sin cuota cargada"}</small></span></div>
-      ${field({ label: "Plan", name: "plan", value: cur, options: S.db.plans.map((p) => [p.id, `${p.name} · ${money(p.price)}`]) })}
+      ${field({ label: "Plan", name: "plan", value: cur, options: mplans.map((p) => [p.id, `${p.name} · ${money(p.price)}`]) })}
       ${convField(m.fee?.convenioId)}
       <div class="grid2">${field({ label: "Meses que paga", name: "months", value: 1, options: [1, 2, 3, 6, 12].map((n) => [n, plural(n, "mes", "meses")]) })}${field({ label: "Monto cobrado", name: "amount", type: "number", value: S.priceWith(cur, 1, m.fee?.convenioId).total || "", attrs: 'inputmode="numeric" min="0"' })}</div>
       ${canChain ? `<fieldset class="radios"><legend>Desde cuándo cuenta</legend>
@@ -587,7 +596,7 @@ function dueSheet(m) {
   const v = m.fee?.dueAt ? dayKey(m.fee.dueAt) : dayKey(Date.now() + 30 * DAY);
   sheet({
     title: "Cambiar vencimiento",
-    html: `<form novalidate>${dateField({ label: "Vence el", name: "due", value: v, req: true })}${field({ label: "Plan", name: "plan", value: m.fee?.planId, options: S.db.plans.map((p) => [p.id, p.name]) })}<button class="btn primary block" type="submit">Guardar</button></form>`,
+    html: `<form novalidate>${dateField({ label: "Vence el", name: "due", value: v, req: true })}${field({ label: "Plan", name: "plan", value: m.fee?.planId, options: S.plansOf(S.spaceOf(m)).map((p) => [p.id, p.name]) })}<button class="btn primary block" type="submit">Guardar</button></form>`,
     onMount(b, close) {
       $("form", b).addEventListener("submit", (e) => {
         e.preventDefault();
@@ -611,25 +620,25 @@ export function previewView(params) {
 /* ---------------------------------------------------------------- cuotas */
 export function feesView(params, query) {
   const f = query.f || "";
-  const act = S.activeMembers();
+  const act = S.spaceMembers();
   const by = { ok: [], soon: [], late: [], none: [] };
   act.forEach((m) => by[S.feeStatus(m).state].push(m));
   const m0 = new Date(); m0.setDate(1); m0.setHours(0, 0, 0, 0);
   const m1c = new Date(m0.getFullYear(), m0.getMonth() + 1, 1).getTime();
-  const cobrado = S.db.payments.filter((p) => p.at >= m0.getTime() && p.at < m1c).reduce((a, p) => a + (p.amount || 0), 0);
+  const cobrado = S.paymentsOf().filter((p) => p.at >= m0.getTime() && p.at < m1c).reduce((a, p) => a + (p.amount || 0), 0);
   let list = f ? by[f] || [] : act;
   list = list.slice().sort((a, b) => (a.fee?.dueAt || 0) - (b.fee?.dueAt || 0));
   const chips = [["", "Todos", act.length], ["late", "Vencidas", by.late.length], ["soon", "Por vencer", by.soon.length], ["ok", "Al día", by.ok.length], ["none", "Sin cuota", by.none.length]];
   return {
     layout: "panel", nav: "cuotas", title: "Cuotas",
-    html: `${pageHead({ title: "Cuotas", actions: isAdmin() ? `<a class="btn ghost sm" href="#/panel/recaudacion">${icon("trend", "sm")} Recaudación</a><button class="btn ghost sm" type="button" data-act="convs">${icon("card", "sm")} Convenios</button><button class="btn ghost sm" type="button" data-act="plans">${icon("settings", "sm")} Planes y precios</button>` : "" })}
+    html: `${pageHead({ title: "Cuotas", actions: isAdmin() ? `<a class="btn ghost sm" href="#/panel/recaudacion">${icon("trend", "sm")} Recaudación</a>${S.currentSpace() === "vientos" ? `<button class="btn ghost sm" type="button" data-act="convs">${icon("card", "sm")} Convenios</button>` : ""}<button class="btn ghost sm" type="button" data-act="plans">${icon("settings", "sm")} Planes y precios</button>` : "" })}
       <section class="kpis">
         <div class="kpi"><b>${by.ok.length}</b><small>al día</small></div>
-        <div class="kpi warn"><b>${by.soon.length}</b><small>vencen en ${S.db.gym.reminderDays} días</small></div>
+        <div class="kpi warn"><b>${by.soon.length}</b><small>vencen en ${S.gymOf().reminderDays} días</small></div>
         <div class="kpi bad"><b>${by.late.length}</b><small>vencidas</small></div>
         ${isAdmin() ? `<a class="kpi" href="#/panel/recaudacion"><b>${money(cobrado)}</b><small>cobrado este mes</small><span class="cta">Ver historial ${icon("right", "xs")}</span></a>` : `<div class="kpi"><b>${money(cobrado)}</b><small>cobrado este mes</small></div>`}
       </section>
-      <p class="muted lead">El socio ve en la app cuándo vence su cuota y recibe el aviso ${S.db.gym.reminderDays} días antes.</p>
+      <p class="muted lead">El socio ve en la app cuándo vence su cuota y recibe el aviso ${S.gymOf().reminderDays} días antes.</p>
       <div class="chips-scroll">${chips.map(([k, l, n]) => `<a class="chip ${k === f ? "on" : ""}" href="#/panel/cuotas${k ? "?f=" + k : ""}">${l} <b>${n}</b></a>`).join("")}</div>
       <div class="mlist">${list.map((m) => {
         const st = S.feeStatus(m);
@@ -652,15 +661,16 @@ export function feesView(params, query) {
 }
 
 function plansSheet() {
+  const sp = S.currentSpace();
   const row = (p) => `<div class="planrow" data-id="${esc(p.id)}">
       <label class="field"><span>Nombre del plan</span><input type="text" name="pn" value="${esc(p.name)}" placeholder="Ej: Musculación · pase libre"></label>
       <label class="field"><span>Precio por mes</span><span class="affix"><i>$</i><input type="number" name="pp" value="${p.price || ""}" min="0" step="100" inputmode="numeric" placeholder="0"></span></label>
       <button type="button" class="icon-btn sm" data-del aria-label="Quitar plan">${icon("trash", "sm")}</button></div>`;
   sheet({
     title: "Planes y precios",
-    html: `<form novalidate><p class="muted tiny">Lo que paga un socio por mes en cada plan. Los convenios se descuentan sobre este precio.</p><div data-rows>${S.db.plans.map(row).join("")}</div>
+    html: `<form novalidate><p class="muted tiny">Lo que paga un socio por mes en cada plan${sp === "vientos" ? ". Los convenios se descuentan sobre este precio" : ` de ${esc(S.spaceInfo(sp).name)}`}.</p><div data-rows>${S.plansOf(sp).map(row).join("")}</div>
       <button type="button" class="btn ghost sm" data-add>${icon("plus", "sm")} Agregar plan</button>
-      ${field({ label: "Avisar al socio antes del vencimiento", name: "rd", value: S.db.gym.reminderDays, options: [3, 5, 7, 10].map((n) => [n, plural(n, "día", "días")]) })}
+      ${field({ label: "Avisar al socio antes del vencimiento", name: "rd", value: S.gymOf(sp).reminderDays, options: [3, 5, 7, 10].map((n) => [n, plural(n, "día", "días")]) })}
       <button class="btn primary block" type="submit">Guardar</button></form>`,
     onMount(b, close) {
       const rows = $("[data-rows]", b);
@@ -671,10 +681,11 @@ function plansSheet() {
       });
       $("form", b).addEventListener("submit", (e) => {
         e.preventDefault();
-        const plans = $$(".planrow", b).map((r) => ({ id: r.dataset.id, name: r.querySelector("[name=pn]").value.trim(), price: +r.querySelector("[name=pp]").value || 0 })).filter((p) => p.name);
+        const plans = $$(".planrow", b).map((r) => ({ id: r.dataset.id, name: r.querySelector("[name=pn]").value.trim(), price: +r.querySelector("[name=pp]").value || 0, ...(sp !== "vientos" ? { space: sp } : {}) })).filter((p) => p.name);
         if (!plans.length) return toast("Tiene que haber al menos un plan.", "err");
-        S.api.savePlans(plans);
-        S.api.saveGym({ reminderDays: +formData(e.target).rd });
+        /* se guardan los de este espacio y se conservan los del otro */
+        S.api.savePlans([...S.db.plans.filter((p) => S.planSpace(p) !== sp), ...plans]);
+        S.api.saveGym({ reminderDays: +formData(e.target).rd }, sp);
         close(); toast("Planes guardados"); refresh();
       });
     },
@@ -692,7 +703,7 @@ const sum = (l) => l.reduce((a, x) => a + (x.amount || 0), 0);
 export function recaudacionView(params, query) {
   const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
   const now = mkey(Date.now());
-  const all = S.db.payments.slice().sort((a, b) => b.at - a.at);
+  const all = S.paymentsOf().slice().sort((a, b) => b.at - a.at);
   const first = all.length ? mkey(all[all.length - 1].at) : now;
   /* de el primer mes con pagos hasta este mes, sin huecos */
   const months = [];
@@ -870,14 +881,15 @@ function priceLines(pr, charged) {
 
 const convPlans = (c) => (!c.planIds?.length ? "Todos los planes" : c.planIds.map((id) => S.plan(id)?.name).filter(Boolean).join(", ") || "Ningún plan");
 const convValue = (c) => (!+c.value ? "A definir" : c.type === "pct" ? `${c.value} %` : `${money(c.value)} / mes`);
-const convMembers = (id) => S.activeMembers().filter((m) => m.fee?.convenioId === id);
+const convMembers = (id) => S.spaceMembers("vientos").filter((m) => m.fee?.convenioId === id);
 const convInitials = (n) => String(n).replace(/\(.*\)/, "").trim().split(/[\s·]+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
 
 /* Pantalla de convenios: buscador, filtros y una ficha por empresa */
 export function conveniosView() {
+  if (S.currentSpace() !== "vientos") return go("/panel/cuotas", { replace: true });
   const list = S.convenios().slice().sort((x, y) => (+!+x.value) - (+!+y.value) || x.name.localeCompare(y.name, "es"));
   const withDisc = list.filter((c) => +c.value).length;
-  const people = S.activeMembers().filter((m) => S.convenio(m.fee?.convenioId)).length;
+  const people = S.spaceMembers("vientos").filter((m) => S.convenio(m.fee?.convenioId)).length;
   return {
     layout: "panel", nav: "cuotas", title: "Convenios",
     html: `${pageHead({ back: "#/panel/cuotas", kicker: "Cuotas", title: "Convenios", actions: `<button class="btn primary sm" type="button" data-act="new">${icon("plus", "sm")} Nuevo convenio</button>` })}
@@ -930,7 +942,7 @@ function convenioSheet(c) {
   const isNew = !c;
   c = c || { id: "c-" + Date.now().toString(36), name: "", type: "pct", value: 0, planIds: [], contact: "", phone: "", data: "" };
   const members = isNew ? [] : convMembers(c.id);
-  const ex = S.db.plans[0];
+  const ex = S.plansOf("vientos")[0];
   sheet({
     title: isNew ? "Nuevo convenio" : "Editar convenio",
     html: `<form novalidate class="cvform">
@@ -945,7 +957,7 @@ function convenioSheet(c) {
         <p class="cvex" data-ex></p>
       </fieldset>
       <fieldset class="cvsec"><legend>Vale para</legend>
-        <div class="cvplans">${S.db.plans.map((p) => `<label class="pchip"><input type="checkbox" name="plan" value="${esc(p.id)}" ${!c.planIds?.length || c.planIds.includes(p.id) ? "checked" : ""}><span>${esc(p.name)}</span></label>`).join("")}</div>
+        <div class="cvplans">${S.plansOf("vientos").map((p) => `<label class="pchip"><input type="checkbox" name="plan" value="${esc(p.id)}" ${!c.planIds?.length || c.planIds.includes(p.id) ? "checked" : ""}><span>${esc(p.name)}</span></label>`).join("")}</div>
       </fieldset>
       <fieldset class="cvsec"><legend>Datos de la empresa <em>(opcional)</em></legend>
         <div class="grid2">${field({ label: "Persona de contacto", name: "contact", value: c.contact || "" })}${field({ label: "Teléfono", name: "phone", type: "tel", value: c.phone || "" })}</div>
@@ -977,7 +989,7 @@ function convenioSheet(c) {
         if (S.convenios().some((x) => x.id !== c.id && fold(x.name) === fold(name))) return fail("Ya hay un convenio con ese nombre.");
         if (value < 0 || (type === "pct" && value > 100)) return fail("El porcentaje tiene que ser entre 1 y 100.");
         if (!on.length) return fail("Marcá al menos un plan.");
-        const next = { ...c, name, type, value, planIds: on.length === S.db.plans.length ? [] : on, contact: f.contact.value.trim(), phone: f.phone.value.trim(), data: f.data.value.trim() };
+        const next = { ...c, name, type, value, planIds: on.length === S.plansOf("vientos").length ? [] : on, contact: f.contact.value.trim(), phone: f.phone.value.trim(), data: f.data.value.trim() };
         const list = S.convenios().filter((x) => x.id !== c.id);
         S.api.saveConvenios(isNew ? [...list, next] : S.convenios().map((x) => (x.id === c.id ? next : x)));
         close(); toast(isNew ? "Convenio creado" : "Convenio guardado"); refresh();
@@ -1003,14 +1015,14 @@ export function noticesView() {
         ${field({ label: "Mensaje", name: "body", type: "textarea", ph: "Detalle del aviso" })}
         <button class="btn primary" type="submit">${icon("bell", "sm")} Publicar aviso</button>
       </form>
-      <section class="sec" data-notices>${S.db.notices.map((n) => `<article class="notice"><span class="notice-d">${esc(relDay(n.at))}</span><h3>${esc(n.title)}</h3><p>${esc(n.body)}</p><button class="icon-btn sm" type="button" data-del="${n.id}" aria-label="Borrar aviso">${icon("trash", "sm")}</button></article>`).join("") || empty("bell", "No hay avisos publicados")}</section>`,
+      <section class="sec" data-notices>${S.noticesOf().map((n) => `<article class="notice"><span class="notice-d">${esc(relDay(n.at))}</span><h3>${esc(n.title)}</h3><p>${esc(n.body)}</p><button class="icon-btn sm" type="button" data-del="${n.id}" aria-label="Borrar aviso">${icon("trash", "sm")}</button></article>`).join("") || empty("bell", "No hay avisos publicados")}</section>`,
     mount(host) {
       limitList($("[data-notices]", host), { size: 10 });
       $("form", host).addEventListener("submit", (e) => {
         e.preventDefault();
         const d = formData(e.target);
         if (!d.title.trim()) return toast("Escribí un título.", "err");
-        S.api.addNotice({ title: d.title.trim(), body: d.body.trim(), by: me().id });
+        S.api.addNotice({ title: d.title.trim(), body: d.body.trim(), by: me().id, ...(S.currentSpace() === "fitz" ? { space: "fitz" } : {}) });
         toast("Aviso publicado"); refresh();
       });
       host.addEventListener("click", async (e) => {
@@ -1024,19 +1036,19 @@ export function noticesView() {
 /* -------------------------------------------------------------- gimnasio */
 const WDN = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 export function gymView() {
-  const g = S.db.gym;
-  const team = S.db.users.filter((u) => u.role !== "socio" && u.status === "activo");
+  const sp = S.currentSpace(), fz = sp === "fitz", g = S.gymOf(sp);
+  const team = S.db.users.filter((u) => u.role !== "socio" && u.status === "activo" && S.inSpace(u));
   return {
     layout: "panel", nav: "gimnasio", title: "Gimnasio",
-    html: `${pageHead({ title: "Datos del gimnasio" })}
+    html: `${pageHead({ title: fz ? "Datos de Fitz Club" : "Datos del gimnasio" })}
       <div class="pgrid">
         <form class="card" data-gym novalidate>
           <div class="card-h"><h2>${icon("pin", "sm")} Contacto</h2></div>
           ${field({ label: "Nombre", name: "name", value: g.name, req: true })}
           <div class="grid2">${field({ label: "Dirección", name: "address", value: g.address })}${field({ label: "Ciudad", name: "city", value: g.city })}</div>
           <div class="grid2">${field({ label: "WhatsApp", name: "whatsapp", type: "tel", value: g.whatsapp })}${field({ label: "Instagram (usuario)", name: "instagram", value: g.instagram })}</div>
-          <label class="toggle"><span><b>Permitir que se registren solos desde la app</b><small>Apagado (recomendado): los socios los da de alta recepción o el profe al pagar.</small></span><input type="checkbox" name="selfSignup" ${g.selfSignup ? "checked" : ""} role="switch"><i aria-hidden="true"></i></label>
-          ${field({ label: "Código para registrarse solos", name: "joinCode", value: g.joinCode, hint: "Solo se usa si el registro desde la app está permitido." })}
+          ${fz ? "" : `<label class="toggle"><span><b>Permitir que se registren solos desde la app</b><small>Apagado (recomendado): los socios los da de alta recepción o el profe al pagar.</small></span><input type="checkbox" name="selfSignup" ${g.selfSignup ? "checked" : ""} role="switch"><i aria-hidden="true"></i></label>
+          ${field({ label: "Código para registrarse solos", name: "joinCode", value: g.joinCode, hint: "Solo se usa si el registro desde la app está permitido." })}`}
           <h3 class="sub">Horarios</h3>
           <div class="hours-ed">${[1, 2, 3, 4, 5, 6, 0].map((d) => { const [a, b] = (g.open[d] || "").split("-"); return `<div class="hrow-ed" data-d="${d}"><span>${WDN[d]}</span><label class="check"><input type="checkbox" data-closed ${g.open[d] ? "" : "checked"}><span>Cerrado</span></label><input type="time" data-a value="${a || "06:00"}" ${g.open[d] ? "" : "disabled"} aria-label="${WDN[d]} abre"><input type="time" data-b value="${b || "22:00"}" ${g.open[d] ? "" : "disabled"} aria-label="${WDN[d]} cierra"></div>`; }).join("")}</div>
           <button class="btn primary" type="submit">Guardar</button>
@@ -1061,7 +1073,8 @@ export function gymView() {
         if (!d.name.trim()) return toast("Escribí el nombre.", "err");
         const open = [...g.open];
         $$("[data-d]", f).forEach((r) => { open[+r.dataset.d] = r.querySelector("[data-closed]").checked ? "" : `${r.querySelector("[data-a]").value}-${r.querySelector("[data-b]").value}`; });
-        S.api.saveGym({ name: d.name.trim(), address: d.address, city: d.city, whatsapp: d.whatsapp, instagram: d.instagram.replace(/^@/, ""), joinCode: d.joinCode.trim() || g.joinCode, selfSignup: !!d.selfSignup, open });
+        const base = { name: d.name.trim(), address: d.address, city: d.city, whatsapp: d.whatsapp, instagram: d.instagram.replace(/^@/, ""), open };
+        S.api.saveGym(fz ? base : { ...base, joinCode: d.joinCode.trim() || g.joinCode, selfSignup: !!d.selfSignup }, sp);
         toast("Datos guardados");
       });
       host.addEventListener("click", async (e) => {
@@ -1094,7 +1107,7 @@ function coachSheet(role = "profe") {
         if (!d.fullname.trim() || !/^\S+@\S+\.\S+$/.test(d.email)) { err.textContent = "Completá nombre y un email válido."; err.hidden = false; return; }
         const pass = genPass();
         try {
-          const c = await S.api.createCoach({ name: d.fullname, email: d.email, phone: d.phone, pass, role });
+          const c = await S.api.createCoach({ name: d.fullname, email: d.email, phone: d.phone, pass, role, space: S.currentSpace() });
           close(); refresh();
           setTimeout(() => credentialsSheet(c, pass, adm ? "Administrador creado" : "Profe creado"), 300);
         } catch (e2) { err.textContent = e2.message; err.hidden = false; }
@@ -1105,13 +1118,13 @@ function coachSheet(role = "profe") {
 
 /* ------------------------------------------------------------- QR y "más" */
 export function qrView() {
-  const g = S.db.gym, url = installUrl();
+  const g = S.gymOf(), url = installUrl();
   return {
     layout: "panel", nav: "qr", title: "QR de la app",
     html: `${pageHead({ title: "QR de la app", actions: `<button class="btn primary sm" type="button" data-print>${icon("print", "sm")} Imprimir</button>` })}
       <p class="muted lead">Imprimilo y ponelo en recepción. El socio lo escanea <b>una sola vez</b> para instalar la app; después entra desde el ícono.</p>
       <article class="poster" id="poster">
-        <div class="poster-logo">${logo()}</div>
+        <div class="poster-logo">${spaceLogo(S.currentSpace())}</div>
         <h2>Tu rutina,<br><b>en tu celular</b></h2>
         <div class="poster-qr" data-qr></div>
         <ol class="poster-steps"><li>Escaneá el código con la cámara</li><li>Instalá la app (es gratis)</li><li>Entrá con tu <b>DNI</b> (usuario y contraseña)</li></ol>

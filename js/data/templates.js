@@ -14,7 +14,14 @@ export const BLOCK_TYPES = {
   super: { label: "Superserie", short: "Superserie" },
   contrast: { label: "Contraste", short: "Contraste" },
   circuit: { label: "Circuito", short: "Circuito" },
+  /* Programas por semanas (Fitz Club) */
+  prep: { label: "Movilidad y core", short: "Movilidad y core", program: true },
+  strength: { label: "Fuerza", short: "Fuerza", program: true },
+  accessory: { label: "Accesorios", short: "Accesorios", program: true },
+  emom: { label: "EMOM", short: "EMOM", program: true },
 };
+export const CLASSIC_BLOCKS = ["single", "super", "contrast", "circuit"];
+export const PROGRAM_BLOCKS = ["prep", "strength", "accessory", "emom"];
 
 /* Ayudantes compactos: it(ejercicio, series, reps, kg, descanso s, nota) */
 const it = (ex, sets, reps, kg = null, rest = 90, note = "") => ({ ex, sets, reps: String(reps), kg, rest, note });
@@ -235,6 +242,45 @@ export const TEMPLATES = [
       day("Día 3", "Circuito C",
         cir(3, 75, it("prensa", 3, "20", 80), it("slam-balon", 3, "12", 6), it("press-maquina", 3, "15", 25), it("puente-gluteo", 3, "20"), it("elevacion-piernas", 3, "12")),
         one("cinta", 1, "12 min", null, 0, "Caminata con inclinación")),
+    ],
+  },
+];
+
+/* ------------------------------------------------ programas por semanas (Fitz Club)
+   Un programa dura N semanas (6). Cada ejercicio tiene su prescripción por semana
+   en `wk`: [{ s: series (o minutos en EMOM), r: repeticiones }], una por semana.
+   El bloque "prep" (movilidad y core) es una lista para tildar, sin pesos: `col` dice
+   si va en la columna de movilidad ("mob") o de core ("core"). */
+const wks = (...list) => list.map(([s, r]) => ({ s, r: String(r) }));
+const same = (s, r, n = 6) => Array.from({ length: n }, () => ({ s, r: String(r) }));
+const ACC = () => wks([4, 6], [4, 6], [4, 8], [4, 8], [4, 10], [4, 10]);
+const EMOM_UP = () => wks([5, "10/12/14/16/18"], [5, "12/14/16/18/20"], [5, "14/16/18/20/20"], [5, "16/18/20/20/20"], [5, "18/20/20/20/20"], [5, "20/20/20/20/20"]);
+const pi = (ex, wk, note = "") => ({ ex, sets: wk[0].s, reps: wk[0].r, kg: null, rest: 0, note, wk });
+const prep = (mob, core) => ({ type: "prep", rest: 0, items: [...mob.map((ex) => ({ ex, sets: 1, reps: "10", kg: null, rest: 0, note: "", col: "mob" })), ...core.map((ex) => ({ ex, sets: 1, reps: "10", kg: null, rest: 0, note: "", col: "core" }))] });
+const pb = (type, rest, ...items) => ({ type, rest, items });
+
+export const PROGRAMS = [
+  {
+    key: "fitz-sm-6", kind: "program", space: "fitz", name: "Fuerza y movimiento", weeks: 6,
+    level: "Intermedio", audience: "Mixto", goal: "Fuerza y movimiento",
+    meta: { deporte: "", metodo: "Fuerza y movimiento", etapa: "" },
+    desc: "Programa de 6 semanas, 3 sesiones (A, B y C): movilidad y core, bloque de fuerza, accesorios con progresión semanal y EMOM.",
+    days: [
+      day("Sesión A", "Sentadilla · press vikingo",
+        prep(["sentadilla-pulso", "dorsiflexion-tobillo", "rock-back", "flexiones"], ["bicho-muerto", "bird-dog", "pallof"]),
+        pb("strength", 150, pi("sentadilla", same(4, 5)), pi("press-vikingo", same(4, 6))),
+        pb("accessory", 90, pi("peso-muerto-asimetrico", ACC()), pi("remo-90", ACC(), "Última serie AMRAP: todas las repeticiones que puedas con buena técnica"), pi("caminata-granjero", same(4, "30 s"))),
+        pb("emom", 0, pi("thruster-db", same(5, "6/8/10/12/14")))),
+      day("Sesión B", "Press banco · RDL",
+        prep(["bottom-up-kb", "push-up-barra", "pull-apart", "triceps-banda"], ["bicho-muerto", "bird-dog"]),
+        pb("strength", 150, pi("press-banca", same(4, 5)), pi("peso-muerto-rumano", same(4, 6))),
+        pb("accessory", 90, pi("bulgara-kb", ACC()), pi("rack-chin-up", ACC()), pi("transporte-valija", same(4, "30 s"))),
+        pb("emom", 0, pi("swing-americano", EMOM_UP()))),
+      day("Sesión C", "Peso muerto trap bar · press",
+        prep(["buenos-dias", "hip-90-90", "push-up-plus", "extension-pared"], ["bicho-muerto", "bird-dog"]),
+        pb("strength", 150, pi("peso-muerto-trapbar", same(4, 5)), pi("press-simultaneo-alterno", same(4, 6))),
+        pb("accessory", 90, pi("split-db", ACC()), pi("remo-polea-dividida", ACC()), pi("caminata-granjero", same(4, "30 s"), "Pesada")),
+        pb("emom", 0, pi("biceps-press", EMOM_UP()))),
     ],
   },
 ];

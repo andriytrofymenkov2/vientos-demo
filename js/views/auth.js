@@ -40,7 +40,7 @@ export function loginView() {
       </form>
       ${S.MODE === "demo" ? `<section class="demo-box" aria-label="Cuentas de demostración">
         <h2>${icon("info", "sm")} Probar la demostración</h2>
-        <div class="demo-acc">${DEMO_ACCOUNTS.map((a) => `<button type="button" class="demo-btn" data-demo="${a.user}"><b>${a.label}</b><small>${esc(a.hint)}</small></button>`).join("")}</div>
+        ${S.SPACES.map((sp) => `<h3 class="demo-sp">${esc(sp.name)}</h3><div class="demo-acc">${DEMO_ACCOUNTS.filter((a) => (a.space || "vientos") === sp.id).map((a) => `<button type="button" class="demo-btn" data-demo="${a.user}"><b>${a.label}</b><small>${esc(a.hint)}</small></button>`).join("")}</div>`).join("")}
         <p class="tiny muted">Datos ficticios guardados solo en este navegador. Contraseña de todas: ${DEMO_PASS}</p>
       </section>` : ""}
       <a class="auth-install" href="#/instalar">${icon("download", "sm")} Instalar la app en el celular</a>

@@ -56,3 +56,31 @@ dominada-explosiva: Inverted Row
 bici: Bicycling, Stationary
 cinta: Walking, Treadmill
 soga: Rope Jumping
+
+
+Fitz Club (Free Exercise DB, dominio público):
+sentadilla-pulso: Bodyweight Squat
+bicho-muerto: Dead Bug
+press-vikingo: Landmine Linear Jammer
+peso-muerto-asimetrico: One-Arm Side Deadlift
+remo-90: Bent Over Barbell Row
+caminata-granjero: Farmer's Walk
+transporte-valija: Farmer's Walk
+thruster-db: Kettlebell Thruster
+bottom-up-kb: Bottoms-Up Clean From The Hang Position
+push-up-barra: Incline Push-Up
+pull-apart: Band Pull Apart
+triceps-banda: Speed Band Overhead Triceps
+rack-chin-up: Chin-Up
+swing-americano: One-Arm Kettlebell Swings
+buenos-dias: Good Morning
+peso-muerto-trapbar: Trap Bar Deadlift
+press-simultaneo-alterno: Standing Alternating Dumbbell Press
+split-db: Split Squat with Dumbbells
+bulgara-kb: Split Squat with Dumbbells
+remo-polea-dividida: Kneeling Single-Arm High Pulley Row
+
+Fitz Club (wger.de):
+bird-dog: Imagen: Settebello · wger.de · CC BY-SA 4.0
+dorsiflexion-tobillo: Imagen: Davidgj32 · wger.de · CC BY-SA 4.0
+push-up-plus: Imagen: colaborador de wger · wger.de · CC BY-SA 4.0

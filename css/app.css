@@ -1213,3 +1213,119 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 
 .kpi-sub { font-style: normal; font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.3; }
 .kpis .kpi { align-content: start; }
+
+/* ------------------------------------------------------------------ Fitz Club
+   Espacio dentro de Vientos con su propia marca: grafito y dorado (del logo). */
+[data-space="fitz"] { --red: #9c7419; --red2: #e0b14a; --red-soft: rgba(201, 152, 46, .16); }
+[data-space="fitz"][data-theme="light"] { --red: #8a6512; --red2: #a87b17; --red-soft: rgba(168, 123, 23, .12); }
+.fitz-logo { display: block; width: 100%; height: auto; background: #fff; border-radius: 10px; padding: 4px 8px; }
+.brand.is-fitz { width: 92px; }
+.side .brand.is-fitz { width: 120px; }
+.mtop-logo.is-fitz { width: 84px; }
+
+/* ------------------------------------------------ programa por semanas (Fitz Club) */
+.prog-hero h1 { margin-bottom: 10px; }
+.prog-meta { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 6px; }
+.prog-meta span { background: var(--card2); border: 1px solid var(--line); border-radius: 12px; padding: 6px 12px; display: grid; }
+.prog-meta small { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.prog-meta b { font-size: 14px; }
+.prog-week .card-h h2 { font: 700 22px "Barlow Condensed", sans-serif; text-transform: uppercase; }
+.tracker { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px 14px; }
+.tk-w { display: grid; gap: 4px; padding: 6px; border-radius: 12px; }
+.tk-w.cur { background: var(--red-soft); }
+.tk-wn { font: 700 12px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.tk-w.cur .tk-wn { color: var(--red2); }
+.tk-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.tk-days i { display: grid; justify-items: center; font-style: normal; padding: 3px 0; border-radius: 8px; background: var(--card2); border: 1px solid transparent; }
+.tk-days i small { font-size: 9.5px; color: var(--muted); font-weight: 700; }
+.tk-days i b { font: 700 14px "Barlow Condensed", sans-serif; color: var(--text2); }
+.tk-days i.on { background: var(--red); }
+.tk-days i.on small, .tk-days i.on b { color: #fff; }
+.tk-days i.tk-today { border-color: var(--text); }
+.tk-days i.tk-fut { opacity: .45; }
+.pblk { margin-bottom: 14px; background: var(--card); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; }
+.pbh { padding: 12px 14px 8px; display: grid; gap: 4px; }
+.pbh small { color: var(--muted); font-size: 13px; }
+.pblk .exrow + .exrow { border-top: 1px solid var(--line); }
+.prep-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 12px 12px; }
+.prep-cols h4 { font: 700 13px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .08em; color: var(--red2); margin: 2px 0 6px; }
+.prep-it { display: flex; align-items: center; gap: 8px; padding: 6px 0; color: inherit; border-top: 1px solid var(--line); }
+.prep-it span { display: grid; min-width: 0; }
+.prep-it b { font-size: 13.5px; font-weight: 600; line-height: 1.2; }
+.prep-it small { color: var(--muted); font-size: 12px; }
+@media (max-width: 380px) { .prep-cols { grid-template-columns: 1fr; } }
+.prep-note { display: flex; justify-content: center; gap: 6px; margin: 8px 0 16px; }
+.setrow-n small { display: block; font-size: 9px; text-transform: uppercase; color: var(--muted); line-height: 1; }
+.wgrid { margin: 0 0 18px; }
+.wgrid-sc { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; }
+.wgrid table { width: 100%; border-collapse: collapse; font-size: 13.5px; min-width: 420px; }
+.wgrid th, .wgrid td { padding: 8px 6px; text-align: center; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.wgrid thead th { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); background: var(--card2); }
+.wgrid tbody th { text-align: left; padding-left: 12px; font-weight: 600; }
+.wgrid td.gx { color: var(--text2); }
+.wgrid tr.cur { background: var(--red-soft); }
+.wgrid tr.cur th { color: var(--red2); }
+.seg-mini { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--card2); border: 1px solid var(--line); }
+.seg-mini a { padding: 8px 12px; border-radius: 9px; color: var(--muted); font-weight: 600; font-size: 13px; }
+.seg-mini a.on { background: var(--red); color: #fff; }
+
+/* Programa impreso: la hoja de Vientos con el dorado y el logo del espacio */
+.pg-sheet .p-head { border-bottom-color: #b8892a; }
+.pg-logo { width: 120px; }
+.pg-logo .fitz-logo { padding: 0; border-radius: 0; }
+.pg-sheet .p-note { background: #fbf6ea; border-left-color: #b8892a; }
+.pg-sheet .p-dn { background: #b8892a; color: #15161a; }
+.pg-sheet .p-bh td { background: #f8f0dc; color: #6e5110; }
+.pg-sheet .p-n em { color: #9c7419; }
+.pg-box { border: 1.5px solid #d6d8de; border-radius: 10px; padding: 8px 10px 10px; margin: 0 0 8px; break-inside: avoid; page-break-inside: avoid; }
+.pg-box h3 { font: 700 15px "Barlow Condensed", Arial, sans-serif; text-transform: uppercase; letter-spacing: .05em; margin: 0 0 6px; }
+.pg-box h3 small { font: 500 11.5px "Barlow", Arial, sans-serif; text-transform: none; letter-spacing: 0; color: #6a6d75; margin-left: 6px; }
+.pg-att { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.pg-att th { font-size: 10.5px; text-transform: uppercase; letter-spacing: .04em; color: #444; padding: 3px 2px; font-weight: 700; }
+.pg-att thead th small { display: block; text-transform: none; letter-spacing: 0; font-weight: 500; color: #6a6d75; }
+.pg-att tbody th { text-align: left; width: 82px; font-size: 12px; }
+.pg-att td { text-align: center; padding: 3px; border-top: 1px solid #e3e5ea; }
+.pg-att i { display: inline-block; width: 22px; height: 22px; border: 1.5px solid #9aa0aa; border-radius: 5px; vertical-align: middle; }
+.pg-att i.on { background: #b8892a; border-color: #b8892a; }
+.pg-how { font-size: 12px; color: #5b5e66; margin: 0 0 10px; }
+.pg-prep { display: grid; grid-template-columns: 1fr 1fr; gap: 0; border-bottom: 1px solid #e3e5ea; }
+.pg-prep > div { padding: 6px 12px 8px; }
+.pg-prep > div + div { border-left: 1px solid #e3e5ea; }
+.pg-prep h4 { margin: 0 0 3px; font: 700 12px "Barlow Condensed", Arial, sans-serif; text-transform: uppercase; letter-spacing: .06em; color: #9c7419; }
+.pg-prep ul { list-style: none; margin: 0; padding: 0; font-size: 12.5px; }
+.pg-prep li { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; }
+.pg-prep li b { font-weight: 600; white-space: nowrap; color: #444; }
+.pg-t { table-layout: fixed; }
+.pg-t th:first-child { width: 30%; }
+.pg-c { text-align: center; padding: 4px 3px !important; vertical-align: top !important; }
+.pg-c span { display: block; font-size: 11.5px; font-weight: 600; line-height: 1.15; color: #333; }
+.pg-c i { display: block; height: 20px; margin-top: 3px; border: 1.2px solid #9aa0aa; border-radius: 4px; font: 600 11px/18px "Barlow", Arial, sans-serif; font-style: normal; color: #15161a; }
+.pg-day .p-n small { font-size: 11px; }
+@media (max-width: 640px) {
+  .pg-day { overflow-x: auto; }
+  .pg-t { min-width: 560px; }
+  .pg-att { min-width: 0; }
+  .pg-att thead th small { display: none; }
+  .pg-att tbody th { width: 64px; }
+  .pg-att i { width: 18px; height: 18px; }
+  .pg-prep { grid-template-columns: 1fr; }
+  .pg-prep > div + div { border-left: 0; border-top: 1px solid #e3e5ea; }
+}
+
+/* Editor de programas: progresión por semana */
+.wkgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 6px; margin: 8px 0 4px; }
+.wkgrid label { display: grid; gap: 2px; }
+.wkgrid small { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 700; }
+.wkgrid input { width: 100%; min-height: 40px; padding: 6px 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg2); color: var(--text); font: 600 14px "Barlow", sans-serif; text-align: center; }
+.wkgrid input.bad { border-color: var(--bad); }
+.wkgrid, .wk-help { grid-column: 1 / -1; }
+.wk-help { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.eb-t { font: 700 15px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .04em; color: var(--red2); }
+.eitem.prep .eitem-f { grid-template-columns: 90px 1fr; }
+
+/* Cada espacio con lo suyo */
+.demo-sp { margin: 14px 0 6px; font: 700 13px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.gym-photo.no-photo { display: grid; place-items: center; height: 150px; background: #fff; }
+.gym-photo.no-photo img.fitz-logo { width: 130px; height: auto; object-fit: contain; background: none; margin-bottom: 18px; }
+.gym-photo.no-photo::after { display: none; }
+.mtop-logo.is-fitz { width: 92px; }

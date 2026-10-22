@@ -1,9 +1,11 @@
+import { EXERCISES_FITZ } from "./exercises-fitz.js";
+
 /* Biblioteca inicial de ejercicios (editable desde el panel).
    Campos: id, n (nombre), g (grupo muscular), eq (equipamiento), sec (músculos secundarios),
    steps (instrucciones), tip (consejo del profe), video (enlace, vacío hasta grabar los de Vientos). */
 
-export const GROUPS = ["Pecho", "Espalda", "Hombros", "Bíceps", "Tríceps", "Cuádriceps", "Isquiotibiales", "Glúteos", "Pantorrillas", "Abdomen", "Potencia", "Cardio"];
-export const EQUIP = ["Barra", "Mancuernas", "Polea", "Máquina", "Peso corporal", "Kettlebell", "Banco", "Cajón", "Balón medicinal", "Bicicleta", "Soga"];
+export const GROUPS = ["Pecho", "Espalda", "Hombros", "Bíceps", "Tríceps", "Cuádriceps", "Isquiotibiales", "Glúteos", "Pantorrillas", "Abdomen", "Core", "Movilidad", "Potencia", "Cardio"];
+export const EQUIP = ["Barra", "Mancuernas", "Polea", "Máquina", "Peso corporal", "Kettlebell", "Banco", "Cajón", "Balón medicinal", "Bicicleta", "Soga", "Banda", "Trap bar", "Landmine"];
 
 const E = (id, n, g, eq, sec, steps, tip) => ({ id, n, g, eq, sec, steps, tip, video: "" });
 
@@ -313,4 +315,5 @@ export const EXERCISES = [
     "De pie, bajá a apoyar las manos.",
     "Llevá los pies atrás, flexión opcional, volvé y saltá.",
   ], "Mantené un ritmo que puedas sostener."),
+  ...EXERCISES_FITZ,
 ];

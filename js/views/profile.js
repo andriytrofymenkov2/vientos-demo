@@ -11,7 +11,7 @@ const toggle = (name, label, on, hint = "") => `<label class="toggle"><span><b>$
 export function profileView(params, query = {}) {
   const u = me(), staff = isStaff();
   const p = S.plan(u.fee?.planId);
-  const g = S.db.gym;
+  const g = S.gymOf(S.spaceOf(u));
   return {
     title: "Perfil", nav: staff ? "" : "perfil", layout: staff ? "panel" : "app",
     html: `${staff ? pageHead({ back: "#/panel/mas", title: "Mi cuenta" }) : ""}
@@ -19,7 +19,7 @@ export function profileView(params, query = {}) {
       ${!staff ? `<section class="card fee">
         <div class="card-h"><h2>${icon("card", "sm")} Mi cuota</h2>${feePill(u)}</div>
         ${u.fee ? `<dl class="kv"><div><dt>Plan</dt><dd>${esc(p?.name || "—")}</dd></div><div><dt>Vence</dt><dd>${fmtDate(u.fee.dueAt, { year: true })}</dd></div></dl>` : `<p class="muted">Todavía no hay una cuota cargada.</p>`}
-        <a class="btn ghost block sm" href="https://wa.me/${waNumber(g.whatsapp)}?text=${encodeURIComponent(`Hola! Soy ${u.name}, les aviso que pagué la cuota.`)}" target="_blank" rel="noopener">${icon("whatsapp", "sm")} Avisar que pagué</a>
+        <a class="btn ghost block sm" href="https://wa.me/${waNumber(g.whatsapp || S.user(u.coachId)?.phone || "")}?text=${encodeURIComponent(`Hola! Soy ${u.name}, les aviso que pagué la cuota.`)}" target="_blank" rel="noopener">${icon("whatsapp", "sm")} Avisar que pagué</a>
       </section>` : ""}
       <form class="card" data-form="info" novalidate>
         <div class="card-h"><h2>${icon("user", "sm")} Información personal</h2></div>
@@ -45,7 +45,7 @@ export function profileView(params, query = {}) {
         <button class="lrow" type="button" data-act="logout">${icon("logout", "sm")}<span>Cerrar sesión</span>${icon("right", "sm")}</button>
         ${!staff ? `<button class="lrow danger" type="button" data-act="delete">${icon("trash", "sm")}<span>Eliminar mi cuenta</span>${icon("right", "sm")}</button>` : ""}
       </section>
-      <p class="foot-note">Vientos GYM · App de socios${S.MODE === "demo" ? " · demostración" : ""}</p>`,
+      <p class="foot-note">${esc(g.name)} · App de socios${S.MODE === "demo" ? " · demostración" : ""}</p>`,
     mount(host) {
       if (query.clave) setTimeout(() => changePassword(u), 250);
       $("[data-form=info]", host).addEventListener("submit", (e) => {

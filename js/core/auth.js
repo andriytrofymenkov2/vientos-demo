@@ -11,6 +11,7 @@ const MAX_TRIES = 5, LOCK_MS = 60_000;
 
 let current = null;
 const server = () => S.MODE === "supabase";
+S.bindMe(() => current?.id);
 
 export function restore() {
   if (server()) {

@@ -1,6 +1,6 @@
 /* Service worker: la app abre rápido y funciona aunque se corte la señal en el gimnasio.
    Estrategia: primero la red (siempre lo último publicado); si no hay conexión, lo guardado. */
-const CACHE = "vientos-v49";
+const CACHE = "vientos-v50";
 const CORE = ["./", "index.html", "css/app.css", "js/app.js", "manifest.webmanifest", "img/icon-192.png", "img/fachada.jpg"];
 
 self.addEventListener("install", (e) => {
@@ -14,7 +14,7 @@ self.addEventListener("activate", (e) => {
     await self.clients.claim();
     /* Versión nueva: las pantallas que quedaron abiertas con la anterior (en iPhone la app
        queda viva días en segundo plano) se recargan solas con lo nuevo */
-    if (updated) (await self.clients.matchAll({ type: "window" })).forEach((c) => c.navigate(c.url).catch(() => {}));
+    if (updated) (await self.clients.matchAll({ type: "window" })).filter((c) => !c.url.includes("#/instalar")).forEach((c) => c.navigate(c.url).catch(() => {}));
   })());
 });
 self.addEventListener("fetch", (e) => {

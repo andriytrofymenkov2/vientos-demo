@@ -20,6 +20,8 @@ async function published() {
 /* auto: true = recargar sin preguntar; "boot" = recién abierta (una sola vez por versión) */
 async function check(auto) {
   if (!current || !navigator.onLine) return;
+  /* En la pantalla de instalación no se recarga ni se avisa: se cortaría la instalación */
+  if (location.hash.startsWith("#/instalar")) return;
   const v = await published();
   if (!v || v === current) return;
   if (auto === "boot") {

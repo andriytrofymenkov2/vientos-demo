@@ -170,23 +170,40 @@ export function installView() {
       });
       /* Android arma la app con Google: puede tardar de 10 s a 1 min. Se avisa y recién
          cuando termina ("appinstalled") se muestra "ya está instalada" */
-      let waitT = 0;
+      let waitT = 0, barT = 0;
       const installing = () => {
         const box = $("[data-installbox]", host);
         if (!box || $("[data-done]", host)) return;
-        box.innerHTML = `<div class="inst-wait" role="status"><span class="spin" aria-hidden="true"></span><h2>Instalando Vientos…</h2>
-          <p>Puede tardar <b>hasta un minuto</b>. No cierres esta pantalla: cuando termine, te avisa acá y aparece el ícono de Vientos en tu celular.</p></div>`;
+        box.innerHTML = `<div class="inst-wait" role="status"><h2>Instalando Vientos…</h2>
+          <div class="inst-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="5"><i style="width:5%"></i></div>
+          <p class="inst-pct" data-pct>5 %</p>
+          <p>Puede tardar <b>hasta un minuto</b>. <b>No cierres esta pantalla</b>: cuando llegue al 100 % aparece el ícono de Vientos en tu celular.</p></div>`;
+        /* Avanza sola y se va frenando (no se sabe cuánto tarda Android): llega al 100 % recién al terminar */
+        const t0 = Date.now();
+        clearInterval(barT);
+        barT = setInterval(() => {
+          const pct = Math.min(94, Math.round(94 * (1 - Math.exp(-(Date.now() - t0) / 22000))));
+          const bar = $(".inst-bar", host);
+          if (!bar) return clearInterval(barT);
+          bar.firstElementChild.style.width = pct + "%";
+          bar.setAttribute("aria-valuenow", pct);
+          const el = $("[data-pct]", host); if (el) el.textContent = pct + " %";
+        }, 400);
         clearTimeout(waitT);
         waitT = setTimeout(() => {
           const b = $("[data-installbox]", host);
-          if (b && !$("[data-done]", host)) b.innerHTML = `<div class="inst-wait"><h2>Ya casi</h2><p>Si pasó más de un minuto, buscá <b>Vientos</b> deslizando hacia arriba para ver todas tus apps: a veces el ícono queda ahí y no en la pantalla de inicio. Si no está, repetí la instalación desde el menú <b>⋮</b> de Chrome → <b>“Instalar app”</b>.</p></div>`;
+          if (b && !$("[data-done]", host)) { clearInterval(barT); b.innerHTML = `<div class="inst-wait"><h2>Ya casi</h2><p>Si pasó más de un minuto, buscá <b>Vientos</b> deslizando hacia arriba para ver todas tus apps: a veces el ícono queda ahí y no en la pantalla de inicio. Si no está, repetí la instalación desde el menú <b>⋮</b> de Chrome → <b>“Instalar app”</b>.</p></div>`; }
         }, 90000);
       };
       /* Instalada (por el botón o desde el menú de Chrome): se avisa con un cartel grande */
       const installed = () => {
-        clearTimeout(waitT);
+        clearTimeout(waitT); clearInterval(barT);
         const box = $("[data-installbox]", host);
         if (!box || $("[data-done]", host)) return;
+        const bar = $(".inst-bar", host);
+        if (bar) { bar.firstElementChild.style.width = "100%"; const el = $("[data-pct]", host); if (el) el.textContent = "100 %"; }
+        setTimeout(() => { const bx = $("[data-installbox]", host); if (bx && !$("[data-done]", host)) bx.innerHTML = donePanel(true); }, bar ? 700 : 0);
+        if (bar) { try { navigator.vibrate?.(60); } catch { /* sin vibración */ } return; }
         box.innerHTML = donePanel(true);
         const skip = $("[data-skip]", host);
         if (skip) skip.textContent = "Seguir en el navegador";

@@ -1344,3 +1344,6 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .inst-wait .spin { display: inline-block; width: 34px; height: 34px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--red); animation: inst-spin .9s linear infinite; }
 @keyframes inst-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .inst-wait .spin { animation-duration: 3s; } }
+.inst-bar { height: 12px; border-radius: 99px; background: var(--card2); border: 1px solid var(--line); overflow: hidden; margin: 14px 0 6px; }
+.inst-bar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--red), var(--red2)); transition: width .45s ease-out; }
+.inst-pct { font: 700 22px "Barlow Condensed", sans-serif; margin: 0 0 8px; }

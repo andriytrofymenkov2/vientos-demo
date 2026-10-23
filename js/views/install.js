@@ -105,7 +105,7 @@ function iosGuide(p) {
 const helpHtml = (android) => `<details class="inst-help"><summary>¿No aparece el ícono?</summary>
       ${android
         ? `<ol><li>Deslizá hacia arriba desde el centro de la pantalla y buscá <b>Vientos</b> en la lista de todas tus apps. Mantenelo apretado y arrastralo a la pantalla de inicio.</li>
-           <li>Esperá <b>un minuto</b>: Android a veces tarda en poner el ícono.</li>
+           <li>Esperá un ratito: a veces Android tarda en poner el ícono.</li>
            <li>En <b>Samsung</b>: Ajustes → Pantalla de inicio → activá <b>“Agregar apps nuevas a la pantalla de inicio”</b>. En <b>Xiaomi, Oppo o Realme</b>: Ajustes → Apps → Chrome → Permisos → activá <b>“Accesos directos”</b>.</li>
            <li>Si no está en ninguna lista: en Chrome tocá el menú <b>⋮</b> → <b>“Instalar app”</b> (o <b>“Agregar a la pantalla principal”</b>) y repetí.</li></ol>`
         : `<ol><li>Deslizá la pantalla de inicio hacia la <b>izquierda, hasta la última página</b>: ahí queda el ícono.</li>
@@ -194,7 +194,7 @@ export function installView() {
         box.innerHTML = `<div class="inst-wait" role="status"><h2>Instalando Vientos…</h2>
           <div class="inst-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="5"><i style="width:5%"></i></div>
           <p class="inst-pct" data-pct>5 %</p>
-          <p>Puede tardar <b>hasta un minuto</b>. <b>No cierres esta pantalla</b>: cuando llegue al 100 % aparece el ícono de Vientos en tu celular.</p></div>`;
+          <p>Tarda un ratito, como cualquier otra app. <b>No cierres esta pantalla</b>: cuando llegue al 100 % aparece el ícono de Vientos en tu celular.</p></div>`;
         /* Avanza sola y se va frenando (no se sabe cuánto tarda Android): llega al 100 % recién al terminar */
         const t0 = Date.now();
         clearInterval(barT);
@@ -209,7 +209,7 @@ export function installView() {
         clearTimeout(waitT);
         waitT = setTimeout(() => {
           const b = $("[data-installbox]", host);
-          if (b && !$("[data-done]", host)) { clearInterval(barT); b.innerHTML = `<div class="inst-wait"><h2>Ya casi</h2><p>Si pasó más de un minuto, buscá <b>Vientos</b> deslizando hacia arriba para ver todas tus apps: a veces el ícono queda ahí y no en la pantalla de inicio. Si no está, repetí la instalación desde el menú <b>⋮</b> de Chrome → <b>“Instalar app”</b>.</p></div>`; }
+          if (b && !$("[data-done]", host)) { clearInterval(barT); b.innerHTML = `<div class="inst-wait"><h2>Ya casi</h2><p>Si ya pasó un buen rato, buscá <b>Vientos</b> deslizando hacia arriba para ver todas tus apps: a veces el ícono queda ahí y no en la pantalla de inicio. Si no está, repetí la instalación desde el menú <b>⋮</b> de Chrome → <b>“Instalar app”</b>.</p></div>`; }
         }, 600000);
       };
       /* Instalada (por el botón o desde el menú de Chrome): se avisa con un cartel grande */
@@ -243,7 +243,7 @@ export function installView() {
         clearTimeout(waitT);
         const h = $(".inst-wait h2", host), pe = $(".inst-wait p:last-child", host);
         if (h) h.textContent = "Casi lista…";
-        if (pe) pe.innerHTML = "Esperando que Android termine de instalarla. <b>Puede tardar hasta un minuto y medio.</b> No cierres esta pantalla: cuando esté lista te lo avisamos.";
+        if (pe) pe.innerHTML = "Android está terminando de instalarla. <b>Tarda un ratito.</b> No cierres esta pantalla: cuando esté lista te lo avisamos.";
         const t0 = Date.now();
         clearInterval(pollT);
         pollT = setInterval(async () => {

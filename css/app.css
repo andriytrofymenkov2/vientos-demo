@@ -1347,3 +1347,6 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .inst-bar { height: 12px; border-radius: 99px; background: var(--card2); border: 1px solid var(--line); overflow: hidden; margin: 14px 0 6px; }
 .inst-bar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--red), var(--red2)); transition: width .45s ease-out; }
 .inst-pct { font: 700 22px "Barlow Condensed", sans-serif; margin: 0 0 8px; }
+.inst-help { width: 100%; text-align: left; margin-top: 4px; border-top: 1px solid var(--line); padding-top: 10px; }
+.inst-help summary { cursor: pointer; font-weight: 700; text-align: center; color: var(--text2); min-height: 44px; display: grid; place-items: center; }
+.inst-help ol { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 8px; font-size: 14.5px; line-height: 1.4; color: var(--text2); }

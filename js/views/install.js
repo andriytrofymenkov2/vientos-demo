@@ -107,7 +107,16 @@ const donePanel = (android) => `<div class="inst-done" data-done>
     <div class="mk-home" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><span class="mk-home-app"><img src="img/icon-192.png" alt=""><b>Vientos</b></span><i></i><i></i></div>
     <h2>${icon("checkc")} ¡Listo, ya está instalada!</h2>
     <p>Ahora <b>cerrá ${android ? "Chrome" : "Safari"}</b> y buscá este ícono en la pantalla de tu celular. <b>Abrí Vientos desde ahí.</b></p>
-    <p class="tiny muted">${android ? "Si no lo ves, deslizá hacia arriba para ver todas tus apps." : "Si no lo ves, pasá a la última página de tu pantalla de inicio."}</p>
+    <details class="inst-help"><summary>¿No aparece el ícono?</summary>
+      ${android
+        ? `<ol><li>Deslizá hacia arriba desde el centro de la pantalla y buscá <b>Vientos</b> en la lista de todas tus apps. Mantenelo apretado y arrastralo a la pantalla de inicio.</li>
+           <li>Esperá <b>un minuto</b>: Android a veces tarda en poner el ícono.</li>
+           <li>En <b>Samsung</b>: Ajustes → Pantalla de inicio → activá <b>“Agregar apps nuevas a la pantalla de inicio”</b>. En <b>Xiaomi, Oppo o Realme</b>: Ajustes → Apps → Chrome → Permisos → activá <b>“Accesos directos”</b>.</li>
+           <li>Si no está en ninguna lista: en Chrome tocá el menú <b>⋮</b> → <b>“Instalar app”</b> (o <b>“Agregar a la pantalla principal”</b>) y repetí.</li></ol>`
+        : `<ol><li>Deslizá la pantalla de inicio hacia la <b>izquierda, hasta la última página</b>: ahí queda el ícono.</li>
+           <li>O seguí deslizando hasta la <b>Biblioteca de apps</b> y buscá “Vientos” arriba.</li>
+           <li>Si no está: abrí el link en <b>Safari</b> (no Chrome, no WhatsApp), tocá Compartir → <b>“Agregar a inicio”</b> → <b>“Agregar”</b>.</li></ol>`}
+    </details>
   </div>`;
 
 const step = (n, ic, html) => `<li><span class="stp">${n}</span><span class="stp-i">${icon(ic)}</span><p>${html}</p></li>`;

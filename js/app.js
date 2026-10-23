@@ -10,7 +10,7 @@ import { homeView } from "./views/home.js";
 import { routineView, dayView, exerciseView, summaryView, printView } from "./views/routine.js";
 import { progressView } from "./views/progress.js";
 import { profileView } from "./views/profile.js";
-import { installView } from "./views/install.js";
+import { installView, platform } from "./views/install.js";
 import { assistantView } from "./views/assistant.js";
 import { panelHome, membersView, memberView, previewView, feesView, recaudacionView, conveniosView, noticesView, gymView, qrView, moreView } from "./views/panel.js";
 import { routineEditorView, templateEditorView, templatesView, exercisesView } from "./views/editor.js";
@@ -90,6 +90,15 @@ async function boot() {
   };
   pullToRefresh(() => window.__vientosSync());
 
+  /* Celular que todavía no la instaló y no ingresó (llega por el link de WhatsApp en vez del QR):
+     lo primero que ve es "Instalar la app de Vientos" (una vez por visita; "Seguir sin instalar" va al ingreso) */
+  try {
+    const h = location.hash, pl = platform();
+    if (!me() && pl.mobile && !pl.standalone && (!h || h === "#/" || h === "#/ingresar") && !sessionStorage.getItem("vientos_inst_vista")) {
+      sessionStorage.setItem("vientos_inst_vista", "1");
+      location.hash = "#/instalar";
+    }
+  } catch { /* sin almacenamiento */ }
   start();
   if (me()) resumeRest();
   document.getElementById("boot")?.remove();

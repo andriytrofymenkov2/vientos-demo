@@ -22,6 +22,12 @@ addEventListener("beforeinstallprompt", (e) => {
   dispatchEvent(new Event("vientos:installable"));
 });
 
+/* El service worker se registra ya, sin esperar a que carguen los datos: Chrome solo ofrece
+   "Instalar app" (y no un simple acceso directo) cuando ya lo tiene registrado */
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  navigator.serviceWorker.register("sw.js").catch(() => { /* sin modo sin conexión */ });
+}
+
 /* Que nadie pueda meter la app dentro de otra página para engañar a los clics */
 if (window.top !== window.self) { try { window.top.location = window.location.href; } catch { document.documentElement.hidden = true; } }
 
@@ -104,9 +110,6 @@ async function boot() {
   document.getElementById("boot")?.remove();
   watchUpdates(new URL(import.meta.url).searchParams.get("v"));
 
-  if ("serviceWorker" in navigator && location.protocol === "https:") {
-    navigator.serviceWorker.register("sw.js").catch(() => { /* sin modo sin conexión */ });
-  }
 }
 
 boot().catch((err) => {

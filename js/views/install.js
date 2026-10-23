@@ -92,7 +92,7 @@ function iosGuide(p) {
         <div class="mk">${mk}</div>
         <p>${t}</p>
       </section>`).join("")}
-      <section class="ig-step" data-step="${steps.length}">${donePanel(false)}</section>
+      <section class="ig-step" data-step="${steps.length}">${iosPanel()}</section>
       <div class="ig-nav">
         <button class="btn ghost" type="button" data-prev disabled>${icon("left")}</button>
         <div class="ig-dots">${[...steps, 0].map((_, i) => `<i class="${i ? "" : "on"}"></i>`).join("")}</div>
@@ -102,12 +102,7 @@ function iosGuide(p) {
     <div class="ios-arrow ${where}" aria-hidden="true">${icon(where === "top-right" ? "up" : "down")}<span>Compartir</span></div>`;
 }
 
-/* Cartel final, cuando termina la instalación (la barra en Android; el último paso en iPhone) */
-const donePanel = (android) => `<div class="inst-done" data-done>
-    <div class="mk-home" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><span class="mk-home-app"><img src="img/icon-192.png" alt=""><b>Vientos</b></span><i></i><i></i></div>
-    <h2>${icon("checkc")} ¡Listo, ya está instalada!</h2>
-    <p>Ahora <b>cerrá ${android ? "Chrome" : "Safari"}</b> y buscá este ícono en la pantalla de tu celular. <b>Abrí Vientos desde ahí.</b></p>
-    <details class="inst-help"><summary>¿No aparece el ícono?</summary>
+const helpHtml = (android) => `<details class="inst-help"><summary>¿No aparece el ícono?</summary>
       ${android
         ? `<ol><li>Deslizá hacia arriba desde el centro de la pantalla y buscá <b>Vientos</b> en la lista de todas tus apps. Mantenelo apretado y arrastralo a la pantalla de inicio.</li>
            <li>Esperá <b>un minuto</b>: Android a veces tarda en poner el ícono.</li>
@@ -116,7 +111,20 @@ const donePanel = (android) => `<div class="inst-done" data-done>
         : `<ol><li>Deslizá la pantalla de inicio hacia la <b>izquierda, hasta la última página</b>: ahí queda el ícono.</li>
            <li>O seguí deslizando hasta la <b>Biblioteca de apps</b> y buscá “Vientos” arriba.</li>
            <li>Si no está: abrí el link en <b>Safari</b> (no Chrome, no WhatsApp), tocá Compartir → <b>“Agregar a inicio”</b> → <b>“Agregar”</b>.</li></ol>`}
-    </details>
+    </details>`;
+/* iPhone: Apple no deja que una web vea si el ícono ya está; por eso no se afirma que quedó instalada */
+const iosPanel = () => `<div class="inst-done" data-done>
+    <div class="mk-home" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><span class="mk-home-app"><img src="img/icon-192.png" alt=""><b>Vientos</b></span><i></i><i></i></div>
+    <h2>Buscá el ícono de Vientos</h2>
+    <p>Quedó al <b>final de tu pantalla de inicio</b> (deslizá hacia la izquierda hasta la última página). <b>Abrí Vientos desde ese ícono.</b></p>
+    ${helpHtml(false)}
+  </div>`;
+/* Cartel final, cuando termina la instalación (la barra en Android; el último paso en iPhone) */
+const donePanel = (android) => `<div class="inst-done" data-done>
+    <div class="mk-home" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><span class="mk-home-app"><img src="img/icon-192.png" alt=""><b>Vientos</b></span><i></i><i></i></div>
+    <h2>${icon("checkc")} ¡Listo, ya está instalada!</h2>
+    <p>Ahora <b>cerrá ${android ? "Chrome" : "Safari"}</b> y buscá este ícono en la pantalla de tu celular. <b>Abrí Vientos desde ahí.</b></p>
+    ${helpHtml(android)}
   </div>`;
 
 const step = (n, ic, html) => `<li><span class="stp">${n}</span><span class="stp-i">${icon(ic)}</span><p>${html}</p></li>`;
@@ -179,7 +187,7 @@ export function installView() {
       });
       /* Android arma la app con Google: puede tardar de 10 s a 1 min. Se avisa y recién
          cuando termina ("appinstalled") se muestra "ya está instalada" */
-      let waitT = 0, barT = 0;
+      let waitT = 0, barT = 0, pollT0 = 0;
       const installing = () => {
         const box = $("[data-installbox]", host);
         if (!box || $("[data-done]", host)) return;
@@ -202,35 +210,48 @@ export function installView() {
         waitT = setTimeout(() => {
           const b = $("[data-installbox]", host);
           if (b && !$("[data-done]", host)) { clearInterval(barT); b.innerHTML = `<div class="inst-wait"><h2>Ya casi</h2><p>Si pasó más de un minuto, buscá <b>Vientos</b> deslizando hacia arriba para ver todas tus apps: a veces el ícono queda ahí y no en la pantalla de inicio. Si no está, repetí la instalación desde el menú <b>⋮</b> de Chrome → <b>“Instalar app”</b>.</p></div>`; }
-        }, 90000);
+        }, 600000);
       };
       /* Instalada (por el botón o desde el menú de Chrome): se avisa con un cartel grande */
+      /* "Listo" SOLO cuando Chrome confirma que la app ya está instalada en el celular
+         (getInstalledRelatedApps). Si no se puede confirmar, no se dice que quedó instalada. */
+      const isInstalled = async () => {
+        if (!navigator.getInstalledRelatedApps) return null;
+        try { return (await navigator.getInstalledRelatedApps()).some((x) => x.platform === "webapp"); } catch { return null; }
+      };
+      const finish = () => {
+        clearInterval(barT); clearInterval(pollT);
+        const bx = $("[data-installbox]", host);
+        if (!bx || $("[data-done]", host)) return;
+        bx.innerHTML = donePanel(true);
+        const skip = $("[data-skip]", host);
+        if (skip) skip.textContent = "Seguir en el navegador";
+        try { navigator.vibrate?.([60, 40, 60]); } catch { /* sin vibración */ }
+      };
+      const unsure = (unsupported) => {
+        clearInterval(barT); clearInterval(pollT);
+        const bx = $("[data-installbox]", host);
+        if (!bx || $("[data-done]", host)) return;
+        bx.innerHTML = `<div class="inst-wait"><h2>${unsupported ? "Buscá el ícono de Vientos" : "No pudimos confirmar la instalación"}</h2>
+          <p>${unsupported ? "Android terminó de instalarla, pero este navegador no nos deja confirmar que ya esté en tu pantalla." : "Todavía no vemos la app en tu celular."} Buscá <b>Vientos</b> deslizando hacia arriba para ver todas tus apps.</p>
+          ${helpHtml(true)}</div>`;
+      };
+      let pollT = 0;
       const installed = () => {
-        clearTimeout(waitT); clearInterval(barT);
-        const box = $("[data-installbox]", host);
-        if (!box || $("[data-done]", host)) return;
-        const finish = () => {
-          const bx = $("[data-installbox]", host);
-          if (!bx || $("[data-done]", host)) return;
-          bx.innerHTML = donePanel(true);
-          const skip = $("[data-skip]", host);
-          if (skip) skip.textContent = "Seguir en el navegador";
-          try { navigator.vibrate?.(60); } catch { /* sin vibración */ }
-        };
-        const bar = $(".inst-bar", host);
-        if (!bar) return finish();
-        /* Chrome ya la armó, pero Android tarda unos 30 s más en poner el ícono: la barra sigue hasta entonces */
+        if ($("[data-done]", host)) return;
+        if (!$(".inst-bar", host)) installing();
+        clearTimeout(waitT);
         const h = $(".inst-wait h2", host), pe = $(".inst-wait p:last-child", host);
         if (h) h.textContent = "Casi lista…";
-        if (pe) pe.innerHTML = "Android está poniendo el ícono de Vientos en tu celular. <b>Tarda unos 30 segundos.</b> No cierres esta pantalla.";
-        const t0 = Date.now(), from = parseInt(bar.getAttribute("aria-valuenow")) || 60, TOTAL = 35000;
-        barT = setInterval(() => {
-          const pct = Math.min(100, Math.round(from + (100 - from) * ((Date.now() - t0) / TOTAL)));
-          bar.firstElementChild.style.width = pct + "%";
-          bar.setAttribute("aria-valuenow", pct);
-          const el = $("[data-pct]", host); if (el) el.textContent = pct + " %";
-          if (pct >= 100) { clearInterval(barT); setTimeout(finish, 600); }
-        }, 300);
+        if (pe) pe.innerHTML = "Esperando que Android termine de instalarla. <b>Puede tardar hasta un minuto y medio.</b> No cierres esta pantalla: cuando esté lista te lo avisamos.";
+        const t0 = Date.now();
+        clearInterval(pollT);
+        pollT = setInterval(async () => {
+          const ok = await isInstalled();
+          if (ok === true) { const bar = $(".inst-bar", host); if (bar) { clearInterval(barT); bar.firstElementChild.style.width = "100%"; const el = $("[data-pct]", host); if (el) el.textContent = "100 %"; } clearInterval(pollT); setTimeout(finish, 700); }
+          else if (ok === null) unsure(true);
+          else if (Date.now() - t0 > 150000) unsure(false);
+        }, 2500);
       };
       addEventListener("appinstalled", installed);
       /* Guía por voz: lee cada paso con una pausa para hacerlo */

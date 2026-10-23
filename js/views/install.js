@@ -166,10 +166,25 @@ export function installView() {
         e.prompt();
         const r = await e.userChoice;
         window.__bip = null;
-        if (r.outcome === "accepted") installed();
+        if (r.outcome === "accepted") installing();
       });
+      /* Android arma la app con Google: puede tardar de 10 s a 1 min. Se avisa y recién
+         cuando termina ("appinstalled") se muestra "ya está instalada" */
+      let waitT = 0;
+      const installing = () => {
+        const box = $("[data-installbox]", host);
+        if (!box || $("[data-done]", host)) return;
+        box.innerHTML = `<div class="inst-wait" role="status"><span class="spin" aria-hidden="true"></span><h2>Instalando Vientos…</h2>
+          <p>Puede tardar <b>hasta un minuto</b>. No cierres esta pantalla: cuando termine, te avisa acá y aparece el ícono de Vientos en tu celular.</p></div>`;
+        clearTimeout(waitT);
+        waitT = setTimeout(() => {
+          const b = $("[data-installbox]", host);
+          if (b && !$("[data-done]", host)) b.innerHTML = `<div class="inst-wait"><h2>Ya casi</h2><p>Si pasó más de un minuto, buscá <b>Vientos</b> deslizando hacia arriba para ver todas tus apps: a veces el ícono queda ahí y no en la pantalla de inicio. Si no está, repetí la instalación desde el menú <b>⋮</b> de Chrome → <b>“Instalar app”</b>.</p></div>`;
+        }, 90000);
+      };
       /* Instalada (por el botón o desde el menú de Chrome): se avisa con un cartel grande */
       const installed = () => {
+        clearTimeout(waitT);
         const box = $("[data-installbox]", host);
         if (!box || $("[data-done]", host)) return;
         box.innerHTML = donePanel(true);

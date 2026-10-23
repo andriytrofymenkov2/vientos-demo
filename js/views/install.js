@@ -102,29 +102,12 @@ function iosGuide(p) {
     <div class="ios-arrow ${where}" aria-hidden="true">${icon(where === "top-right" ? "up" : "down")}<span>Compartir</span></div>`;
 }
 
-/* Cierre de la instalación. Una web no puede ver si el ícono ya está en la pantalla del celular
-   (ni en Android ni en iPhone), así que "listo" aparece SOLO cuando la persona confirma que lo ve. */
-const MOCK_HOME = `<div class="mk-home" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><span class="mk-home-app"><img src="img/icon-192.png" alt=""><b>Vientos</b></span><i></i><i></i></div>`;
-const donePanel = (android) => `<div class="inst-done" data-done data-android="${android ? 1 : 0}">
-    ${MOCK_HOME}
-    <h2>¿Ya ves el ícono de Vientos?</h2>
-    <p>Buscalo en la pantalla de inicio de tu celular${android ? ", o deslizando hacia arriba para ver todas tus apps" : " (en la última página, o en la Biblioteca de apps)"}.</p>
-    <button class="btn primary block lg" type="button" data-seen>Sí, ya lo veo</button>
-    <button class="btn ghost block" type="button" data-notyet>Todavía no</button>
-  </div>`;
-const seenPanel = (android) => `<div class="inst-done" data-done data-android="${android ? 1 : 0}">
-    ${MOCK_HOME}
+/* Cartel final, cuando termina la instalación (la barra en Android; el último paso en iPhone) */
+const donePanel = (android) => `<div class="inst-done" data-done>
+    <div class="mk-home" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><span class="mk-home-app"><img src="img/icon-192.png" alt=""><b>Vientos</b></span><i></i><i></i></div>
     <h2>${icon("checkc")} ¡Listo, ya está instalada!</h2>
-    <p>Ahora <b>cerrá ${android ? "Chrome" : "Safari"}</b> y <b>abrí Vientos desde ese ícono</b>. Entrá con tu usuario y contraseña.</p>
-  </div>`;
-const notYetPanel = (android) => `<div class="inst-done" data-done data-android="${android ? 1 : 0}">
-    <h2>Esperá un poco más</h2>
-    ${android
-      ? `<p>En Android el ícono puede tardar <b>hasta un minuto</b> en aparecer. Después buscá <b>Vientos</b> deslizando hacia arriba para ver todas tus apps.</p>
-         <p class="tiny muted">Si no aparece: en Chrome tocá el menú <b>⋮</b> → <b>“Instalar app”</b> (o <b>“Agregar a la pantalla principal”</b>) y repetí.</p>`
-      : `<p>Deslizá la pantalla de inicio hacia la izquierda hasta <b>la última página</b>, o seguí hasta la <b>Biblioteca de apps</b> y buscá “Vientos”.</p>
-         <p class="tiny muted">Si no está: en <b>Safari</b> tocá Compartir → <b>“Agregar a inicio”</b> → <b>“Agregar”</b> (arriba a la derecha) y repetí.</p>`}
-    <button class="btn primary block" type="button" data-askagain>Ya lo veo</button>
+    <p>Ahora <b>cerrá ${android ? "Chrome" : "Safari"}</b> y buscá este ícono en la pantalla de tu celular. <b>Abrí Vientos desde ahí.</b></p>
+    <p class="tiny muted">${android ? "Si no lo ves, deslizá hacia arriba para ver todas tus apps." : "Si no lo ves, pasá a la última página de tu pantalla de inicio."}</p>
   </div>`;
 
 const step = (n, ic, html) => `<li><span class="stp">${n}</span><span class="stp-i">${icon(ic)}</span><p>${html}</p></li>`;
@@ -213,14 +196,6 @@ export function installView() {
         }, 90000);
       };
       /* Instalada (por el botón o desde el menú de Chrome): se avisa con un cartel grande */
-      host.addEventListener("click", (e) => {
-        const d = $("[data-done]", host);
-        if (!d) return;
-        const android = d.dataset.android === "1";
-        const wrap = d.parentElement;
-        if (e.target.closest("[data-seen],[data-askagain]")) { wrap.innerHTML = seenPanel(android); try { navigator.vibrate?.([60, 40, 60]); } catch { /* sin vibración */ } }
-        else if (e.target.closest("[data-notyet]")) wrap.innerHTML = notYetPanel(android);
-      });
       const installed = () => {
         clearTimeout(waitT); clearInterval(barT);
         const box = $("[data-installbox]", host);

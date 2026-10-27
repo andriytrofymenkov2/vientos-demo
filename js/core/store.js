@@ -364,14 +364,17 @@ export function trackedExercises(userId) {
 }
 
 /* Racha: semanas seguidas (hasta la actual) con al menos un entrenamiento */
+/* Asistencia real: un día cuenta solo si se marcó al menos una serie (en producción, un
+   registro sin series no suma). Los socios de ejemplo de la demo traen historial sin series. */
+const attended = (userId) => logsOf(userId).filter((l) => MODE !== "supabase" || l.sets?.length);
 export function streakWeeks(userId) {
-  const weeks = new Set(logsOf(userId).map((l) => weekStart(l.at)));
+  const weeks = new Set(attended(userId).map((l) => weekStart(l.at)));
   let w = weekStart(), n = 0;
   if (!weeks.has(w)) w -= 7 * DAY;
   while (weeks.has(w)) { n++; w -= 7 * DAY; }
   return n;
 }
-export const trainedDays = (userId) => new Set(logsOf(userId).map((l) => dayKey(l.at)));
+export const trainedDays = (userId) => new Set(attended(userId).map((l) => dayKey(l.at)));
 
 /* Semana que arranca el lunes:
    · Rutinas de 5, 6 o 7 días: semana fija. El Día 1 es del lunes, el Día 2 del martes, y así.

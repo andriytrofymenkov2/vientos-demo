@@ -55,7 +55,7 @@ const IC = {
   star: '<svg viewBox="0 0 24 24"><path d="m12 4 2.4 5 5.4.7-4 3.8 1 5.4L12 16.3 7.2 19l1-5.4-4-3.8 5.4-.7z"/></svg>',
 };
 /* El botón Compartir, gigante: lo único que hay que buscar */
-const mockBig = () => `<div class="mk-big"><span class="hl">${IC.share}</span><small>El cuadradito con la flecha para arriba</small></div>`;
+const mockBig = () => `<div class="mk-big"><span class="hl">${IC.share}</span><small>El cuadradito con la flecha para arriba. Si no lo ves: los tres puntitos ··· y ahí “Compartir”.</small></div>`;
 const mockBarOld = () => `<div class="mk-bar"><span>${IC.back}</span><span>${IC.fwd}</span><span class="hl">${IC.share}</span><span>${IC.book}</span><span>${IC.tabs}</span></div>`;
 const mockBarNew = () => `<div class="mk-bar new"><span>${IC.back}</span><span class="mk-url">amplifia…</span><span class="hl">${IC.dots}</span></div>`;
 const mockBarChrome = () => `<div class="mk-bar top"><span class="mk-url">amplifia…</span><span class="hl">${IC.share}</span></div>`;
@@ -74,14 +74,14 @@ function iosGuide(p) {
      así que cada paso dice qué hacer en los dos casos. */
   const chrome = p.iosBrowser === "chrome";
   const steps = [
-    [`Buscá este botón <b>${chrome || p.ipad ? "arriba" : "abajo"}</b> en la pantalla y tocalo.`, mockBig()],
+    [`Buscá este botón <b>${chrome || p.ipad ? "arriba" : "abajo"}</b> en la pantalla y tocalo. <span class="ig-alt">Si no lo ves, tocá los <b>tres puntitos ···</b> y elegí <b>“Compartir”</b>.</span>`, mockBig()],
     [`Bajá y tocá <b>“Agregar a inicio”</b>. <span class="ig-alt">Si no está, tocá <b>“Ver más”</b>.</span>`, mockShare()],
     [`Tocá <b>“Agregar”</b>.`, mockAdd(false)],
   ];
   const where = chrome || p.ipad ? "top-right" : "bottom-center";
   /* Texto de cada paso para la guía por voz */
   const spoken = steps.map(([t], i) => `Paso ${i + 1}. ` + t.replace(/<[^>]+>/g, "").replace(/[“”]/g, "").replace(/\s*···\s*/g, " ").replace(/\s+/g, " ").replace(/ ([:,.])/g, "$1").trim());
-  spoken[0] = `Paso 1. Tocá el botón del cuadradito con la flecha para arriba, ${chrome || p.ipad ? "arriba" : "abajo"} en la pantalla.`;
+  spoken[0] = `Paso 1. Tocá el botón del cuadradito con la flecha para arriba, ${chrome || p.ipad ? "arriba" : "abajo"} en la pantalla. Si no lo ves, tocá los tres puntitos y elegí Compartir.`;
   return `<div class="ig-help">
       <p class="ig-why">${icon("info", "xs")} Son 3 pasos. Tocá el botón rojo y una voz te los va diciendo.</p>
       <button class="btn primary block lg" type="button" data-voice data-say="${esc(JSON.stringify(spoken))}">${icon("sound")} Guiame con voz</button>

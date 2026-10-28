@@ -6,6 +6,7 @@ import { me, logout, remembered, setRemember, passwordIssues, isStaff } from "..
 import { go, refresh } from "../core/router.js";
 import { appVersion, forceUpdate } from "../core/update.js";
 import { avatar, field, dateField, formData, toast, sheet, applyTheme, feePill, pageHead } from "../core/ui.js";
+import { platform } from "./install.js";
 
 const toggle = (name, label, on, hint = "") => `<label class="toggle"><span><b>${esc(label)}</b>${hint ? `<small>${esc(hint)}</small>` : ""}</span><input type="checkbox" name="${name}" ${on ? "checked" : ""} role="switch"><i aria-hidden="true"></i></label>`;
 
@@ -42,7 +43,7 @@ export function profileView(params, query = {}) {
       <section class="card">
         <div class="card-h"><h2>${icon("shield", "sm")} Seguridad</h2></div>
         <button class="lrow" type="button" data-act="pass">${icon("lock", "sm")}<span>Cambiar contraseña</span>${icon("right", "sm")}</button>
-        <a class="lrow" href="#/instalar">${icon("download", "sm")}<span>Instalar la app en el celular</span>${icon("right", "sm")}</a>
+        ${platform().standalone ? "" : `<a class="lrow" href="#/instalar">${icon("download", "sm")}<span>Instalar la app en el celular</span>${icon("right", "sm")}</a>`}
         <button class="lrow" type="button" data-act="upd">${icon("repeat", "sm")}<span>Buscar actualización <small class="muted">· versión ${esc(appVersion() || "—")}</small></span>${icon("right", "sm")}</button>
         <button class="lrow" type="button" data-act="logout">${icon("logout", "sm")}<span>Cerrar sesión</span>${icon("right", "sm")}</button>
         ${!staff ? `<button class="lrow danger" type="button" data-act="delete">${icon("trash", "sm")}<span>Eliminar mi cuenta</span>${icon("right", "sm")}</button>` : ""}

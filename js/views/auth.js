@@ -6,6 +6,7 @@ import { login, me, logout, passwordIssues } from "../core/auth.js";
 import { go, homeOf } from "../core/router.js";
 import { field, formData, applyTheme } from "../core/ui.js";
 import { DEMO_ACCOUNTS, DEMO_PASS } from "../data/demo.js";
+import { platform } from "./install.js";
 
 const hero = (sub) => `<div class="auth-hero"><img src="img/portada.jpg" alt="" aria-hidden="true"><div class="auth-shade"></div>
   <div class="auth-brand">${logo()}<span class="auth-sub">${sub}</span></div></div>`;
@@ -43,7 +44,7 @@ export function loginView() {
         ${S.SPACES.filter((sp) => sp.id !== "fitz" || /[?&]demo=fitz/.test(location.search)).map((sp) => `<h3 class="demo-sp">${esc(sp.name)}</h3><div class="demo-acc">${DEMO_ACCOUNTS.filter((a) => (a.space || "vientos") === sp.id).map((a) => `<button type="button" class="demo-btn" data-demo="${a.user}"><b>${a.label}</b><small>${esc(a.hint)}</small></button>`).join("")}</div>`).join("")}
         <p class="tiny muted">Datos ficticios guardados solo en este navegador. Contraseña de todas: ${DEMO_PASS}</p>
       </section>` : ""}
-      <a class="auth-install" href="#/instalar">${icon("download", "sm")} Instalar la app en el celular</a>
+      ${platform().standalone ? "" : `<a class="auth-install" href="#/instalar">${icon("download", "sm")} Instalar la app en el celular</a>`}
     </div>`,
     mount(host) {
       wireEyes(host);

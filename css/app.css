@@ -562,7 +562,7 @@ body:has(.layout-focus .dock) .rest { bottom: calc(84px + env(safe-area-inset-bo
 /* ============================================================= INSTALAR */
 .inst { width: 100%; max-width: 460px; margin: 0 auto; padding: calc(36px + env(safe-area-inset-top)) 16px 40px; display: grid; gap: 14px; text-align: center; justify-items: center; }
 .inst-icon img { width: 84px; height: 84px; border-radius: 20px; box-shadow: var(--shadow); }
-.inst-logo { width: 180px; }
+.inst-logo { width: 240px; }
 .inst h1 { font: 700 34px/1 "Barlow Condensed", sans-serif; text-transform: uppercase; }
 .inst > .btn { width: 100%; }
 .steps { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 10px; width: 100%; text-align: left; }

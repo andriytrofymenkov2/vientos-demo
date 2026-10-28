@@ -155,7 +155,6 @@ export function installView() {
   return {
     layout: "auth", title: "Instalar la app",
     html: `<div class="inst">
-        <div class="inst-icon"><img src="img/icon-192.png" alt="" width="84" height="84"></div>
         <div class="inst-logo">${logo()}</div>
         <h1>Instalá la app de Grupo Amplifia</h1>
         <p class="muted">Tu rutina, tus pesos y tu progreso, siempre a mano. Es gratis y no ocupa lugar.</p>

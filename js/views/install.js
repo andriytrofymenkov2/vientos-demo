@@ -57,12 +57,12 @@ const IC = {
 /* El botón Compartir, gigante: lo único que hay que buscar */
 const mockBig = () => `<div class="mk-big"><span class="hl">${IC.share}</span><small>El cuadradito con la flecha para arriba</small></div>`;
 const mockBarOld = () => `<div class="mk-bar"><span>${IC.back}</span><span>${IC.fwd}</span><span class="hl">${IC.share}</span><span>${IC.book}</span><span>${IC.tabs}</span></div>`;
-const mockBarNew = () => `<div class="mk-bar new"><span>${IC.back}</span><span class="mk-url">vientos…</span><span class="hl">${IC.dots}</span></div>`;
-const mockBarChrome = () => `<div class="mk-bar top"><span class="mk-url">vientos…</span><span class="hl">${IC.share}</span></div>`;
+const mockBarNew = () => `<div class="mk-bar new"><span>${IC.back}</span><span class="mk-url">amplifia…</span><span class="hl">${IC.dots}</span></div>`;
+const mockBarChrome = () => `<div class="mk-bar top"><span class="mk-url">amplifia…</span><span class="hl">${IC.share}</span></div>`;
 const mockMenu = () => `<div class="mk-sheet"><div class="mk-row">${IC.copy}<span>Copiar</span></div><div class="mk-row hl">${IC.share}<span>Compartir</span></div><div class="mk-row">${IC.star}<span>Agregar a favoritos</span></div></div>`;
 const mockMore = () => `<div class="mk-sheet"><div class="mk-apps"><i></i><i></i><i></i><i></i></div><div class="mk-row">${IC.copy}<span>Copiar</span></div><div class="mk-row">${IC.book}<span>Agregar a la lista de lectura</span></div><div class="mk-row hl"><span class="mk-more">Ver más</span>${IC.fwd}</div></div>`;
 const mockShare = () => `<div class="mk-sheet"><div class="mk-row">${IC.copy}<span>Copiar</span></div><div class="mk-row">${IC.book}<span>Agregar a la lista de lectura</span></div><div class="mk-row hl">${IC.add}<span>Agregar a inicio</span></div></div>`;
-const mockAdd = (toggle) => `<div class="mk-sheet"><div class="mk-top"><span>Cancelar</span><b>Agregar a inicio</b><span class="hl-t">Agregar</span></div><div class="mk-app"><img src="img/icon-192.png" alt=""><span>Vientos</span></div>${toggle ? `<div class="mk-row"><span>Abrir como app web</span><i class="mk-sw"></i></div>` : ""}</div>`;
+const mockAdd = (toggle) => `<div class="mk-sheet"><div class="mk-top"><span>Cancelar</span><b>Agregar a inicio</b><span class="hl-t">Agregar</span></div><div class="mk-app"><img src="img/icon-192.png" alt=""><span>Grupo Amplifia</span></div>${toggle ? `<div class="mk-row"><span>Abrir como app web</span><i class="mk-sw"></i></div>` : ""}</div>`;
 
 function iosGuide(p) {
   if (p.iosBrowser !== "safari" && p.iosBrowser !== "chrome") {
@@ -104,26 +104,26 @@ function iosGuide(p) {
 
 const helpHtml = (android) => `<details class="inst-help"><summary>¿No aparece el ícono?</summary>
       ${android
-        ? `<ol><li>Deslizá hacia arriba desde el centro de la pantalla y buscá <b>Vientos</b> en la lista de todas tus apps. Mantenelo apretado y arrastralo a la pantalla de inicio.</li>
+        ? `<ol><li>Deslizá hacia arriba desde el centro de la pantalla y buscá <b>Grupo Amplifia</b> en la lista de todas tus apps. Mantenelo apretado y arrastralo a la pantalla de inicio.</li>
            <li>Esperá un ratito: a veces Android tarda en poner el ícono.</li>
            <li>En <b>Samsung</b>: Ajustes → Pantalla de inicio → activá <b>“Agregar apps nuevas a la pantalla de inicio”</b>. En <b>Xiaomi, Oppo o Realme</b>: Ajustes → Apps → Chrome → Permisos → activá <b>“Accesos directos”</b>.</li>
            <li>Si no está en ninguna lista: en Chrome tocá el menú <b>⋮</b> → <b>“Instalar app”</b> (o <b>“Agregar a la pantalla principal”</b>) y repetí.</li></ol>`
         : `<ol><li>Deslizá la pantalla de inicio hacia la <b>izquierda, hasta la última página</b>: ahí queda el ícono.</li>
-           <li>O seguí deslizando hasta la <b>Biblioteca de apps</b> y buscá “Vientos” arriba.</li>
+           <li>O seguí deslizando hasta la <b>Biblioteca de apps</b> y buscá “Grupo Amplifia” arriba.</li>
            <li>Si no está: abrí el link en <b>Safari</b> (no Chrome, no WhatsApp), tocá Compartir → <b>“Agregar a inicio”</b> → <b>“Agregar”</b>.</li></ol>`}
     </details>`;
 /* iPhone: Apple no deja que una web vea si el ícono ya está; por eso no se afirma que quedó instalada */
 const iosPanel = () => `<div class="inst-done" data-done>
-    <div class="mk-home" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><span class="mk-home-app"><img src="img/icon-192.png" alt=""><b>Vientos</b></span><i></i><i></i></div>
-    <h2>Buscá el ícono de Vientos</h2>
-    <p>Quedó al <b>final de tu pantalla de inicio</b> (deslizá hacia la izquierda hasta la última página). <b>Abrí Vientos desde ese ícono.</b></p>
+    <div class="mk-home" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><span class="mk-home-app"><img src="img/icon-192.png" alt=""><b>Amplifia</b></span><i></i><i></i></div>
+    <h2>Buscá el ícono de Grupo Amplifia</h2>
+    <p>Quedó al <b>final de tu pantalla de inicio</b> (deslizá hacia la izquierda hasta la última página). <b>Abrí Grupo Amplifia desde ese ícono.</b></p>
     ${helpHtml(false)}
   </div>`;
 /* Cartel final, cuando termina la instalación (la barra en Android; el último paso en iPhone) */
 const donePanel = (android) => `<div class="inst-done" data-done>
-    <div class="mk-home" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><span class="mk-home-app"><img src="img/icon-192.png" alt=""><b>Vientos</b></span><i></i><i></i></div>
+    <div class="mk-home" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><span class="mk-home-app"><img src="img/icon-192.png" alt=""><b>Amplifia</b></span><i></i><i></i></div>
     <h2>${icon("checkc")} ¡Listo, ya está instalada!</h2>
-    <p>Ahora <b>cerrá ${android ? "Chrome" : "Safari"}</b> y buscá este ícono en la pantalla de tu celular. <b>Abrí Vientos desde ahí.</b></p>
+    <p>Ahora <b>cerrá ${android ? "Chrome" : "Safari"}</b> y buscá este ícono en la pantalla de tu celular. <b>Abrí Grupo Amplifia desde ahí.</b></p>
     ${helpHtml(android)}
   </div>`;
 
@@ -134,7 +134,7 @@ export function installView() {
   const url = installUrl();
   let body;
   if (p.standalone) {
-    body = `<div class="inst-ok">${icon("checkc")}<h2>Ya tenés la app instalada</h2><p class="muted">Abrila desde el ícono de Vientos en tu pantalla de inicio.</p></div>`;
+    body = `<div class="inst-ok">${icon("checkc")}<h2>Ya tenés la app instalada</h2><p class="muted">Abrila desde el ícono de Grupo Amplifia en tu pantalla de inicio.</p></div>`;
   } else if (p.inApp) {
     body = `<div class="inst-warn">${icon("alert")}<div><h2>Abrí este link en ${p.ios ? "Safari" : "Chrome"}</h2><p>Desde Instagram o WhatsApp no se puede instalar. Tocá los tres puntos ${icon("dots", "xs")} y elegí <b>“Abrir en ${p.ios ? "Safari" : "el navegador"}”</b>, o copiá el link.</p></div></div>
       ${p.android ? `<a class="btn primary block lg" href="intent://${location.host}${location.pathname}#Intent;scheme=https;package=com.android.chrome;end">${icon("ext")} Abrir en Chrome</a>` : ""}
@@ -142,11 +142,11 @@ export function installView() {
   } else if (p.ios) {
     body = iosGuide(p);
   } else if (p.android) {
-    body = `<button class="btn primary block lg" type="button" data-install hidden>${icon("download")} Instalar Vientos</button>
+    body = `<button class="btn primary block lg" type="button" data-install hidden>${icon("download")} Instalar Grupo Amplifia</button>
       <ol class="steps" data-manual>
         ${step(1, "dots", `Tocá el menú <b>⋮</b> arriba a la derecha de Chrome.`)}
         ${step(2, "download", `Elegí <b>“Instalar app”</b> o <b>“Agregar a la pantalla principal”</b>.`)}
-        ${step(3, "check", `Confirmá. El ícono de Vientos queda junto a tus otras apps.`)}
+        ${step(3, "check", `Confirmá. El ícono de Grupo Amplifia queda junto a tus otras apps.`)}
       </ol>`;
   } else {
     body = `<div class="inst-desk"><div class="qr" data-qr></div><div><h2>Escaneá con tu celular</h2><p class="muted">Apuntá la cámara al código y seguí los pasos. La app está pensada para el teléfono.</p>
@@ -155,9 +155,8 @@ export function installView() {
   return {
     layout: "auth", title: "Instalar la app",
     html: `<div class="inst">
-        <div class="inst-icon"><img src="img/icon-192.png" alt="" width="84" height="84"></div>
         <div class="inst-logo">${logo()}</div>
-        <h1>Instalá la app de Vientos</h1>
+        <h1>Instalá la app de Grupo Amplifia</h1>
         <p class="muted">Tu rutina, tus pesos y tu progreso, siempre a mano. Es gratis y no ocupa lugar.</p>
         <div data-installbox>${body}</div>
         <a class="btn ${p.standalone ? "primary" : "ghost"} block" href="#${me() ? homeOf() : "/ingresar"}" data-skip>${p.standalone || !p.mobile ? (me() ? "Ir a la app" : "Ingresar") : "Seguir sin instalar"}</a>
@@ -191,10 +190,10 @@ export function installView() {
       const installing = () => {
         const box = $("[data-installbox]", host);
         if (!box || $("[data-done]", host)) return;
-        box.innerHTML = `<div class="inst-wait" role="status"><h2>Instalando Vientos…</h2>
+        box.innerHTML = `<div class="inst-wait" role="status"><h2>Instalando Grupo Amplifia…</h2>
           <div class="inst-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="5"><i style="width:5%"></i></div>
           <p class="inst-pct" data-pct>5 %</p>
-          <p>Tarda un ratito, como cualquier otra app. <b>No cierres esta pantalla</b>: cuando llegue al 100 % aparece el ícono de Vientos en tu celular.</p></div>`;
+          <p>Tarda un ratito, como cualquier otra app. <b>No cierres esta pantalla</b>: cuando llegue al 100 % aparece el ícono de Grupo Amplifia en tu celular.</p></div>`;
         /* Avanza sola y se va frenando (no se sabe cuánto tarda Android): llega al 100 % recién al terminar */
         const t0 = Date.now();
         clearInterval(barT);
@@ -209,7 +208,7 @@ export function installView() {
         clearTimeout(waitT);
         waitT = setTimeout(() => {
           const b = $("[data-installbox]", host);
-          if (b && !$("[data-done]", host)) { clearInterval(barT); b.innerHTML = `<div class="inst-wait"><h2>Ya casi</h2><p>Si ya pasó un buen rato, buscá <b>Vientos</b> deslizando hacia arriba para ver todas tus apps: a veces el ícono queda ahí y no en la pantalla de inicio. Si no está, repetí la instalación desde el menú <b>⋮</b> de Chrome → <b>“Instalar app”</b>.</p></div>`; }
+          if (b && !$("[data-done]", host)) { clearInterval(barT); b.innerHTML = `<div class="inst-wait"><h2>Ya casi</h2><p>Si ya pasó un buen rato, buscá <b>Grupo Amplifia</b> deslizando hacia arriba para ver todas tus apps: a veces el ícono queda ahí y no en la pantalla de inicio. Si no está, repetí la instalación desde el menú <b>⋮</b> de Chrome → <b>“Instalar app”</b>.</p></div>`; }
         }, 600000);
       };
       /* Instalada (por el botón o desde el menú de Chrome): se avisa con un cartel grande */
@@ -232,8 +231,8 @@ export function installView() {
         clearInterval(barT); clearInterval(pollT);
         const bx = $("[data-installbox]", host);
         if (!bx || $("[data-done]", host)) return;
-        bx.innerHTML = `<div class="inst-wait"><h2>${unsupported ? "Buscá el ícono de Vientos" : "No pudimos confirmar la instalación"}</h2>
-          <p>${unsupported ? "Android terminó de instalarla, pero este navegador no nos deja confirmar que ya esté en tu pantalla." : "Todavía no vemos la app en tu celular."} Buscá <b>Vientos</b> deslizando hacia arriba para ver todas tus apps.</p>
+        bx.innerHTML = `<div class="inst-wait"><h2>${unsupported ? "Buscá el ícono de Grupo Amplifia" : "No pudimos confirmar la instalación"}</h2>
+          <p>${unsupported ? "Android terminó de instalarla, pero este navegador no nos deja confirmar que ya esté en tu pantalla." : "Todavía no vemos la app en tu celular."} Buscá <b>Grupo Amplifia</b> deslizando hacia arriba para ver todas tus apps.</p>
           ${helpHtml(true)}</div>`;
       };
       let pollT = 0;
@@ -268,7 +267,7 @@ export function installView() {
           if (!talking) return;
           if (i >= lines.length) {
             $("[data-guide]", host)?.dispatchEvent(new CustomEvent("ig:show", { detail: lines.length }));
-            const end = new SpeechSynthesisUtterance("Listo, ya está instalada. Cerrá Safari, buscá el ícono de Vientos en tu pantalla de inicio y abrí la app desde ahí.");
+            const end = new SpeechSynthesisUtterance("Listo, ya está instalada. Cerrá Safari, buscá el ícono de Grupo Amplifia en tu pantalla de inicio y abrí la app desde ahí.");
             end.lang = "es-AR"; end.rate = 1.08; end.onend = stopVoice; speechSynthesis.speak(end);
             return;
           }

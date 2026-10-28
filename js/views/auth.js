@@ -7,7 +7,7 @@ import { go, homeOf } from "../core/router.js";
 import { field, formData, applyTheme } from "../core/ui.js";
 import { DEMO_ACCOUNTS, DEMO_PASS } from "../data/demo.js";
 
-const hero = (sub) => `<div class="auth-hero"><img src="img/fachada.jpg" alt="" aria-hidden="true"><div class="auth-shade"></div>
+const hero = (sub) => `<div class="auth-hero"><img src="img/portada.jpg" alt="" aria-hidden="true"><div class="auth-shade"></div>
   <div class="auth-brand">${logo()}<span class="auth-sub">${sub}</span></div></div>`;
 
 const passField = (name = "pass", label = "Contraseña", auto = "current-password") => `<label class="field"><span>${label}</span>
@@ -75,11 +75,11 @@ export function registerView() {
   if (!S.db.gym.selfSignup) return go("/recuperar?nuevo=1", { replace: true });
   return {
     layout: "auth", title: "Crear cuenta",
-    html: `<div class="auth">${hero("Sumate a la app de Vientos")}
+    html: `<div class="auth">${hero("Sumate a la app de Grupo Amplifia")}
       <form class="auth-card" novalidate>
         <a class="back-link" href="#/ingresar">${icon("back", "sm")} Volver</a>
         <h1>Crear cuenta</h1>
-        <p class="muted">Completá tus datos. Un profe de Vientos aprueba tu cuenta y te asigna la rutina.</p>
+        <p class="muted">Completá tus datos. Un profe de Grupo Amplifia aprueba tu cuenta y te asigna la rutina.</p>
         ${field({ label: "Nombre y apellido", name: "fullname", req: true, attrs: 'autocomplete="name"' })}
         ${field({ label: "Email", name: "email", type: "email", req: true, attrs: 'autocomplete="email" autocapitalize="none"' })}
         ${field({ label: "Teléfono", name: "phone", type: "tel", ph: "2966 …", attrs: 'autocomplete="tel"' })}
@@ -103,7 +103,7 @@ export function registerView() {
         if (issues.length) return fail("La contraseña necesita " + issues.join(", ") + ".");
         try {
           await S.api.register({ name: d.fullname, email: d.email, phone: d.phone, pass: d.pass, code: d.code });
-          form.innerHTML = `<div class="done-msg">${icon("checkc")}<h1>¡Listo, ${esc(d.fullname.split(" ")[0])}!</h1><p class="muted">Tu solicitud llegó a Vientos. Cuando un profe la apruebe vas a poder ingresar con tu email y tu contraseña.</p><a class="btn primary block" href="#/ingresar">Volver al ingreso</a></div>`;
+          form.innerHTML = `<div class="done-msg">${icon("checkc")}<h1>¡Listo, ${esc(d.fullname.split(" ")[0])}!</h1><p class="muted">Tu solicitud llegó a Grupo Amplifia. Cuando un profe la apruebe vas a poder ingresar con tu email y tu contraseña.</p><a class="btn primary block" href="#/ingresar">Volver al ingreso</a></div>`;
         } catch (e2) { fail(e2.message); }
       });
     },
@@ -114,14 +114,14 @@ export function recoverView(params, query = {}) {
   const g = S.db.gym, nuevo = !!query.nuevo;
   return {
     layout: "auth", title: nuevo ? "Soy nuevo" : "Recuperar contraseña",
-    html: `<div class="auth">${hero(nuevo ? "Bienvenido a Vientos" : "Recuperar el acceso")}
+    html: `<div class="auth">${hero(nuevo ? "Bienvenido a Grupo Amplifia" : "Recuperar el acceso")}
       <div class="auth-card">
         <a class="back-link" href="#/ingresar">${icon("back", "sm")} Volver</a>
         <h1>${nuevo ? "¿Sos socio nuevo?" : "¿Olvidaste tu contraseña?"}</h1>
         <p class="muted">${nuevo
           ? "Tu usuario te lo dan en recepción cuando te inscribís y pagás la cuota: es tu DNI, con una contraseña provisoria que te llega por WhatsApp."
           : "Pedile a tu profe o a recepción que te genere una contraseña nueva desde el panel. Después podés cambiarla en tu perfil."}</p>
-        <a class="btn primary block lg" href="https://wa.me/${waNumber(g.whatsapp)}?text=${encodeURIComponent(nuevo ? "Hola! Quiero inscribirme en Vientos y tener la app." : "Hola! Necesito recuperar mi contraseña de la app de Vientos.")}" target="_blank" rel="noopener">${icon("whatsapp")} Escribir por WhatsApp</a>
+        <a class="btn primary block lg" href="https://wa.me/${waNumber(g.whatsapp)}?text=${encodeURIComponent(nuevo ? "Hola! Quiero inscribirme en Grupo Amplifia y tener la app." : "Hola! Necesito recuperar mi contraseña de la app de Grupo Amplifia.")}" target="_blank" rel="noopener">${icon("whatsapp")} Escribir por WhatsApp</a>
       </div>
     </div>`,
   };

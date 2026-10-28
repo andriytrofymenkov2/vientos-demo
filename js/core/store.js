@@ -110,15 +110,15 @@ export function defaults() {
   templates.forEach((t) => t.days.forEach((d) => d.blocks.forEach((b) => b.items.forEach((i) => (i.kg = null)))));
   return {
     gym: {
-      name: "Vientos GYM",
+      name: "Grupo Amplifia",
       address: "Pellegrini 545",
       city: "Río Gallegos, Santa Cruz",
       whatsapp: "2966218045",
       phone: "2966218045",
-      instagram: "vientosgym",
+      instagram: "grupoamplifia",
       /* Horario por día de la semana (0 = domingo). Vacío = cerrado */
       open: ["", "06:00-23:00", "06:00-23:00", "06:00-23:00", "06:00-23:00", "06:00-23:00", "10:00-20:00"],
-      services: ["Musculación", "Ciclo indoor", "Stretching", "Masajes deportivos", "Zona de relax", "Vientos Food"],
+      services: ["Musculación", "Ciclo indoor", "Stretching", "Masajes deportivos", "Zona de relax"],
       joinCode: "VIENTOS",
       reminderDays: 5,
     },
@@ -150,7 +150,7 @@ export const user = (id) => db.users.find((u) => u.id === id);
    cobros (hoy: Vientos y Fitz Club, que alquila un piso). Lo que no tiene espacio
    cargado es de Vientos, así todo lo anterior sigue igual. */
 export const SPACES = [
-  { id: "vientos", name: "Vientos GYM", short: "Vientos" },
+  { id: "vientos", name: "Grupo Amplifia", short: "Amplifia" },
   { id: "fitz", name: "Fitz Club", short: "Fitz Club", logo: "img/fitz-logo.png", tagline: "Programas por semanas" },
 ];
 export const spaceInfo = (id) => SPACES.find((x) => x.id === id) || SPACES[0];
@@ -183,7 +183,12 @@ export const noticesOf = (sp = currentSpace()) => db.notices.filter((n) => (n.sp
 /* Contacto y horario de cada espacio. Fitz Club guarda los suyos aparte; lo que no
    cargó (dirección, ciudad, horario) sale del edificio que comparten */
 export function gymOf(sp = currentSpace()) {
-  if (sp !== "fitz") return db.gym;
+  if (sp !== "fitz") {
+    /* la marca de la app: aunque el servidor guarde otro nombre, se muestra esta */
+    if (db.gym.name !== "Grupo Amplifia") db.gym.name = "Grupo Amplifia";
+    if (/vientos/i.test(db.gym.instagram || "")) db.gym.instagram = "grupoamplifia";
+    return db.gym;
+  }
   return { name: "Fitz Club", address: db.gym.address, city: db.gym.city, whatsapp: "", phone: "", instagram: "", open: db.gym.open, reminderDays: 5, ...(db.gym.spaces?.fitz || {}) };
 }
 export const spaceMembers = (sp = currentSpace()) => activeMembers().filter((u) => inSpace(u, sp));

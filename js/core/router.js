@@ -58,7 +58,7 @@ export async function render(isRefresh = false) {
   const prevHost = renderShell(view.layout || "app", view.nav || match.opts.nav || "");
   const host = prevHost.cloneNode(false);
   prevHost.replaceWith(host);
-  document.title = (view.title ? view.title + " · " : "") + "Vientos GYM";
+  document.title = (view.title ? view.title + " · " : "") + "Grupo Amplifia";
   host.innerHTML = view.html;
   if (!isRefresh || path !== lastPath) {
     host.classList.remove("view-in");

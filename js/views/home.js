@@ -82,13 +82,13 @@ export function homeView() {
         <div><b>${logs[0] ? esc(relDay(logs[0].at)) : "—"}</b><small>último</small></div>
       </div>
     </section>
-    ${notices ? `<section class="sec"><h2 class="sec-t">Novedades de ${fz ? "Fitz Club" : "Vientos"}</h2>${notices}</section>` : ""}
+    ${notices ? `<section class="sec"><h2 class="sec-t">Novedades de ${fz ? "Fitz Club" : "Grupo Amplifia"}</h2>${notices}</section>` : ""}
     ${coach ? `<section class="sec"><h2 class="sec-t">Tu profe</h2>
       <div class="coach">${avatar(coach, "lg")}<div><b>${esc(coach.name)}</b><small>Entrenador · ${esc(g.name)}</small></div>
         <div class="coach-a"><a class="round" href="${telHref(coach.phone)}" aria-label="Llamar a ${esc(coach.name)}">${icon("phone")}</a><a class="round wa" href="https://wa.me/${waNumber(coach.phone)}?text=${encodeURIComponent(`Hola ${firstName(coach.name)}! Soy ${u.name}.`)}" target="_blank" rel="noopener" aria-label="WhatsApp a ${esc(coach.name)}">${icon("whatsapp")}</a></div>
       </div></section>` : ""}
     <section class="sec gymcard">
-      <div class="gym-photo ${fz ? "no-photo" : ""}">${fz ? spaceLogo(sp) : `<img src="img/fachada.jpg" alt="Fachada de Vientos GYM" loading="lazy">`}<span class="open-pill ${open.open ? "on" : ""}"><i></i>${esc(open.label)}</span></div>
+      <div class="gym-photo ${fz ? "no-photo" : ""}">${fz ? spaceLogo(sp) : `<img src="img/portada.jpg" alt="Grupo Amplifia" loading="lazy">`}<span class="open-pill ${open.open ? "on" : ""}"><i></i>${esc(open.label)}</span></div>
       <div class="gym-b">
         <h2>${esc(g.name)}</h2>
         <p class="muted">${esc(g.address)} · ${esc(g.city)}</p>

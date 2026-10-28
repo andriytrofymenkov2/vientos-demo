@@ -43,7 +43,7 @@ export function avatar(u, size = "") {
 
 /* Logo según el espacio: Vientos (vectorial) o Fitz Club (imagen) */
 export const spaceLogo = (sp) => (sp === "fitz" ? `<img class="logo fitz-logo" src="img/fitz-logo.png" alt="Fitz Club" width="194" height="143">` : logo());
-const brand = (href, sp = "vientos") => `<a class="brand ${sp === "fitz" ? "is-fitz" : ""}" href="${href}" aria-label="${sp === "fitz" ? "Fitz Club" : "Grupo Amplifia"}, inicio">${spaceLogo(sp)}</a>`;
+const brand = (href, sp = "vientos") => `<a class="brand ${sp === "fitz" ? "is-fitz" : ""}" href="${href}" aria-label="${sp === "fitz" ? "Fitz Club" : "Vientos GYM"}, inicio">${spaceLogo(sp)}</a>`;
 /* En Fitz Club las plantillas son programas por semanas */
 const navLabel = (n) => (n.id === "plantillas" && S.currentSpace() === "fitz" ? "Programas" : n.label);
 /* Selector de negocio: solo lo ve el proveedor de la plataforma */

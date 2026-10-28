@@ -473,7 +473,7 @@ function exerciseSheet(ex) {
       ${field({ label: "Músculos secundarios", name: "sec", value: ex.sec, ph: "Ej: tríceps, hombro anterior" })}
       ${field({ label: "Cómo se hace (un paso por renglón)", name: "steps", type: "textarea", value: (ex.steps || []).join("\n"), attrs: 'rows="5"' })}
       ${field({ label: "Consejo del profe", name: "tip", value: ex.tip })}
-      ${field({ label: "Video (enlace de YouTube)", name: "video", type: "url", value: ex.video, ph: "https://youtu.be/…", hint: "Pueden ser videos “no listados” del canal del gimnasio." })}
+      ${field({ label: "Video (enlace de YouTube)", name: "video", type: "url", value: ex.video, ph: "https://youtu.be/…", hint: "Pueden ser videos “no listados” del canal de Vientos." })}
       <div class="row-btns">${isNew ? "" : `<button class="btn ghost danger-t" type="button" data-del>${icon("trash", "sm")} Borrar</button>`}<button class="btn primary" type="submit">Guardar</button></div>
     </form>`,
     onMount(b, close) {

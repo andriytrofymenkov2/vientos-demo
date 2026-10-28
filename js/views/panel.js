@@ -650,7 +650,7 @@ export function feesView(params, query) {
       <div class="chips-scroll">${chips.map(([k, l, n]) => `<a class="chip ${k === f ? "on" : ""}" href="#/panel/cuotas${k ? "?f=" + k : ""}">${l} <b>${n}</b></a>`).join("")}</div>
       <div class="mlist">${list.map((m) => {
         const st = S.feeStatus(m);
-        const msg = st.state === "late" ? `Hola ${firstName(m.name)}! Te escribimos de Grupo Amplifia: tu cuota venció el ${fmtDate(m.fee.dueAt)}. ¿Pasás a regularizarla? 💪` : `Hola ${firstName(m.name)}! Te recordamos que tu cuota de Grupo Amplifia vence el ${m.fee ? fmtDate(m.fee.dueAt) : ""}.`;
+        const msg = st.state === "late" ? `Hola ${firstName(m.name)}! Te escribimos de Vientos: tu cuota venció el ${fmtDate(m.fee.dueAt)}. ¿Pasás a regularizarla? 💪` : `Hola ${firstName(m.name)}! Te recordamos que tu cuota de Vientos vence el ${m.fee ? fmtDate(m.fee.dueAt) : ""}.`;
         return `<div class="mrow"><a class="mrow-link" href="#/panel/socios/${m.id}" aria-label="Ver la ficha de ${esc(m.name)}">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${esc(S.plan(m.fee?.planId)?.name || "Sin plan")}${S.convenio(m.fee?.convenioId) ? " · " + esc(S.convenio(m.fee.convenioId).name) : ""}${m.fee?.dueAt ? " · vence " + fmtDate(m.fee.dueAt) : ""}</small></span></a>
           ${feePill(m)}
           ${(st.state === "late" || st.state === "soon") && m.phone ? `<a class="icon-btn" href="https://wa.me/${waNumber(m.phone)}?text=${encodeURIComponent(msg)}" target="_blank" rel="noopener" aria-label="Recordar por WhatsApp a ${esc(m.name)}">${icon("whatsapp", "sm")}</a>` : ""}
@@ -862,7 +862,7 @@ function downloadPaymentsXlsx(rows, name) {
     },
   ]);
   const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob); a.download = `Grupo Amplifia - Recaudación ${name}.xlsx`;
+  a.href = URL.createObjectURL(blob); a.download = `Vientos GYM - Recaudación ${name}.xlsx`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   toast("Excel descargado");

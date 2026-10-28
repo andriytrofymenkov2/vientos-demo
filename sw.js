@@ -1,7 +1,7 @@
 /* Service worker: la app abre rápido y funciona aunque se corte la señal en el gimnasio.
    Estrategia: primero la red (siempre lo último publicado); si no hay conexión, lo guardado. */
-const CACHE = "vientos-v62";
-const CORE = ["./", "index.html", "css/app.css", "js/app.js", "manifest.webmanifest", "img/icon-192.png", "img/portada.jpg", "img/amplifia-oscuro.svg", "img/amplifia-claro.svg"];
+const CACHE = "vientos-v63";
+const CORE = ["./", "index.html", "css/app.css", "js/app.js", "manifest.webmanifest", "img/icon-192.png", "img/fachada.jpg"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE)).then(() => self.skipWaiting()));

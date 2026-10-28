@@ -2,7 +2,7 @@
    Todos los nombres son inventados. Se reemplazan por los reales al conectar Supabase. */
 import { rng, DAY } from "../core/util.js";
 
-export const DEMO_PASS = "Amplifia2026";
+export const DEMO_PASS = "Vientos2026";
 export const DEMO_ACCOUNTS = [
   /* Vientos GYM */
   { user: "ana", label: "Socio nuevo", hint: "Ana · primer día, todo en cero" },
@@ -43,7 +43,7 @@ export async function buildDemo(D, { hashPass, uid, normDays }) {
     return u;
   };
 
-  const admin = mk({ id: "u-admin", role: "admin", name: "Administración", user: "admin", joined: now - 400 * DAY });
+  const admin = mk({ id: "u-admin", role: "admin", name: "Administración Vientos", user: "admin", joined: now - 400 * DAY });
   const nico = mk({ id: "u-nico", role: "profe", name: "Nicolás Ruiz", user: "nico", phone: "2966218045", joined: now - 380 * DAY });
   const carla = mk({ id: "u-carla", role: "profe", name: "Carla Díaz", user: "carla", phone: "2966218045", joined: now - 300 * DAY });
   void admin;

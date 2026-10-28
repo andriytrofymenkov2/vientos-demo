@@ -142,8 +142,9 @@ export function installView() {
   } else if (p.ios) {
     body = iosGuide(p);
   } else if (p.android) {
-    body = `<button class="btn primary block lg" type="button" data-install hidden>${icon("download")} Instalar Grupo Amplifia</button>
-      <ol class="steps" data-manual>
+    body = `<div class="inst-wait" data-prep role="status"><h2>Preparando la instalación…</h2><p>Un segundo.</p></div>
+      <button class="btn primary block lg" type="button" data-install hidden>${icon("download")} Instalar Grupo Amplifia</button>
+      <ol class="steps" data-manual hidden>
         ${step(1, "dots", `Tocá el menú <b>⋮</b> arriba a la derecha de Chrome.`)}
         ${step(2, "download", `Elegí <b>“Instalar app”</b> o <b>“Agregar a la pantalla principal”</b>.`)}
         ${step(3, "check", `Confirmá. El ícono de Grupo Amplifia queda junto a tus otras apps.`)}
@@ -172,9 +173,16 @@ export function installView() {
       const ready = () => {
         if (!btn || !window.__bip) return;
         btn.hidden = false;
+        $("[data-prep]", host)?.setAttribute("hidden", "");
         $("[data-manual]", host)?.setAttribute("hidden", "");
       };
       ready();
+      /* Si Chrome no ofrece el botón (ya la tiene o no puede), recién entonces se muestran los pasos a mano */
+      if (!window.__bip && $("[data-prep]", host)) setTimeout(() => {
+        if (window.__bip || !$("[data-prep]", host)) return;
+        $("[data-prep]", host).setAttribute("hidden", "");
+        $("[data-manual]", host)?.removeAttribute("hidden");
+      }, 7000);
       addEventListener("vientos:installable", ready);
       btn?.addEventListener("click", async () => {
         const e = window.__bip;

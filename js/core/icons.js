@@ -1,4 +1,3 @@
-import { LOGO_VIEWBOX, LOGO_PATHS } from "./logo-data.js";
 /* Íconos de trazo propios (24x24, currentColor) */
 
 const P = {
@@ -80,8 +79,7 @@ export function icon(name, cls = "") {
 /* Ondas de Vientos (dos trazos afinados en las puntas, rojo y grafito) */
 export const WAVES = `<svg class="waves" viewBox="0 0 120 28" aria-hidden="true"><path class="w1" d="M2 15C22 4 40 4 60 11s38 8 58-3c-18 14-38 15-58 8S22 8 2 15z"/><path class="w2" d="M8 22c20-9 36-9 54-3s34 6 52-2c-16 11-34 12-52 6S26 15 8 22z"/></svg>`;
 
-/* Logo OFICIAL de Vientos GYM (vectorizado de sus redes, ver dev/vectorizar_logo.py).
-   Los colores salen del CSS (.logo .vl-*) y cambian con el tema claro/oscuro. */
+/* Logo de Grupo Amplifia: dos versiones (para fondo claro y oscuro); el CSS muestra la que corresponde al tema. */
 export function logo() {
-  return `<svg class="logo" viewBox="${LOGO_VIEWBOX}" role="img" aria-label="Vientos GYM">${LOGO_PATHS}</svg>`;
+  return `<span class="logo logo-amp" role="img" aria-label="Grupo Amplifia"><img class="lg-dk" src="img/amplifia-oscuro.svg" alt="" width="746" height="165"><img class="lg-lt" src="img/amplifia-claro.svg" alt="" width="746" height="165"></span>`;
 }

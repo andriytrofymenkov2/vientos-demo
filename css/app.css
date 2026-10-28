@@ -193,7 +193,7 @@ p { margin: 0; }
 
 /* Encabezado del socio */
 .mtop { display: flex; align-items: center; justify-content: space-between; padding: 14px 0 6px; }
-.mtop-logo { width: 116px; }
+.mtop-logo { width: 150px; }
 
 /* Encabezado de pantalla */
 .phead { display: flex; align-items: center; gap: 8px; padding: 14px 0 14px; min-height: 64px; }
@@ -1350,3 +1350,14 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .inst-help { width: 100%; text-align: left; margin-top: 4px; border-top: 1px solid var(--line); padding-top: 10px; }
 .inst-help summary { cursor: pointer; font-weight: 700; text-align: center; color: var(--text2); min-height: 44px; display: grid; place-items: center; }
 .inst-help ol { margin: 8px 0 0; padding-left: 20px; display: grid; gap: 8px; font-size: 14.5px; line-height: 1.4; color: var(--text2); }
+
+/* Logo de Grupo Amplifia: versión clara u oscura según el tema */
+.logo-amp { display: block; }
+.logo-amp img { display: block; width: 100%; height: auto; }
+.logo-amp .lg-lt { display: none; }
+[data-theme="light"] .logo-amp .lg-dk { display: none; }
+[data-theme="light"] .logo-amp .lg-lt { display: block; }
+.auth-brand .logo-amp .lg-dk, .poster-logo .logo-amp .lg-dk { display: block; }
+.auth-brand .logo-amp .lg-lt, .poster-logo .logo-amp .lg-lt { display: none; }
+.p-logo .logo-amp .lg-dk { display: none; }
+.p-logo .logo-amp .lg-lt { display: block; }

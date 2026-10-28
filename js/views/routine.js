@@ -439,8 +439,8 @@ export function printView(params, query = {}) {
         ${r.note ? `<p class="p-note"><b>Nota del profe:</b> ${esc(r.note)}</p>` : ""}
         ${r.days.map(dayHtml).join("")}
         <footer class="p-foot">
-          <span>Vientos GYM · ${esc(g.address || "")}, ${esc(g.city || "")}</span>
-          <span>WhatsApp ${esc(g.whatsapp || "")} · @${esc(g.instagram || "vientosgym")}</span>
+          <span>Grupo Amplifia · ${esc(g.address || "")}, ${esc(g.city || "")}</span>
+          <span>WhatsApp ${esc(g.whatsapp || "")} · @${esc(g.instagram || "grupoamplifia")}</span>
         </footer>
       </article>`,
     mount(host) { host.querySelector("[data-print]")?.addEventListener("click", () => window.print()); },

@@ -1,0 +1,37 @@
+{
+  "name": "Grupo Amplifia",
+  "short_name": "Amplifia",
+  "description": "Tu rutina, tus pesos y tu progreso en Grupo Amplifia.",
+  "lang": "es-AR",
+  "start_url": "./?demo#/inicio",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0b",
+  "theme_color": "#0a0a0b",
+  "icons": [
+    {
+      "src": "img/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "img/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "img/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "webapp",
+      "url": "https://vientos-demo.pages.dev/manifest-demo.webmanifest"
+    }
+  ]
+}

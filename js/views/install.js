@@ -245,9 +245,24 @@ export function installView() {
         if (pe) pe.innerHTML = "Android está terminando de instalarla. <b>Tarda un ratito.</b> No cierres esta pantalla: cuando esté lista te lo avisamos.";
         const t0 = Date.now();
         clearInterval(pollT);
+        /* Chrome confirma antes de que el ícono llegue a la pantalla: después de la confirmación la barra
+           sigue un rato (se queda en 99 %) y recién cierra cuando pasó ese margen */
+        let okAt = 0;
         pollT = setInterval(async () => {
           const ok = await isInstalled();
-          if (ok === true) { const bar = $(".inst-bar", host); if (bar) { clearInterval(barT); bar.firstElementChild.style.width = "100%"; const el = $("[data-pct]", host); if (el) el.textContent = "100 %"; } clearInterval(pollT); setTimeout(finish, 700); }
+          if (ok === true) {
+            okAt ||= Date.now();
+            const bar = $(".inst-bar", host), el = $("[data-pct]", host);
+            if (Date.now() - okAt < 15000) {
+              clearInterval(barT);
+              if (bar) { bar.firstElementChild.style.width = "99%"; bar.setAttribute("aria-valuenow", 99); }
+              if (el) el.textContent = "99 %";
+              return;
+            }
+            if (bar) { bar.firstElementChild.style.width = "100%"; bar.setAttribute("aria-valuenow", 100); }
+            if (el) el.textContent = "100 %";
+            clearInterval(pollT); setTimeout(finish, 700);
+          }
           else if (ok === null) unsure(true);
           else if (Date.now() - t0 > 150000) unsure(false);
         }, 2500);

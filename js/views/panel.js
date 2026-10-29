@@ -108,9 +108,9 @@ export function panelHome() {
     layout: "panel", nav: "resumen", title: "Resumen",
     html: `<section class="phello"><span class="kicker">${esc(fmtDate(Date.now()))}${S.isProvider() ? ` · ${esc(S.spaceInfo(sp).name)}` : ""}</span><h1>Hola, ${esc(firstName(u.name))}</h1></section>
       <section class="kpis">
-        ${kpi(live.length, "socios activos", "#/panel/socios", "", "con la cuota vigente: pueden entrar")}
+        ${kpi(live.length, "socios activos", "#/panel/socios", "", "con la cuota al día")}
         ${kpi(soon.length, "cuotas por vencer", "#/panel/cuotas?f=soon", soon.length ? "warn" : "", "en los próximos días")}
-        ${kpi(late.length, "cuotas vencidas", "#/panel/socios?f=vencida", late.length ? "bad" : "", "no pueden entrar hasta pagar")}
+        ${kpi(late.length, "cuotas vencidas", "#/panel/socios?f=vencida", late.length ? "bad" : "", "vencieron hace hasta 30 días")}
         ${kpi(noRoutine.length, "sin rutina asignada", "#/panel/socios?f=sin", noRoutine.length ? "warn" : "")}
       </section>
       ${admin ? `<section class="money">
@@ -124,7 +124,7 @@ export function panelHome() {
       ${pend.length > 5 ? `<a class="btn ghost sm block" href="#/panel/socios?f=pend">Ver las ${pend.length} solicitudes</a>` : ""}
       </section>` : ""}
       <div class="pgrid">
-        <section class="card"><div class="card-h"><h2>${icon("lock", "sm")} Cuota vencida: no pueden entrar</h2><span class="muted">${late.length}</span></div>
+        <section class="card"><div class="card-h"><h2>${icon("alert", "sm")} Cuotas vencidas</h2><span class="muted">${late.length}</span></div>
           ${late.slice(0, 10).map((m) => mrow(m, m.fee.unpaid ? `Se anotó el ${fmtDate(m.joined)} y todavía no pagó` : `Venció ${S.standing(m).over ? `hace ${plural(S.standing(m).over, "día", "días")}` : "hoy"} · ${fmtDate(m.fee.dueAt)}`)).join("") || `<p class="muted">Nadie tiene la cuota vencida.</p>`}
           ${late.length > 10 ? `<a class="btn ghost sm" href="#/panel/socios?f=vencida">Ver los ${late.length}</a>` : ""}
         </section>

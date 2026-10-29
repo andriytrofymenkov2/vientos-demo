@@ -30,6 +30,7 @@ const PANEL = [
   { id: "plantillas", href: "#/panel/plantillas", icon: "layers", label: "Plantillas", tab: true },
   { id: "ejercicios", href: "#/panel/ejercicios", icon: "dumbbell", label: "Ejercicios", tab: true },
   { id: "cuotas", href: "#/panel/cuotas", icon: "card", label: "Cuotas" },
+  { id: "caja", href: "#/panel/caja", icon: "trend", label: "Ingresos y gastos", admin: true },
   { id: "avisos", href: "#/panel/avisos", icon: "bell", label: "Avisos" },
   { id: "gimnasio", href: "#/panel/gimnasio", icon: "settings", label: "Gimnasio", admin: true },
   { id: "qr", href: "#/panel/qr", icon: "qr", label: "QR de la app" },

@@ -51,6 +51,7 @@ export async function init() {
   }
   try { db = JSON.parse(localStorage.getItem(KEY) || "null"); } catch { db = null; }
   if (!db || db.v !== 6) { db = await seed(); localStorage.setItem(KEY, JSON.stringify(db)); }
+  db.movements ||= [];
   return db;
 }
 
@@ -138,7 +139,7 @@ async function seed() {
   const d = defaults();
   /* La demo arma sus plantillas desde los datos con peso (para inventar el historial) */
   const templates = baseTemplates();
-  const base = { v: 6, seededAt: Date.now(), ...d, templates, users: [], routines: [], logs: [], payments: [], notices: [], live: {} };
+  const base = { v: 6, seededAt: Date.now(), ...d, templates, users: [], routines: [], logs: [], payments: [], notices: [], movements: [], live: {} };
   return buildDemo(base, { hashPass, uid, normDays });
 }
 
@@ -179,6 +180,10 @@ export const inSpace = (u, sp = currentSpace()) => spaceOf(u) === sp;
 export const plansOf = (sp = currentSpace()) => db.plans.filter((p) => planSpace(p) === sp);
 export const paySpace = (p) => (p.space ? (p.space === "fitz" ? "fitz" : "vientos") : spaceOf(user(p.userId)));
 export const paymentsOf = (sp = currentSpace()) => db.payments.filter((p) => paySpace(p) === sp);
+/* Caja: gastos y otros ingresos que carga el dueño (las cuotas ya son ingresos por los pagos) */
+export const EXPENSE_CATS = ["Alquiler", "Sueldos", "Servicios (luz, agua, internet)", "Mantenimiento y máquinas", "Insumos y limpieza", "Impuestos y cargas", "Marketing", "Otros"];
+export const INCOME_CATS = ["Shop y bebidas", "Venta de pases sueltos", "Otros ingresos"];
+export const movementsOf = (sp = currentSpace()) => (db.movements || []).filter((m) => (m.space === "fitz" ? "fitz" : "vientos") === sp);
 export const noticesOf = (sp = currentSpace()) => db.notices.filter((n) => (n.space === "fitz" ? "fitz" : "vientos") === sp);
 /* Contacto y horario de cada espacio. Fitz Club guarda los suyos aparte; lo que no
    cargó (dirección, ciudad, horario) sale del edificio que comparten */
@@ -255,7 +260,7 @@ export function membershipByMonth(now = Date.now(), sp = null) {
     /* activo en el mes = la cuota cubre al menos 15 días de ese mes (o, en el mes en curso, está vigente hoy) */
     const days = (u) => (cover[u.id] || []).reduce((n, [x, y]) => n + Math.max(0, Math.min(y, b) - Math.max(x, a)) / 86400000, 0);
     const vigenteHoy = (u) => u.status === "activo" && (["ok", "soon"].includes(feeStatus(u).state) || (cover[u.id] || []).some(([x, y]) => x <= now && y > now));
-    const active = new Set(socios.filter((u) => (isCur ? vigenteHoy(u) || (u.status === "activo" && days(u) >= 15) : days(u) >= 15)).map((u) => u.id));
+    const active = new Set(socios.filter((u) => (isCur ? vigenteHoy(u) : days(u) >= 15)).map((u) => u.id));
     const nuevos = socios.filter((u) => u.joined >= a && u.joined < b).length;
     const kept = [...active].filter((id) => prev.has(id)).length;
     const left = [...prev].filter((id) => !active.has(id)).length;
@@ -453,6 +458,21 @@ export function feeStatus(u) {
   if (days === 0) return { state: "soon", days, label: "Vence hoy" };
   if (days <= (gymOf(spaceOf(u)).reminderDays || 5)) return { state: "soon", days, label: `Vence en ${days} ${days === 1 ? "día" : "días"}` };
   return { state: "ok", days, label: "Al día" };
+}
+
+/* Situación de cada socio frente a la cuota. Cada socio tiene su propio vencimiento (según el día
+   que arrancó o que pagó) y, con la cuota vencida, no puede entrar al gimnasio:
+   · ok / soon: cuota vigente (soon = vence en pocos días): puede entrar
+   · vencida: venció hace hasta 30 días: no puede entrar, pero se puede recuperar
+   · baja: venció hace más de 30 días: se fue. No cuenta como activo ni como deuda esperada.
+   Los días se pueden cambiar en los datos del gimnasio (bajaDays). */
+export function standing(u) {
+  const st = feeStatus(u);
+  if (st.state === "none") return { key: "none", over: 0 };
+  if (st.state !== "late") return { key: st.state, over: 0 };
+  const over = Math.max(0, -st.days);
+  const bajaDays = gymOf(spaceOf(u)).bajaDays ?? 30;
+  return { key: over <= bajaDays ? "vencida" : "baja", over };
 }
 
 /* ------------------------------------------------------------ escrituras */
@@ -767,6 +787,8 @@ export const api = {
     save(); push("saveGym");
   },
   savePlans(plans) { db.plans = plans; save(); push("saveGym"); },
+  addMovement(m) { const x = { id: uid("m"), at: Date.now(), space: currentSpace() === "fitz" ? "fitz" : "vientos", ...m }; (db.movements ||= []).push(x); save(); push("saveMovement", x); return x; },
+  deleteMovement(id) { db.movements = (db.movements || []).filter((m) => m.id !== id); save(); push("deleteMovement", id); },
   addNotice(n) { const x = { id: uid("n"), at: Date.now(), ...n }; db.notices.unshift(x); save(); push("saveNotice", x); },
   deleteNotice(id) { db.notices = db.notices.filter((n) => n.id !== id); save(); push("deleteNotice", id); },
 };

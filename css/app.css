@@ -910,6 +910,7 @@ a.mrow:hover, button.mrow:hover { background: var(--card2); }
 .payrow > span { flex: 1; }
 
 .money { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+@media (min-width: 1100px) { .money:has(> :nth-child(4)) { grid-template-columns: repeat(4, 1fr); } }
 .money > div, .money > a.mlink { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; display: grid; gap: 3px; }
 .money small { color: var(--muted); font-size: 13px; }
 .money b { font: 700 30px/1.05 "Barlow Condensed", sans-serif; }
@@ -1361,3 +1362,14 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .auth-brand .logo-amp .lg-lt, .poster-logo .logo-amp .lg-lt { display: none; }
 .p-logo .logo-amp .lg-dk { display: none; }
 .p-logo .logo-amp .lg-lt { display: block; }
+
+/* Caja: ingresos y gastos */
+.cajatab { display: grid; }
+.cajatab .ct-h, .cajatab .ct-r { display: grid; grid-template-columns: 1.2fr 1fr 1fr 1fr; gap: 8px; padding: 9px 4px; align-items: center; font-size: 13.5px; }
+.cajatab .ct-h { color: var(--muted); font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; border-bottom: 1px solid var(--line); }
+.cajatab .ct-r { border-bottom: 1px solid var(--line); color: inherit; text-decoration: none; }
+.cajatab .ct-r.on { background: var(--card2); border-radius: 8px; }
+.cajatab .ct-r b.bad, .prow-a.bad { color: var(--red2); }
+.prow-a { flex: none; font: 700 16px "Barlow Condensed", sans-serif; }
+.prow-a.up { color: #3ccf7e; }
+@media (max-width: 560px) { .cajatab .ct-h, .cajatab .ct-r { font-size: 12px; gap: 4px; } }

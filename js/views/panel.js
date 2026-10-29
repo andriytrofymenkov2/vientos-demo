@@ -45,10 +45,15 @@ export function panelHome() {
   const sp = S.currentSpace(), isFitz = sp === "fitz";
   const act = S.spaceMembers();
   const mine = S.membersOf(u.id);
-  const soon = act.filter((m) => S.feeStatus(m).state === "soon");
-  const late = act.filter((m) => S.feeStatus(m).state === "late");
-  const noRoutine = act.filter((m) => !S.activeRoutine(m.id));
-  const neverIn = act.filter((m) => m.prefs?.tempPass);
+  /* Cada socio vence en su propia fecha y con la cuota vencida no puede entrar (ver S.standing).
+     Activos = cuota vigente. Vencida hasta 30 días = sin acceso, se puede recuperar. Más de 30 días = se fue. */
+  const by = { vencida: [], baja: [] };
+  act.forEach((m) => { const k = S.standing(m).key; if (by[k]) by[k].push(m); });
+  const live = act.filter((m) => !["vencida", "baja"].includes(S.standing(m).key));
+  const soon = live.filter((m) => S.feeStatus(m).state === "soon");
+  const late = by.vencida.slice().sort((a, b) => S.standing(a).over - S.standing(b).over);
+  /* Sin rutina: todos los profes y el dueño ven a todos (si un profe falta, otro lo cubre). Los que esperan hace más, primero. */
+  const noRoutine = act.filter((m) => S.standing(m).key !== "baja" && !S.activeRoutine(m.id)).sort((a, b) => a.joined - b.joined);
   const pend = S.pending().filter((m) => S.inSpace(m));
   const kpi = (n, label, href, cls = "", sub = "") => `<a class="kpi ${cls}" href="${href}"><b data-count="${n}">0</b><small>${label}</small>${sub ? `<em class="kpi-sub">${sub}</em>` : ""}</a>`;
   const mrow = (m, extra) => `<a class="mrow" href="#/panel/socios/${m.id}">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${extra}</small></span>${icon("right", "sm")}</a>`;
@@ -63,23 +68,27 @@ export function panelHome() {
      Las que ya vencieron van en "Deuda". Usa el mismo criterio de días que el estado de cada socio. */
   const toCollect = act.filter((m) => { const st = S.feeStatus(m); return st.state !== "none" && st.state !== "late" && m.fee.dueAt < m1; });
   const owed = late.reduce((x, m) => x + priceOf(m), 0);
+  const owedOld = by.baja.reduce((x, m) => x + priceOf(m), 0);
+  const movs = S.movementsOf().filter((x) => x.at >= m0 && x.at < m1);
+  const gastosMes = movs.filter((x) => x.kind === "gasto").reduce((a, x) => a + (x.amount || 0), 0);
+  const otrosMes = movs.filter((x) => x.kind === "ingreso").reduce((a, x) => a + (x.amount || 0), 0);
+  const resultado = thisMonth + otrosMes - gastosMes;
   /* Comparación justa: lo cobrado hasta hoy contra lo cobrado en el MISMO período del mes anterior */
   const lastSame = paid(pm0, Math.min(m0, pm0 + (Date.now() - m0)));
   const diff = lastSame ? Math.round(((thisMonth - lastSame) / lastSame) * 100) : null;
-  const alDia = act.length - late.length - act.filter((m) => S.feeStatus(m).state === "none").length;
   const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
   /* Perfil de los socios */
   const gen = { Femenino: 0, Masculino: 0, Otro: 0, "Sin dato": 0 };
-  act.forEach((m) => { const g = m.gender === "Femenino" || m.gender === "Masculino" ? m.gender : m.gender ? "Otro" : "Sin dato"; gen[g]++; });
+  live.forEach((m) => { const g = m.gender === "Femenino" || m.gender === "Masculino" ? m.gender : m.gender ? "Otro" : "Sin dato"; gen[g]++; });
   const genRows = [["Mujeres", gen.Femenino], ["Hombres", gen.Masculino], ["Otro", gen.Otro], ["Sin dato", gen["Sin dato"]]].filter(([, n], i) => n || i < 2).map(([label, n]) => ({ label, n }));
   const AGE = [["Menos de 18", 0, 17], ["18 a 25", 18, 25], ["26 a 35", 26, 35], ["36 a 45", 36, 45], ["46 a 60", 46, 60], ["Más de 60", 61, 200]];
-  const ages = act.map((m) => ageOf(m.birth));
+  const ages = live.map((m) => ageOf(m.birth));
   const ageRows = AGE.map(([label, a, b]) => ({ label, n: ages.filter((x) => x !== null && x >= a && x <= b).length }));
   const noAge = ages.filter((x) => x === null).length;
   if (noAge) ageRows.push({ label: "Sin dato", n: noAge });
-  const planRows = S.plansOf().map((p) => ({ label: p.name, n: act.filter((m) => m.fee?.planId === p.id).length }));
-  const noPlan = act.filter((m) => !m.fee?.planId).length;
+  const planRows = S.plansOf().map((p) => ({ label: p.name, n: live.filter((m) => m.fee?.planId === p.id).length }));
+  const noPlan = live.filter((m) => !m.fee?.planId).length;
   if (noPlan) planRows.push({ label: "Sin plan", n: noPlan });
   /* Socios mes a mes: activos, nuevos, siguieron, se fueron y volvieron (contra altas y pagos guardados) */
   const hist = S.membershipByMonth(Date.now(), sp);
@@ -92,43 +101,49 @@ export function panelHome() {
       <div><b>${h.left}</b><small>se fueron</small></div>
       <div><b>${h.back}</b><small>volvieron</small></div></div>`; };
   const avgAge = ages.filter((x) => x !== null);
-  const convRows = isFitz ? [] : S.convenios().map((c) => ({ label: c.name, n: act.filter((m) => m.fee?.convenioId === c.id).length }));
-  if (convRows.length) convRows.push({ label: "Sin convenio", n: act.filter((m) => !S.convenio(m.fee?.convenioId)).length });
+  const convRows = isFitz ? [] : S.convenios().map((c) => ({ label: c.name, n: live.filter((m) => m.fee?.convenioId === c.id).length }));
+  if (convRows.length) convRows.push({ label: "Sin convenio", n: live.filter((m) => !S.convenio(m.fee?.convenioId)).length });
 
   return {
     layout: "panel", nav: "resumen", title: "Resumen",
     html: `<section class="phello"><span class="kicker">${esc(fmtDate(Date.now()))}${S.isProvider() ? ` · ${esc(S.spaceInfo(sp).name)}` : ""}</span><h1>Hola, ${esc(firstName(u.name))}</h1></section>
       <section class="kpis">
-        ${kpi(act.length, "socios activos", "#/panel/socios", "", `${alDia} con cuota al día · ${late.length} vencidas`)}
-        ${kpi(soon.length, "cuotas por vencer", "#/panel/cuotas?f=soon", soon.length ? "warn" : "")}
-        ${kpi(late.length, "cuotas vencidas", "#/panel/cuotas?f=late", late.length ? "bad" : "")}
+        ${kpi(live.length, "socios activos", "#/panel/socios", "", "con la cuota vigente: pueden entrar")}
+        ${kpi(soon.length, "cuotas por vencer", "#/panel/cuotas?f=soon", soon.length ? "warn" : "", "en los próximos días")}
+        ${kpi(late.length, "cuotas vencidas", "#/panel/socios?f=vencida", late.length ? "bad" : "", "no pueden entrar hasta pagar")}
         ${kpi(noRoutine.length, "sin rutina asignada", "#/panel/socios?f=sin", noRoutine.length ? "warn" : "")}
       </section>
       ${admin ? `<section class="money">
         <a class="mlink" href="#/panel/recaudacion"><small>Cobrado en ${now.toLocaleDateString("es-AR", { month: "long" })}</small><b>${money(thisMonth)}</b>${diff !== null ? `<em class="${diff >= 0 ? "up" : "down"}">${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)} % vs. ${MONTHS[new Date(pm0).getMonth()]} (mismos días)</em>` : `<em>${MONTHS[new Date(pm0).getMonth()]}: ${money(lastMonth)} en total</em>`}<span class="cta">Ver historial ${icon("right", "xs")}</span></a>
         <div><small>Falta cobrar este mes</small><b>${money(toCollect.reduce((x, m) => x + priceOf(m), 0))}</b><em>${plural(toCollect.length, "cuota vence", "cuotas vencen")} hasta fin de mes</em></div>
-        <div><small>Cuotas vencidas sin pagar</small><b class="${owed ? "bad" : ""}">${money(owed)}</b><em>${plural(late.length, "socio", "socios")} · se cuenta 1 cuota por socio</em></div>
+        <div><small>Por cobrar de cuotas vencidas</small><b class="${owed ? "bad" : ""}">${money(owed)}</b><em>${plural(late.length, "socio", "socios")} vencidos hace hasta 30 días${by.baja.length ? ` · no incluye a los ${by.baja.length} que se fueron` : ""}</em></div>
+        <a class="mlink" href="#/panel/caja"><small>Resultado de ${now.toLocaleDateString("es-AR", { month: "long" })}</small><b class="${resultado < 0 ? "bad" : ""}">${money(resultado)}</b><em>${money(thisMonth + otrosMes)} de ingresos − ${money(gastosMes)} de gastos</em><span class="cta">Ingresos y gastos ${icon("right", "xs")}</span></a>
       </section>` : ""}
       ${pend.length ? `<section class="card alert-card"><div class="card-h"><h2>${icon("userplus", "sm")} Socios nuevos para aprobar</h2><span class="pill red">${pend.length}</span></div>
         ${pend.slice(0, 5).map((m) => `<div class="mrow">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${esc(m.email)} · ${esc(relDay(m.joined))}</small></span><button class="btn primary sm" type="button" data-approve="${m.id}">Revisar</button></div>`).join("")}
       ${pend.length > 5 ? `<a class="btn ghost sm block" href="#/panel/socios?f=pend">Ver las ${pend.length} solicitudes</a>` : ""}
       </section>` : ""}
       <div class="pgrid">
+        <section class="card"><div class="card-h"><h2>${icon("lock", "sm")} Cuota vencida: no pueden entrar</h2><span class="muted">${late.length}</span></div>
+          ${late.slice(0, 10).map((m) => mrow(m, m.fee.unpaid ? `Se anotó el ${fmtDate(m.joined)} y todavía no pagó` : `Venció ${S.standing(m).over ? `hace ${plural(S.standing(m).over, "día", "días")}` : "hoy"} · ${fmtDate(m.fee.dueAt)}`)).join("") || `<p class="muted">Nadie tiene la cuota vencida.</p>`}
+          ${late.length > 10 ? `<a class="btn ghost sm" href="#/panel/socios?f=vencida">Ver los ${late.length}</a>` : ""}
+        </section>
         <section class="card"><div class="card-h"><h2>${icon("dumbbell", "sm")} Sin rutina asignada</h2><span class="muted">${noRoutine.length}</span></div>
-          ${noRoutine.slice(0, 6).map((m) => mrow(m, `Socio desde ${fmtDate(m.joined)}`)).join("") || `<p class="muted">Todos los socios tienen rutina.</p>`}
-          ${noRoutine.length > 6 ? `<a class="btn ghost sm" href="#/panel/socios?f=sin">Ver los ${noRoutine.length}</a>` : ""}
+          ${noRoutine.slice(0, 10).map((m) => mrow(m, `Socio desde ${fmtDate(m.joined, new Date(m.joined).getFullYear() === now.getFullYear() ? {} : { year: true })}`)).join("") || `<p class="muted">Todos los socios tienen rutina.</p>`}
+          ${noRoutine.length > 10 ? `<a class="btn ghost sm" href="#/panel/socios?f=sin">Ver los ${noRoutine.length}</a>` : ""}
         </section>
-        <section class="card"><div class="card-h"><h2>${icon("download", "sm")} Uso de la app</h2><span class="muted">${pct(act.length - neverIn.length, act.length)} % ya entró</span></div>
-          ${hbars([{ label: "Ya entraron", n: act.length - neverIn.length }, { label: "Nunca entraron", n: neverIn.length }], act.length)}
-          ${neverIn.length ? `<a class="btn ghost sm block" href="#/panel/socios?f=app">${icon("users", "sm")} Ver los ${neverIn.length} que nunca entraron</a>` : `<p class="muted tiny">Todos los socios ya entraron a la app.</p>`}
-        </section>
+        ${admin && by.baja.length ? `<section class="card"><div class="card-h"><h2>${icon("logout", "sm")} Se fueron</h2><span class="muted">${by.baja.length}</span></div>
+          <p class="muted tiny">Hace más de 30 días que no pagan. No cuentan como socios activos ni en lo que falta cobrar (deuda vieja: ${money(owedOld)}).</p>
+          ${by.baja.slice(0, 5).map((m) => mrow(m, `Venció hace ${S.standing(m).over} días`)).join("")}
+          <a class="btn ghost sm" href="#/panel/socios?f=baja">Ver los ${by.baja.length}</a>
+        </section>` : ""}
         ${admin ? `
         <section class="card"><div class="card-h"><h2>${icon("users", "sm")} Socios por mes</h2><span class="muted">activos · tocá un mes</span></div>${hist.length ? `${monthCols(mrows)}<div data-mdet>${detail(hist[hist.length - 1])}</div>
-          <p class="muted tiny">"Activos" son los socios con cuota vigente ese mes, según los pagos registrados. Cada persona cuenta como "nueva" una sola vez (el mes de su alta). Los meses anteriores al uso de la app no tienen datos.</p>` : `<p class="muted">Todavía no hay datos.</p>`}</section>
-        <section class="card"><div class="card-h"><h2>${icon("card", "sm")} Socios por plan</h2></div>${hbars(planRows, act.length)}</section>
-        ${convRows.length ? `<section class="card"><div class="card-h"><h2>${icon("card", "sm")} Socios por convenio</h2></div>${hbars(convRows, act.length)}</section>` : ""}
-        <section class="card"><div class="card-h"><h2>${icon("users", "sm")} Mujeres y hombres</h2></div>${hbars(genRows, act.length)}</section>
-        <section class="card"><div class="card-h"><h2>${icon("calendar", "sm")} Edades</h2>${avgAge.length ? `<span class="muted">promedio ${Math.round(avgAge.reduce((a, b) => a + b, 0) / avgAge.length)} años</span>` : ""}</div>${hbars(ageRows, act.length)}</section>`
+          <p class="muted tiny">"Activos" son los socios con cuota vigente ese mes, según los pagos registrados. Cada socio vence en su propia fecha. Cada persona cuenta como "nueva" una sola vez (el mes de su alta). Los meses anteriores al uso de la app no tienen datos.</p>` : `<p class="muted">Todavía no hay datos.</p>`}</section>
+        <section class="card"><div class="card-h"><h2>${icon("card", "sm")} Socios por plan</h2></div>${hbars(planRows, live.length)}</section>
+        ${convRows.length ? `<section class="card"><div class="card-h"><h2>${icon("card", "sm")} Socios por convenio</h2></div>${hbars(convRows, live.length)}</section>` : ""}
+        <section class="card"><div class="card-h"><h2>${icon("users", "sm")} Mujeres y hombres</h2></div>${hbars(genRows, live.length)}</section>
+        <section class="card"><div class="card-h"><h2>${icon("calendar", "sm")} Edades</h2>${avgAge.length ? `<span class="muted">promedio ${Math.round(avgAge.reduce((a, b) => a + b, 0) / avgAge.length)} años</span>` : ""}</div>${hbars(ageRows, live.length)}</section>`
         : `<section class="card"><div class="card-h"><h2>${icon("users", "sm")} Mis socios</h2><span class="muted">${mine.length}</span></div>
           ${mine.slice(0, 8).map((m) => { const r = S.activeRoutine(m.id); return mrow(m, r ? esc(S.routineTitle(r)) : "Sin rutina"); }).join("") || `<p class="muted">Todavía no tenés socios a cargo.</p>`}
           <a class="btn ghost sm" href="#/panel/socios?f=mios">Ver todos</a></section>`}
@@ -173,7 +188,7 @@ export function approveSheet(m) {
 }
 
 /* ---------------------------------------------------------------- socios */
-const FILTERS = [["", "Todos"], ["mios", "Mis socios"], ["sin", "Sin rutina"], ["app", "No entraron a la app"], ["soon", "Cuota por vencer"], ["late", "Cuota vencida"], ["pend", "Para aprobar"]];
+const FILTERS = [["", "Todos"], ["mios", "A mi cargo"], ["sin", "Sin rutina"], ["soon", "Cuota por vencer"], ["vencida", "Cuota vencida"], ["baja", "Se fueron"], ["pend", "Para aprobar"]];
 
 export function membersView(params, query) {
   const f = query.f || "", q = query.q || "";
@@ -183,6 +198,7 @@ export function membersView(params, query) {
   if (f === "app") list = list.filter((m) => m.prefs?.tempPass);
   if (f === "sin") list = list.filter((m) => !S.activeRoutine(m.id));
   if (f === "soon" || f === "late") list = list.filter((m) => S.feeStatus(m).state === f);
+  if (f === "vencida" || f === "baja") list = list.filter((m) => S.standing(m).key === f);
   if (q) list = list.filter((m) => fold(m.name + " " + m.email + " " + m.phone).includes(fold(q)));
   list.sort((a, b) => a.name.localeCompare(b.name, "es"));
   const pend = S.pending().filter((m) => S.inSpace(m)).length;
@@ -191,7 +207,7 @@ export function membersView(params, query) {
     layout: "panel", nav: "socios", title: "Socios",
     html: `${pageHead({ title: "Socios", actions: `<button class="btn primary sm" type="button" data-act="new">${icon("userplus", "sm")} Nuevo socio</button>` })}
       <div class="filters"><label class="search">${icon("search", "sm")}<input type="search" data-q value="${esc(q)}" placeholder="Buscar por nombre, email o teléfono" aria-label="Buscar socio"></label></div>
-      <div class="chips-scroll">${FILTERS.map(([k, l]) => `<a class="chip ${k === f ? "on" : ""}" href="#/panel/socios${k ? "?f=" + k : ""}">${l}${k === "pend" && pend ? ` <b>${pend}</b>` : ""}</a>`).join("")}</div>
+      <div class="chips-scroll">${FILTERS.filter(([k]) => k !== "mios" || me().role === "profe").map(([k, l]) => `<a class="chip ${k === f ? "on" : ""}" href="#/panel/socios${k ? "?f=" + k : ""}">${l}${k === "pend" && pend ? ` <b>${pend}</b>` : ""}</a>`).join("")}</div>
       <p class="muted tiny">${plural(list.length, "socio", "socios")}</p>
       <div class="mlist">${list.map((m) => {
         if (m.status === "pendiente") return `<button type="button" class="mrow" data-approve="${m.id}">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>Se registró ${esc(relDay(m.joined))} · espera aprobación</small></span><span class="pill red">Revisar</span></button>`;

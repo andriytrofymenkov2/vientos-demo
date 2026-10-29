@@ -183,6 +183,15 @@ export async function buildDemo(D, { hashPass, uid, normDays }) {
     D.payments.push({ id: uid("pay"), userId: u.id, planId: p.id, months: 1, amount: p.price, at: u.fee.dueAt - 30 * DAY + i * 3600000, by: "u-fitz", space: "fitz", list: p.price, from: u.fee.dueAt - 30 * DAY, to: u.fee.dueAt });
   });
 
+  /* Caja de ejemplo: gastos fijos de los últimos 3 meses y algo de shop */
+  D.movements = [];
+  const CAJA = [["Alquiler", 1800000, 4], ["Sueldos", 3900000, 5], ["Servicios (luz, agua, internet)", 520000, 10], ["Mantenimiento y máquinas", 240000, 14], ["Insumos y limpieza", 130000, 8], ["Impuestos y cargas", 800000, 18], ["Marketing", 100000, 20]];
+  for (let k = 0; k < 3; k++) {
+    const m0 = new Date(new Date().getFullYear(), new Date().getMonth() - k, 1);
+    CAJA.forEach(([cat, amount, day], n) => { const at = new Date(m0.getFullYear(), m0.getMonth(), day, 12).getTime(); if (at < now) D.movements.push({ id: uid("m"), kind: "gasto", at, amount: Math.round(amount * (0.95 + R() * 0.1) / 100) * 100, cat, note: "", space: "vientos" }); });
+    const at = new Date(m0.getFullYear(), m0.getMonth(), 25, 12).getTime();
+    if (at < now) D.movements.push({ id: uid("m"), kind: "ingreso", at, amount: Math.round(300000 * (0.9 + R() * 0.2) / 100) * 100, cat: "Shop y bebidas", note: "Bebidas y suplementos", space: "vientos" });
+  }
   D.notices = [
     { id: uid("n"), at: now - 2 * DAY, title: "Nuevos horarios de ciclo indoor", body: "Sumamos una clase a las 7:00 de lunes a viernes. Reservá tu lugar por WhatsApp." },
     { id: uid("n"), at: now - 1 * DAY, space: "fitz", title: "Nuevo bloque de 6 semanas", body: "El lunes arranca un bloque nuevo. Lo ves en la app o pedile a tu profe la hoja impresa." },

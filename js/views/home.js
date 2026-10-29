@@ -77,7 +77,7 @@ export function homeView() {
       <div class="weekcard-h"><h2>Esta semana</h2><span>Hoy es <em>${fmtWeekday(Date.now())} ${new Date().getDate()}</em></span></div>
       <div class="week">${week}</div>
       <div class="stats3">
-        <div><b data-count="${month}">0</b><small>en ${new Date().toLocaleDateString("es-AR", { month: "long" })}</small></div>
+        <div><b data-count="${month}">0</b><small>${month === 1 ? "entrenamiento" : "entrenamientos"} en ${new Date().toLocaleDateString("es-AR", { month: "long" })}</small></div>
         <div><span class="st-n">${streak >= 2 ? icon("flame", "sm") : ""}<b data-count="${streak}">0</b></span><small>${streak === 1 ? "semana seguida" : "semanas seguidas"}</small></div>
         <div><b>${logs[0] ? esc(relDay(logs[0].at)) : "—"}</b><small>último</small></div>
       </div>

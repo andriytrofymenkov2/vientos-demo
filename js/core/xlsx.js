@@ -1,7 +1,7 @@
 /* Genera archivos de Excel (.xlsx) reales, sin librerías: un .xlsx es un ZIP con
-   archivos XML. Varias hojas con los colores de la app (encabezado rojo, totales grafito),
-   filas alternadas, filtros, primera fila fija, fechas, montos, FÓRMULAS (se recalculan
-   solas si la persona cambia un dato) y el logo del gimnasio en la hoja de resumen. */
+   archivos XML. Varias hojas en blanco y negro (encabezado negro, filas alternadas en gris),
+   filtros, primera fila fija, fechas, montos, FÓRMULAS (se recalculan solas si la persona
+   cambia un dato), links entre hojas y el logo del gimnasio en la hoja de resumen. */
 
 /* ---------------------------------------------------------------- ZIP (sin compresión) */
 const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
@@ -32,10 +32,10 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<
 const colName = (i) => { let s = ""; for (i++; i > 0; i = Math.floor((i - 1) / 26)) s = String.fromCharCode(65 + ((i - 1) % 26)) + s; return s; };
 const serial = (ts) => { const d = new Date(ts); return (Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(1899, 11, 30)) / 86400000; };
 
-/* Colores de la app: rojo de la marca, grafito y grises */
-const RED = "FFD11F2A", INK = "FF1C1C1E", ZEBRA = "FFF4F4F5", LINE = "FFD9D9DE", MUTED = "FF6B6B70", OK = "FF1E8E4F";
+/* Blanco y negro: tinta, grises y blanco */
+const INK = "FF111111", ZEBRA = "FFF3F3F3", SOFT = "FFE4E4E4", LINE = "FFD0D0D0", MUTED = "FF6B6B6B";
 const NUMFMT = { text: 0, int: 0, money: 164, date: 165, month: 166 };
-/* fuentes: 0 normal · 1 blanca negrita · 2 título · 3 gris chico · 4 negrita · 5 negrita grande · 6 verde negrita · 7 roja negrita */
+/* fuentes: 0 normal · 1 blanca negrita · 2 título · 3 gris chico · 4 negrita · 5 negrita grande · 6 link · 7 negrita mediana */
 const FONTS = [
   `<font><sz val="11"/><color rgb="${INK}"/><name val="Calibri"/></font>`,
   `<font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font>`,
@@ -43,11 +43,11 @@ const FONTS = [
   `<font><sz val="10"/><color rgb="${MUTED}"/><name val="Calibri"/></font>`,
   `<font><b/><sz val="11"/><color rgb="${INK}"/><name val="Calibri"/></font>`,
   `<font><b/><sz val="14"/><color rgb="${INK}"/><name val="Calibri"/></font>`,
-  `<font><b/><sz val="14"/><color rgb="${OK}"/><name val="Calibri"/></font>`,
-  `<font><b/><sz val="14"/><color rgb="${RED}"/><name val="Calibri"/></font>`,
+  `<font><u/><sz val="11"/><color rgb="${INK}"/><name val="Calibri"/></font>`,
+  `<font><b/><sz val="12"/><color rgb="${INK}"/><name val="Calibri"/></font>`,
 ];
-/* rellenos: 0 nada · 1 (obligatorio) · 2 rojo · 3 gris alternado · 4 grafito */
-const FILLS = ["none", "gray125", RED, ZEBRA, INK].map((f) => (f === "none" || f === "gray125") ? `<fill><patternFill patternType="${f}"/></fill>` : `<fill><patternFill patternType="solid"><fgColor rgb="${f}"/><bgColor indexed="64"/></patternFill></fill>`);
+/* rellenos: 0 nada · 1 (obligatorio) · 2 negro · 3 gris alternado · 4 gris de totales */
+const FILLS = ["none", "gray125", INK, ZEBRA, SOFT].map((f) => (f === "none" || f === "gray125") ? `<fill><patternFill patternType="${f}"/></fill>` : `<fill><patternFill patternType="solid"><fgColor rgb="${f}"/><bgColor indexed="64"/></patternFill></fill>`);
 const BORDERS = [`<border><left/><right/><top/><bottom/><diagonal/></border>`, `<border>${["left", "right", "top", "bottom"].map((s) => `<${s} style="thin"><color rgb="${LINE}"/></${s}>`).join("")}<diagonal/></border>`];
 
 const xfs = [];
@@ -61,18 +61,20 @@ const KINDS = ["text", "int", "money", "date", "month"];
 KINDS.forEach((k) => {
   addXf(`${k}-plain`, { num: NUMFMT[k], h: k === "text" ? "left" : "center" });
   addXf(`${k}-zebra`, { num: NUMFMT[k], fill: 3, h: k === "text" ? "left" : "center" });
-  addXf(`${k}-total`, { num: NUMFMT[k], font: 1, fill: 4, h: k === "text" ? "left" : "center" });
+  addXf(`${k}-total`, { num: NUMFMT[k], font: 4, fill: 4, h: k === "text" ? "left" : "center" });
 });
 /* estilos de la hoja de resumen (diseño libre) */
 addXf("title", { font: 2, border: 0, h: "left" });
 addXf("sub", { font: 3, border: 0, h: "left" });
-addXf("sec", { font: 1, fill: 4, h: "left" });
+addXf("sec", { font: 1, fill: 2, h: "left" });
 addXf("label", { h: "left" });
 addXf("hint", { font: 3, h: "left", wrap: true });
 addXf("big", { font: 5, h: "center" });
 addXf("bigmoney", { num: 164, font: 5, h: "center" });
-addXf("goodmoney", { num: 164, font: 6, h: "center" });
-addXf("badmoney", { num: 164, font: 7, h: "center" });
+addXf("link", { font: 6, h: "left" });
+addXf("linkr", { font: 6, border: 0, h: "right" });
+addXf("labelb", { font: 7, h: "left" });
+addXf("moneyb", { num: 164, font: 7, h: "center" });
 addXf("blank", { border: 0 });
 
 const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -126,14 +128,15 @@ function tableXml(sheet) {
 ${FOOT(false)}`;
 }
 
-/* Hoja de diseño libre (resumen): filas de celdas { v, t: tipo, s: estilo, span: columnas que ocupa } */
+/* Hoja de diseño libre (resumen, meses): filas de celdas { v, t: tipo, s: estilo, span: columnas que ocupa, link: "'Hoja'!A1" } */
 function freeXml(sheet, hasDrawing) {
-  const merges = [];
+  const merges = [], links = [];
   const rows = sheet.rows.map((r, ri) => {
     let col = 0;
     const cells = (r.cells || []).map((c) => {
       const ref = colName(col) + (ri + 1);
       if (c.span > 1) merges.push(`${ref}:${colName(col + c.span - 1)}${ri + 1}`);
+      if (c.link) links.push(`<hyperlink ref="${ref}" location="${esc(c.link)}" display="${esc(c.v)}"/>`);
       const out = cellXml(c.v, c.t || "text", ref, c.s) + (c.span > 1 ? Array.from({ length: c.span - 1 }, (_, k) => `<c r="${colName(col + k + 1)}${ri + 1}" s="${XF[c.s] ?? 0}"/>`).join("") : "");
       col += c.span || 1;
       return out;
@@ -146,6 +149,7 @@ function freeXml(sheet, hasDrawing) {
 <cols>${sheet.widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols>
 <sheetData>${rows}</sheetData>
 ${merges.length ? `<mergeCells count="${merges.length}">${merges.map((m) => `<mergeCell ref="${m}"/>`).join("")}</mergeCells>` : ""}
+${links.length ? `<hyperlinks>${links.join("")}</hyperlinks>` : ""}
 ${FOOT(hasDrawing)}`;
 }
 

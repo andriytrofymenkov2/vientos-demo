@@ -1,6 +1,6 @@
 /* Inicio del socio */
 import { icon, logo, WAVES } from "../core/icons.js";
-import { esc, fmtWeekday, greeting, firstName, waNumber, telHref, fmtDate, weekStart, dayKey, DAY, relDay, countUp, $$ } from "../core/util.js";
+import { esc, fmtWeekday, greeting, firstName, waNumber, fmtDate, weekStart, dayKey, DAY, relDay, countUp, $$ } from "../core/util.js";
 import * as S from "../core/store.js";
 import { me } from "../core/auth.js";
 import { avatar, spaceLogo } from "../core/ui.js";
@@ -59,7 +59,6 @@ export function homeView() {
       ${icon(fee.state === "late" ? "alert" : "card")}
       <div><b>${fee.state === "late" ? "Tu cuota está vencida" : `Tu cuota ${fee.days === 0 ? "vence hoy" : `vence en ${fee.days} ${fee.days === 1 ? "día" : "días"}`}`}</b>
       <small>${esc(p?.name || "Cuota mensual")} · ${u.fee.unpaid ? "desde el " : ""}${fmtDate(u.fee.dueAt)}</small></div>
-      <a class="btn sm ${fee.state === "late" ? "primary" : "ghost"}" href="https://wa.me/${wa}?text=${encodeURIComponent(`Hola! Soy ${u.name}, les aviso que pagué la cuota.`)}" target="_blank" rel="noopener">Avisar pago</a>
     </div>` : "";
 
   const notices = S.noticesOf(sp).slice(0, 2).map((n) => `<article class="notice"><span class="notice-d">${relDay(n.at)}</span><h3>${esc(n.title)}</h3><p>${esc(n.body)}</p></article>`).join("");
@@ -83,10 +82,10 @@ export function homeView() {
         <div><b>${logs[0] ? esc(relDay(logs[0].at)) : "—"}</b><small>último</small></div>
       </div>
     </section>
+    ${S.db.off?.opiniones ? "" : `<a class="card op-card" href="#/opinion">${icon("chat")}<span><b>${rated ? "¿Algo para sugerir o reclamar?" : "¿Qué te parece el gimnasio?"}</b><small>${rated ? "Lo lee el dueño del gimnasio." : "Calificalo del 1 al 10. Lo lee solo el dueño."}</small></span><span class="btn primary sm">${rated ? "Escribir" : "Calificar"}</span></a>`}
     ${notices ? `<section class="sec"><h2 class="sec-t">Novedades de ${fz ? "Fitz Club" : "Grupo Amplifia"}</h2>${notices}</section>` : ""}
     ${coach ? `<section class="sec"><h2 class="sec-t">Tu profe</h2>
       <div class="coach">${avatar(coach, "lg")}<div><b>${esc(coach.name)}</b><small>Entrenador · ${esc(g.name)}</small></div>
-        <div class="coach-a"><a class="round" href="${telHref(coach.phone)}" aria-label="Llamar a ${esc(coach.name)}">${icon("phone")}</a><a class="round wa" href="https://wa.me/${waNumber(coach.phone)}?text=${encodeURIComponent(`Hola ${firstName(coach.name)}! Soy ${u.name}.`)}" target="_blank" rel="noopener" aria-label="WhatsApp a ${esc(coach.name)}">${icon("whatsapp")}</a></div>
       </div></section>` : ""}
     <section class="sec gymcard">
       <div class="gym-photo ${fz ? "no-photo" : ""}">${fz ? spaceLogo(sp) : `<img src="img/portada.jpg" alt="Grupo Amplifia" loading="lazy">`}<span class="open-pill ${open.open ? "on" : ""}"><i></i>${esc(open.label)}</span></div>
@@ -101,7 +100,6 @@ export function homeView() {
         <dl class="hours">${S.hoursList(g.open).map((h) => `<div class="${h.days.includes(new Date().getDay()) ? "now" : ""}"><dt>${esc(h.d)}</dt><dd>${esc(h.h)}</dd></div>`).join("")}</dl>
       </div>
     </section>
-    ${S.db.off?.opiniones ? "" : `<a class="card op-card" href="#/opinion">${icon("chat")}<span><b>${rated ? "¿Algo para sugerir o reclamar?" : "¿Qué te parece el gimnasio?"}</b><small>${rated ? "Lo lee el dueño del gimnasio." : "Calificalo del 1 al 10. Lo lee solo el dueño."}</small></span>${icon("right", "sm")}</a>`}
     <p class="foot-note">${fz ? "" : `${icon("wind", "xs")} `}${esc(g.name)} · Río Gallegos</p>`,
     mount(host) {
       $$("[data-count]", host).forEach((el) => countUp(el, +el.dataset.count));

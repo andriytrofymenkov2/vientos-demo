@@ -34,7 +34,7 @@ const colName = (i) => { let s = ""; for (i++; i > 0; i = Math.floor((i - 1) / 2
 const serial = (ts) => { const d = new Date(ts); return (Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(1899, 11, 30)) / 86400000; };
 
 /* Blanco y negro: tinta, grises y blanco */
-const INK = "FF111111", ZEBRA = "FFF7F7F7", SOFT = "FFEFEFEF", LINE = "FFDDDDDD", MUTED = "FF6B6B6B";
+const INK = "FF111111", ZEBRA = "FFF7F7F7", SOFT = "FFF0F0F0", LINE = "FFD6D6D6", MUTED = "FF6B6B6B";
 const NUMFMT = { text: 0, int: 0, money: 164, date: 165, month: 166 };
 /* fuentes: 0 normal · 1 blanca negrita · 2 título · 3 gris chico · 4 negrita · 5 negrita grande · 6 link · 7 negrita mediana */
 const FONTS = [
@@ -47,48 +47,58 @@ const FONTS = [
   `<font><u/><sz val="11"/><color rgb="${INK}"/><name val="Calibri"/></font>`,
   `<font><b/><sz val="12"/><color rgb="${INK}"/><name val="Calibri"/></font>`,
 ];
-/* rellenos: 0 nada · 1 (obligatorio) · 2 negro · 3 gris alternado · 4 gris de totales */
+/* rellenos: 0 nada · 1 (obligatorio) · 2 negro · 3 gris alternado · 4 gris de las tarjetas */
 const FILLS = ["none", "gray125", INK, ZEBRA, SOFT].map((f) => (f === "none" || f === "gray125") ? `<fill><patternFill patternType="${f}"/></fill>` : `<fill><patternFill patternType="solid"><fgColor rgb="${f}"/><bgColor indexed="64"/></patternFill></fill>`);
-/* bordes: 0 nada · 1 línea fina abajo · 2 línea negra abajo (encabezados) · 3 línea negra arriba (totales) */
+/* bordes: 0 nada · 1 línea gris fina abajo (encabezados) · 2 línea gris fina arriba (totales)
+   · 3 y 4: borde blanco grueso que separa las tarjetas del resumen (arriba / abajo) */
+const W = "FFFFFFFF";
+const side = (name, style, color) => (style ? `<${name} style="${style}"><color rgb="${color}"/></${name}>` : `<${name}/>`);
 const BORDERS = [
   `<border><left/><right/><top/><bottom/><diagonal/></border>`,
-  `<border><left/><right/><top/><bottom style="thin"><color rgb="${LINE}"/></bottom><diagonal/></border>`,
-  `<border><left/><right/><top/><bottom style="medium"><color rgb="${INK}"/></bottom><diagonal/></border>`,
-  `<border><left/><right/><top style="medium"><color rgb="${INK}"/></top><bottom/><diagonal/></border>`,
+  `<border><left/><right/><top/>${side("bottom", "thin", LINE)}<diagonal/></border>`,
+  `<border><left/><right/>${side("top", "thin", LINE)}<bottom/><diagonal/></border>`,
+  `<border>${side("left", "thick", W)}${side("right", "thick", W)}${side("top", "thick", W)}<bottom/><diagonal/></border>`,
+  `<border>${side("left", "thick", W)}${side("right", "thick", W)}<top/>${side("bottom", "thick", W)}<diagonal/></border>`,
 ];
 
 const xfs = [];
 const XF = {};
-const addXf = (name, { num = 0, font = 0, fill = 0, border = 1, h = "center", wrap = false }) => {
+const addXf = (name, { num = 0, font = 0, fill = 0, border = 0, h = "center", wrap = false, indent = 0 }) => {
   XF[name] = xfs.length;
-  xfs.push(`<xf numFmtId="${num}" fontId="${font}" fillId="${fill}" borderId="${border}" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="${h}" vertical="center"${wrap ? ' wrapText="1"' : ""}/></xf>`);
+  xfs.push(`<xf numFmtId="${num}" fontId="${font}" fillId="${fill}" borderId="${border}" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="${h}" vertical="center"${wrap ? ' wrapText="1"' : ""}${indent ? ` indent="${indent}"` : ""}/></xf>`);
 };
-addXf("head", { font: 4, border: 2, wrap: true });
-addXf("headl", { font: 4, border: 2, h: "left", wrap: true });
+/* el primero es el estilo de TODAS las celdas vacías: tiene que ser liso, sin bordes */
+addXf("default", {});
+addXf("head", { font: 4, border: 1, wrap: true });
+addXf("headl", { font: 4, border: 1, h: "left", wrap: true });
+addXf("headr", { font: 4, border: 1, h: "right", wrap: true });
 const KINDS = ["text", "int", "money", "date", "month"];
 KINDS.forEach((k) => {
   addXf(`${k}-plain`, { num: NUMFMT[k], h: k === "text" ? "left" : "center" });
   addXf(`${k}-zebra`, { num: NUMFMT[k], fill: 3, h: k === "text" ? "left" : "center" });
-  addXf(`${k}-total`, { num: NUMFMT[k], font: 4, border: 3, h: k === "text" ? "left" : "center" });
+  addXf(`${k}-total`, { num: NUMFMT[k], font: 4, border: 2, h: k === "text" ? "left" : "center" });
 });
-/* estilos de la hoja de resumen (diseño libre) */
-addXf("title", { font: 2, border: 0, h: "left" });
-addXf("sub", { font: 3, border: 0, h: "left" });
-addXf("sec", { font: 1, fill: 2, border: 0, h: "left" });
+/* estilos de las hojas de diseño libre (resumen, ingresos y gastos) */
+addXf("title", { font: 2, h: "left" });
+addXf("sub", { font: 3, h: "left" });
+addXf("sec", { font: 1, fill: 2, h: "left", indent: 1 });
 addXf("label", { h: "left" });
-addXf("hint", { font: 3, border: 0, h: "left", wrap: true });
+addXf("hint", { font: 3, h: "left", wrap: true });
 addXf("big", { font: 5, h: "center" });
 addXf("bigmoney", { num: 164, font: 5, h: "center" });
+/* tarjetas del resumen: título chico arriba y número grande abajo, sobre gris, separadas por blanco */
+addXf("cardlab", { font: 3, fill: 4, border: 3, h: "left", indent: 1 });
+addXf("cardval", { font: 5, fill: 4, border: 4, h: "left", indent: 1 });
+addXf("cardmoney", { num: 164, font: 5, fill: 4, border: 4, h: "left", indent: 1 });
 addXf("link", { font: 6, h: "left" });
-addXf("linkr", { font: 6, border: 0, h: "right" });
-addXf("labelb", { font: 7, border: 3, fill: 4, h: "left" });
-addXf("moneyb", { num: 164, font: 7, border: 3, fill: 4, h: "center" });
+addXf("linkr", { font: 6, h: "right" });
+addXf("labelb", { font: 7, fill: 4, h: "left", indent: 1 });
+addXf("moneyb", { num: 164, font: 7, fill: 4, h: "center" });
 addXf("moneyr", { num: 164, h: "right" });
 addXf("moneyrz", { num: 164, fill: 3, h: "right" });
-addXf("moneyrt", { num: 164, font: 4, border: 3, h: "right" });
-addXf("moneyrb", { num: 164, font: 7, border: 3, fill: 4, h: "right" });
-addXf("headr", { font: 4, border: 2, h: "right", wrap: true });
-addXf("blank", { border: 0 });
+addXf("moneyrt", { num: 164, font: 4, border: 2, h: "right" });
+addXf("moneyrb", { num: 164, font: 7, fill: 4, h: "right" });
+addXf("blank", {});
 
 const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
@@ -118,7 +128,7 @@ const FOOT = (hasDrawing) => `<pageMargins left="0.5" right="0.5" top="0.7" bott
 <pageSetup orientation="landscape" fitToWidth="1" fitToHeight="0"/>${hasDrawing ? `<drawing r:id="rId1"/>` : ""}
 </worksheet>`;
 const HEAD = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">`;
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>`;
 
 /* Hoja de tabla: encabezado en la fila 1 (lista para filtrar o importar a una base de datos) */
 function tableXml(sheet) {

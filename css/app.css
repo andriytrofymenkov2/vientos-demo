@@ -1407,3 +1407,5 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .op-card > .i:first-child { color: var(--red2); }
 .op-card span { flex: 1; display: grid; gap: 2px; }
 .op-card small { color: var(--muted); }
+.op-card { border-color: rgba(209, 31, 42, .35); background: linear-gradient(180deg, var(--red-soft), var(--card) 80%); }
+.op-card .btn { flex: none; pointer-events: none; }

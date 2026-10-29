@@ -26,6 +26,8 @@ function stateOf(u) {
   if (u.fee?.unpaid) return "Se anotó y todavía no pagó";
   return STATE[S.standing(u).key] || "";
 }
+/* Apellido y nombre por separado: el apellido es la última palabra ("Juan Carlos Pérez" → Pérez / Juan Carlos) */
+const splitName = (full = "") => { const w = String(full).trim().split(/\s+/); return w.length > 1 ? { ape: w.pop(), nom: w.join(" ") } : { ape: w[0] || "", nom: "" }; };
 const colName = (i) => { let s = ""; for (i++; i > 0; i = Math.floor((i - 1) / 26)) s = String.fromCharCode(65 + ((i - 1) % 26)) + s; return s; };
 
 /* celdas de las hojas libres */
@@ -60,31 +62,34 @@ export async function downloadMaster() {
   /* ---------- Resumen */
   const KPI = (label, v, t = "int") => ({ label, v, t });
   const kpiRow = (list) => [
-    { ht: 22, cells: list.map((x) => T(x.label, "sub")) },
-    { ht: 30, cells: list.map((x) => ({ v: x.v, t: x.t, s: x.t === "money" ? "bigmoney" : "big" })) },
+    { ht: 26, cells: list.map((x) => ({ v: x.label, s: "cardlab", span: 2 })) },
+    { ht: 38, cells: list.map((x) => ({ v: x.v, t: x.t, s: x.t === "money" ? "cardmoney" : "cardval", span: 2 })) },
   ];
   const resumen = [
     { ht: 84, cells: [] },
-    { ht: 32, cells: [T(`Reporte de gestión · ${BRAND}`, "title", 8)] },
-    { cells: [T(`Generado el ${new Date(now).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}`, "sub", 8)] },
+    { ht: 32, cells: [T(`Reporte de gestión · ${BRAND}`, "title", 10)] },
+    { cells: [T(`Generado el ${new Date(now).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}`, "sub", 10)] },
     { cells: [] },
-    { ht: 24, cells: [T("  LOS SOCIOS HOY", "sec", 8)] },
+    { ht: 24, cells: [T("LOS SOCIOS HOY", "sec", 10)] },
+    { ht: 8, cells: [] },
     ...kpiRow([KPI("Socios activos", activos), KPI("Cuotas vencidas", count("vencida")), KPI("Se fueron", count("baja")), KPI("Para aprobar", pend)]),
-    { ht: 44, cells: [T("Activos: cuota al día. Cuotas vencidas: vencieron hace 30 días o menos (cada socio vence en su propia fecha). Se fueron: más de 30 días sin pagar; no cuentan como activos ni como deuda. Para aprobar: se registraron solos en la app y todavía nadie los aprobó.", "hint", 8)] },
+    { ht: 44, cells: [T("Activos: cuota al día. Cuotas vencidas: vencieron hace 30 días o menos (cada socio vence en su propia fecha). Se fueron: más de 30 días sin pagar; no cuentan como activos ni como deuda. Para aprobar: se registraron solos en la app y todavía nadie los aprobó.", "hint", 10)] },
     { cells: [] },
-    { ht: 24, cells: [T(`  LA PLATA DE ${mname(cur).toUpperCase()}`, "sec", 8)] },
-    ...kpiRow([KPI("Cobrado en cuotas", m0.c, "money"), KPI("Otros ingresos", m0.o, "money"), KPI("Gastos", m0.g, "money"), KPI("Resultado", m0.c + m0.o - m0.g, "money"), KPI("Por cobrar (vencidas)", owed, "money")]),
+    { ht: 24, cells: [T(`LA PLATA DE ${mname(cur).toUpperCase()}`, "sec", 10)] },
+    { ht: 8, cells: [] },
+    ...kpiRow([KPI("Cobrado en cuotas", m0.c, "money"), KPI("Otros ingresos", m0.o, "money"), KPI("Gastos", m0.g, "money"), KPI("Resultado", m0.c + m0.o - m0.g, "money")]),
+    { ht: 22, cells: [T(`Además hay ${"$ " + Math.round(owed).toLocaleString("es-AR")} por cobrar de cuotas vencidas hace 30 días o menos.`, "hint", 10)] },
     { cells: [] },
-    { ht: 24, cells: [T("  MES POR MES", "sec", 8)] },
+    { ht: 24, cells: [T("MES POR MES", "sec", 10)] },
     { ht: 30, cells: [{ v: "Mes", s: "headl" }, ...["Socios activos", "Altas", "Se fueron"].map((v) => ({ v, s: "head" })), ...["Cuotas cobradas", "Otros ingresos", "Gastos", "Resultado"].map((v) => ({ v, s: "headr" }))] },
     ...months.slice().reverse().map((m, i) => ({ cells: [{ v: mname(m.k), s: `text-${z(i)}` }, { v: m.act, t: "int", s: `int-${z(i)}` }, { v: m.alt, t: "int", s: `int-${z(i)}` }, { v: m.fue, t: "int", s: `int-${z(i)}` },
       ...[m.c, m.o, m.g, m.c + m.o - m.g].map((v) => ({ v, t: "money", s: i % 2 ? "moneyrz" : "moneyr" }))] })),
     { cells: [] },
-    { ht: 24, cells: [T("  QUÉ HAY EN CADA PESTAÑA", "sec", 8)] },
-    { cells: [T("Ingresos y gastos", "labelb"), T("Todos los meses uno al lado del otro: de dónde entró la plata, en qué se gastó y el resultado de cada mes.", "hint", 7)] },
-    { cells: [T("Socios", "labelb"), T(`La base completa (${socios.length} personas): DNI, plan, estado de la cuota, último pago, profe y contacto.`, "hint", 7)] },
-    { cells: [T("Cobros", "labelb"), T(`Cada cuota cobrada (${pays.length}). Para ver un solo mes, filtrá la columna "Mes".`, "hint", 7)] },
-    { cells: [T("Movimientos", "labelb"), T(`Cada gasto y cada ingreso que no es cuota (${moves.length}). También se filtra por "Mes".`, "hint", 7)] },
+    { ht: 24, cells: [T("QUÉ HAY EN CADA PESTAÑA", "sec", 10)] },
+    { cells: [T("Ingresos y gastos", "labelb"), T("Todos los meses uno al lado del otro: de dónde entró la plata, en qué se gastó y el resultado de cada mes.", "hint", 9)] },
+    { cells: [T("Socios", "labelb"), T(`La base completa (${socios.length} personas): DNI, apellido, nombre, plan, estado de la cuota, último pago, profe y contacto.`, "hint", 9)] },
+    { cells: [T("Cobros", "labelb"), T(`Cada cuota cobrada (${pays.length}). Para ver un solo mes, filtrá la columna "Mes".`, "hint", 9)] },
+    { cells: [T("Movimientos", "labelb"), T(`Cada gasto y cada ingreso que no es cuota (${moves.length}). También se filtra por "Mes".`, "hint", 9)] },
   ];
 
   /* ---------- Ingresos y gastos: conceptos en filas, meses en columnas */
@@ -100,7 +105,7 @@ export async function downloadMaster() {
   const totalLine = (label, from, to, vals, style = "moneyrt") => { const r = pl.length + 1;
     row([{ v: label, s: style === "moneyrb" ? "labelb" : "text-total" }, ...vals.map((v, i) => ({ v: { f: `SUM(${colName(i + 1)}${from}:${colName(i + 1)}${to})`, v }, t: "money", s: style })), { v: { f: `SUM(B${r}:${colName(N)}${r})`, v: vals.reduce((a, b) => a + b, 0) }, t: "money", s: style }], 24); return r; };
   const block = (title, lines) => {
-    row([T(`  ${title}`, "sec", N + 2)], 22);
+    row([T(`${title}`, "sec", N + 2)], 22);
     const from = pl.length + 1;
     lines.forEach(([label, vals], i) => line(label, vals, i));
     return from;
@@ -123,16 +128,16 @@ export async function downloadMaster() {
   const sRows = socios.map((u) => {
     const pp = paysOf[u.id] || [], lastP = pp[pp.length - 1], st = S.standing(u);
     return {
-      dni: u.user || "", nombre: u.name, estado: stateOf(u), plan: S.plan(u.fee?.planId)?.name || "",
-      vence: u.fee?.dueAt || "", dias: st.over || "", ultimo: lastP?.at || "", montoUlt: lastP?.amount ?? "", total: sum(pp),
+      dni: u.user || "", ...splitName(u.name), estado: stateOf(u), plan: S.plan(u.fee?.planId)?.name || "",
+      vence: u.fee?.dueAt || "", dias: st.over || "", ultimo: lastP?.at || "",
       convenio: S.convenio(u.fee?.convenioId)?.name || "", profe: S.user(u.coachId)?.name || "",
       tel: u.phone || "", email: realEmail(u.email), genero: u.gender || "",
       nac: u.birth ? new Date(u.birth + "T12:00").getTime() : "", edad: ageOf(u.birth), alta: u.joined || "",
     };
   });
   const cRows = pays.slice().reverse().map((p) => { const u = S.user(p.userId); const lista = p.list ?? p.amount ?? 0, monto = p.amount || 0;
-    return { mes: mstart(mkey(p.at)), at: p.at, dni: u?.user || "", nombre: u?.name || "Socio eliminado", plan: S.plan(p.planId)?.name || "", meses: p.months || 1,
-      lista, conv: p.discount?.name || "", desc: Math.max(0, lista - monto), monto, desde: p.from || "", hasta: p.to || "", cobro: S.user(p.by)?.name || "", nota: p.note || "" }; });
+    return { mes: mstart(mkey(p.at)), at: p.at, dni: u?.user || "", ...splitName(u?.name || "Socio eliminado"), plan: S.plan(p.planId)?.name || "",
+      monto, desc: Math.max(0, lista - monto), conv: p.discount?.name || "", cobro: S.user(p.by)?.name || "" }; });
   const mRows = moves.slice().reverse().map((m) => ({ mes: mstart(mkey(m.at)), at: m.at, tipo: m.kind === "gasto" ? "Gasto" : "Ingreso", cat: m.cat || "", det: m.note || "", ing: m.kind === "gasto" ? "" : m.amount || 0, gas: m.kind === "gasto" ? m.amount || 0 : "" }));
   /* SUBTOTAL: los totales cuentan solo las filas visibles, así se ajustan al filtrar (por mes, plan, estado…) */
   const sumCol = (L, n) => `SUBTOTAL(109,${L}2:${L}${n + 1})`;
@@ -145,39 +150,35 @@ export async function downloadMaster() {
   } catch { /* sin logo: el Excel sale igual */ }
 
   const blob = makeXlsx([
-    { name: "Resumen", free: true, logo: true, widths: [22, 16, 16, 16, 18, 18, 18, 18], rows: resumen },
+    { name: "Resumen", free: true, logo: true, widths: [18, 14, 13, 13, 16, 16, 16, 16, 13, 13], rows: resumen },
     { name: "Ingresos y gastos", free: true, widths: [32, ...keys.map(() => 15), 17], rows: pl, freeze: { col: 1, row: head } },
     {
       name: "Socios",
       columns: [
-        { header: "DNI", key: "dni", type: "text", width: 13 }, { header: "Nombre y apellido", key: "nombre", type: "text", width: 28 },
+        { header: "DNI", key: "dni", type: "text", width: 13 }, { header: "Apellido", key: "ape", type: "text", width: 18 }, { header: "Nombre", key: "nom", type: "text", width: 20 },
         { header: "Estado de la cuota", key: "estado", type: "text", width: 30 }, { header: "Plan", key: "plan", type: "text", width: 30 },
         { header: "Vence el", key: "vence", type: "date", width: 13 }, { header: "Días vencida", key: "dias", type: "int", width: 11 },
-        { header: "Último pago", key: "ultimo", type: "date", width: 13 }, { header: "Monto del último pago", key: "montoUlt", type: "money", width: 15 },
-        { header: "Total pagado", key: "total", type: "money", width: 15 }, { header: "Convenio", key: "convenio", type: "text", width: 22 },
+        { header: "Último pago", key: "ultimo", type: "date", width: 13 }, { header: "Convenio", key: "convenio", type: "text", width: 22 },
         { header: "Profe a cargo", key: "profe", type: "text", width: 20 }, { header: "Teléfono", key: "tel", type: "text", width: 15 },
         { header: "Email", key: "email", type: "text", width: 26 }, { header: "Género", key: "genero", type: "text", width: 12 },
         { header: "Fecha de nacimiento", key: "nac", type: "date", width: 14 }, { header: "Edad", key: "edad", type: "int", width: 8 },
         { header: "Socio desde", key: "alta", type: "date", width: 13 },
       ],
       rows: sRows,
-      total: (c, L, n) => c.key === "dni" ? TOT : c.key === "nombre" ? { f: `SUBTOTAL(103,B2:B${n + 1})&" socios"`, v: `${n} socios` } : c.key === "total" ? { f: sumCol(L, n), v: sum(pays) } : "",
+      total: (c, L, n) => c.key === "dni" ? TOT : c.key === "ape" ? { f: `SUBTOTAL(103,B2:B${n + 1})&" socios"`, v: `${n} socios` } : "",
     },
     {
       name: "Cobros",
       columns: [
         { header: "Mes", key: "mes", type: "month", width: 16 }, { header: "Fecha de cobro", key: "at", type: "date", width: 14 },
-        { header: "DNI", key: "dni", type: "text", width: 13 }, { header: "Nombre y apellido", key: "nombre", type: "text", width: 28 },
-        { header: "Plan", key: "plan", type: "text", width: 30 }, { header: "Meses", key: "meses", type: "int", width: 8 },
-        { header: "Precio de lista", key: "lista", type: "money", width: 15 }, { header: "Convenio", key: "conv", type: "text", width: 22 },
-        { header: "Descuento", key: "desc", type: "money", width: 13, formula: (r) => `MAX(0,G${r}-J${r})` },
-        { header: "Cobrado", key: "monto", type: "money", width: 15 }, { header: "Cubre desde", key: "desde", type: "date", width: 13 },
-        { header: "Cubre hasta", key: "hasta", type: "date", width: 13 }, { header: "Cobró", key: "cobro", type: "text", width: 20 },
-        { header: "Nota", key: "nota", type: "text", width: 28 },
+        { header: "DNI", key: "dni", type: "text", width: 13 }, { header: "Apellido", key: "ape", type: "text", width: 18 }, { header: "Nombre", key: "nom", type: "text", width: 20 },
+        { header: "Plan", key: "plan", type: "text", width: 30 }, { header: "Cobrado", key: "monto", type: "money", width: 15 },
+        { header: "Descuento por convenio", key: "desc", type: "money", width: 16 }, { header: "Convenio", key: "conv", type: "text", width: 22 },
+        { header: "Cobró", key: "cobro", type: "text", width: 20 },
       ],
       rows: cRows,
-      total: (c, L, n) => c.key === "mes" ? TOT : c.key === "nombre" ? { f: `SUBTOTAL(102,B2:B${n + 1})&" pagos"`, v: `${n} pagos` }
-        : ["lista", "desc", "monto"].includes(c.key) ? { f: sumCol(L, n), v: cRows.reduce((a, x) => a + (x[c.key] || 0), 0) } : "",
+      total: (c, L, n) => c.key === "mes" ? TOT : c.key === "ape" ? { f: `SUBTOTAL(102,B2:B${n + 1})&" pagos"`, v: `${n} pagos` }
+        : ["desc", "monto"].includes(c.key) ? { f: sumCol(L, n), v: cRows.reduce((a, x) => a + (x[c.key] || 0), 0) } : "",
     },
     {
       name: "Movimientos",

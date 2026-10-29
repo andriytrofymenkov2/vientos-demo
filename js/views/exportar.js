@@ -76,7 +76,7 @@ export async function downloadMaster() {
     { ht: 8, cells: [] },
     ...kpiRow([KPI("Al día", G.ok), KPI("Por vencer", G.soon), KPI("Cuota vencida", G.vencida), KPI("Se fue", G.baja)]),
     { ht: 20, cells: [T("Le vence en más de 5 días", "hint", 2), T("Le vence hoy o en los próximos 5 días", "hint", 2), T("Venció hace 1 a 30 días", "hint", 2), T("Venció hace más de 30 días", "hint", 2)] },
-    { ht: 40, cells: [T(`Socios activos: ${activos} (al día + por vencer). Total: ${act.length} socios; cada uno está en un solo grupo según su fecha de vencimiento.${G.none ? ` Sin cuota cargada: ${G.none}.` : ""} Aparte, ${pend} para aprobar.`, "hint", 10)] },
+    { ht: 40, cells: [T(`Socios activos: ${activos} (al día + por vencer). Total: ${act.length} socios; cada uno está en un solo grupo según su fecha de vencimiento.${G.none ? ` Sin cuota cargada: ${G.none}.` : ""}${pend ? ` Aparte, ${pend} para aprobar.` : ""}`, "hint", 10)] },
     { cells: [] },
     { ht: 24, cells: [T(`LA PLATA DE ${mname(cur).toUpperCase()}`, "sec", 10)] },
     { ht: 8, cells: [] },

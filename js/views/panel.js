@@ -117,11 +117,11 @@ export function panelHome() {
           const tot = Math.max(1, act.length);
           return `<div class="sb-bar" role="img" aria-label="${G.map(([k, l]) => `${l}: ${by[k].length}`).join(", ")}">${G.map(([k]) => by[k].length ? `<i class="sb-${k}" style="width:${(by[k].length / tot) * 100}%"></i>` : "").join("")}</div>
           <div class="sb-leg">${G.map(([k, l, rule, href]) => `<a class="sb-item" href="${href}"><span class="sb-dot sb-${k}"></span><span><b>${by[k].length}</b> ${l}<small>${rule}</small></span></a>`).join("")}</div>`; })()}
-        <p class="muted tiny">Cada socio está en un solo grupo, según su fecha de vencimiento (la del día que se anotó o pagó). Los grupos suman el total. Aparte: ${plural(pend.length, "persona para aprobar", "personas para aprobar")}.</p>
+        <p class="muted tiny">Cada socio está en un solo grupo, según su fecha de vencimiento (la del día que se anotó o pagó). Los grupos suman el total.${pend.length ? ` Aparte: ${plural(pend.length, "persona para aprobar", "personas para aprobar")}.` : ""}</p>
       </section>
       <section class="kpis">
         ${kpi(noRoutine.length, "sin rutina asignada", "#/panel/socios?f=sin", noRoutine.length ? "warn" : "")}
-        ${kpi(pend.length, "para aprobar", "#/panel/socios?f=pend", pend.length ? "warn" : "")}
+        ${S.db.gym.selfSignup || pend.length ? kpi(pend.length, "para aprobar", "#/panel/socios?f=pend", pend.length ? "warn" : "") : ""}
       </section>
       ${admin ? `<section class="money">
         <a class="mlink" href="#/panel/recaudacion"><small>Cobrado este mes</small><b>${money(cobradoMes)}</b>${diff !== null ? `<em class="${diff >= 0 ? "up" : "down"}">${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)} % vs. ${MONTHS[new Date(pm0).getMonth()]} (mismos días)</em>` : ""}<em>${money(thisMonth)} de cuotas${otrosMes ? ` · ${money(otrosMes)} otros` : ""}</em><span class="cta">Ver cobros ${icon("right", "xs")}</span></a>
@@ -227,7 +227,7 @@ export function membersView(params, query) {
     layout: "panel", nav: "socios", title: "Socios",
     html: `${pageHead({ title: "Socios", actions: `${isAdmin() ? `<button class="btn ghost sm" type="button" data-xlsx>${icon("download", "sm")} Descargar Excel</button>` : ""}<button class="btn primary sm" type="button" data-act="new">${icon("userplus", "sm")} Nuevo socio</button>` })}
       <div class="filters"><label class="search">${icon("search", "sm")}<input type="search" data-q value="${esc(q)}" placeholder="Buscar por nombre, email o teléfono" aria-label="Buscar socio"></label></div>
-      <div class="chips-scroll">${FILTERS.filter(([k]) => k !== "mios" || me().role === "profe").map(([k, l]) => `<a class="chip ${k === f ? "on" : ""}" href="#/panel/socios${k ? "?f=" + k : ""}">${l}${k === "pend" && pend ? ` <b>${pend}</b>` : ""}</a>`).join("")}</div>
+      <div class="chips-scroll">${FILTERS.filter(([k]) => (k !== "mios" || me().role === "profe") && (k !== "pend" || S.db.gym.selfSignup || pend)).map(([k, l]) => `<a class="chip ${k === f ? "on" : ""}" href="#/panel/socios${k ? "?f=" + k : ""}">${l}${k === "pend" && pend ? ` <b>${pend}</b>` : ""}</a>`).join("")}</div>
       <p class="muted tiny">${plural(list.length, "socio", "socios")}</p>
       <div class="mlist">${list.map((m) => {
         if (m.status === "pendiente") return `<button type="button" class="mrow" data-approve="${m.id}">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>Se registró ${esc(relDay(m.joined))} · espera aprobación</small></span><span class="pill red">Revisar</span></button>`;

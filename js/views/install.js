@@ -142,13 +142,8 @@ export function installView() {
   } else if (p.ios) {
     body = iosGuide(p);
   } else if (p.android) {
-    body = `<div class="inst-wait" data-prep role="status"><h2>Preparando la instalación…</h2><p>Un segundo.</p></div>
-      <button class="btn primary block lg" type="button" data-install hidden>${icon("download")} Instalar Vientos</button>
-      <ol class="steps" data-manual hidden>
-        ${step(1, "dots", `Tocá el menú <b>⋮</b> arriba a la derecha de Chrome.`)}
-        ${step(2, "download", `Elegí <b>“Instalar app”</b> o <b>“Agregar a la pantalla principal”</b>.`)}
-        ${step(3, "check", `Confirmá. El ícono de Vientos queda junto a tus otras apps.`)}
-      </ol>`;
+    body = `<div class="inst-wait" data-prep role="status"><h2>Preparando la instalación…</h2><div class="inst-spin" aria-hidden="true"></div><p>Un segundo.</p></div>
+      <button class="btn primary block lg" type="button" data-install hidden>${icon("download")} Instalar Vientos</button>`;
   } else {
     body = `<div class="inst-desk"><div class="qr" data-qr></div><div><h2>Escaneá con tu celular</h2><p class="muted">Apuntá la cámara al código y seguí los pasos. La app está pensada para el teléfono.</p>
       <button class="btn ghost sm" type="button" data-install hidden>${icon("download", "sm")} Instalar en esta computadora</button></div></div>`;
@@ -177,12 +172,22 @@ export function installView() {
         $("[data-manual]", host)?.setAttribute("hidden", "");
       };
       ready();
-      /* Si Chrome no ofrece el botón (ya la tiene o no puede), recién entonces se muestran los pasos a mano */
-      if (!window.__bip && $("[data-prep]", host)) setTimeout(() => {
-        if (window.__bip || !$("[data-prep]", host)) return;
-        $("[data-prep]", host).setAttribute("hidden", "");
-        $("[data-manual]", host)?.removeAttribute("hidden");
-      }, 7000);
+      /* En Android NUNCA se muestran pasos a mano: se espera el botón "Instalar Vientos" que ofrece Chrome
+         (puede tardar, más la primera vez o si cambió el ícono). Si ya está instalada, se avisa; si tarda
+         mucho, se ofrece recargar, pero se sigue esperando el botón. */
+      if (!window.__bip && $("[data-prep]", host)) {
+        const prep = $("[data-prep]", host);
+        const say = (t) => { const p = $("p", prep); if (p && !window.__bip) p.innerHTML = t; };
+        const t1 = setTimeout(() => say("La primera vez tarda un poquito más. No cierres esta pantalla."), 6000);
+        const t2 = setTimeout(async () => {
+          if (window.__bip || !$("[data-prep]", host)) return;
+          const ya = navigator.getInstalledRelatedApps ? await navigator.getInstalledRelatedApps().then((l) => l.some((x) => x.platform === "webapp")).catch(() => false) : false;
+          if (ya) { $("[data-installbox]", host).innerHTML = `<div class="inst-ok">${icon("checkc")}<h2>Ya tenés la app instalada</h2><p class="muted">Abrila desde el ícono de Vientos en tu pantalla de inicio.</p></div>`; return; }
+          say(`Sigue preparándose. Si tarda mucho, <button type="button" class="linkbtn" data-reload>tocá acá para recargar</button>.`);
+          $("[data-reload]", prep)?.addEventListener("click", () => location.reload());
+        }, 30000);
+        addEventListener("vientos:installable", () => { clearTimeout(t1); clearTimeout(t2); }, { once: true });
+      }
       addEventListener("vientos:installable", ready);
       btn?.addEventListener("click", async () => {
         const e = window.__bip;

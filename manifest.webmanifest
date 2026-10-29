@@ -1,7 +1,7 @@
 {
-  "name": "Grupo Amplifia",
-  "short_name": "Amplifia",
-  "description": "Tu rutina, tus pesos y tu progreso en Grupo Amplifia.",
+  "name": "Vientos GYM",
+  "short_name": "Vientos",
+  "description": "Tu rutina, tus pesos y tu progreso en Vientos GYM.",
   "lang": "es-AR",
   "start_url": "./#/inicio",
   "scope": "./",

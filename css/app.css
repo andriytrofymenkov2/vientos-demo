@@ -193,7 +193,7 @@ p { margin: 0; }
 
 /* Encabezado del socio */
 .mtop { display: flex; align-items: center; justify-content: space-between; padding: 14px 0 6px; }
-.mtop-logo { width: 150px; }
+.mtop-logo { width: 116px; }
 
 /* Encabezado de pantalla */
 .phead { display: flex; align-items: center; gap: 8px; padding: 14px 0 14px; min-height: 64px; }

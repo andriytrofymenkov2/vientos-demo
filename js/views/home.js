@@ -83,12 +83,12 @@ export function homeView() {
       </div>
     </section>
     ${S.db.off?.opiniones ? "" : `<a class="card op-card" href="#/opinion">${icon("chat")}<span><b>${rated ? "¿Algo para sugerir o reclamar?" : "¿Qué te parece el gimnasio?"}</b><small>${rated ? "Lo lee el dueño del gimnasio." : "Calificalo del 1 al 10. Lo lee solo el dueño."}</small></span><span class="btn primary sm">${rated ? "Escribir" : "Calificar"}</span></a>`}
-    ${notices ? `<section class="sec"><h2 class="sec-t">Novedades de ${fz ? "Fitz Club" : "Grupo Amplifia"}</h2>${notices}</section>` : ""}
+    ${notices ? `<section class="sec"><h2 class="sec-t">Novedades de ${fz ? "Fitz Club" : "Vientos"}</h2>${notices}</section>` : ""}
     ${coach ? `<section class="sec"><h2 class="sec-t">Tu profe</h2>
       <div class="coach">${avatar(coach, "lg")}<div><b>${esc(coach.name)}</b><small>Entrenador · ${esc(g.name)}</small></div>
       </div></section>` : ""}
     <section class="sec gymcard">
-      <div class="gym-photo ${fz ? "no-photo" : ""}">${fz ? spaceLogo(sp) : `<img src="img/portada.jpg" alt="Grupo Amplifia" loading="lazy">`}<span class="open-pill ${open.open ? "on" : ""}"><i></i>${esc(open.label)}</span></div>
+      <div class="gym-photo ${fz ? "no-photo" : ""}">${fz ? spaceLogo(sp) : `<img src="img/fachada.jpg" alt="Fachada de Vientos GYM" loading="lazy">`}<span class="open-pill ${open.open ? "on" : ""}"><i></i>${esc(open.label)}</span></div>
       <div class="gym-b">
         <h2>${esc(g.name)}</h2>
         <p class="muted">${esc(g.address)} · ${esc(g.city)}</p>

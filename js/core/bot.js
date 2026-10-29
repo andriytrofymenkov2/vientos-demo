@@ -125,7 +125,7 @@ const todayChips = (u, prefix) => {
 };
 /* El gimnasio del socio: Vientos o Fitz Club */
 const gym = (u) => S.gymOf(S.spaceOf(u));
-const gymShort = (u) => (S.spaceOf(u) === "fitz" ? "Fitz Club" : "Grupo Amplifia");
+const gymShort = (u) => (S.spaceOf(u) === "fitz" ? "Fitz Club" : "Vientos");
 const profeAction = (u, text = "Escribir a mi profe") => {
   const c = S.user(u.coachId);
   const n = waNumber(c?.phone || gym(u).whatsapp);

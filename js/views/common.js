@@ -69,7 +69,7 @@ export function dayList(d, { hrefOf, doneOf } = {}) {
 
 export function emptyRoutine(gym) {
   return `<div class="empty">${icon("dumbbell")}<h3>Todavía no tenés rutina</h3><p>Tu profe te la asigna en estos días. Si querés, escribile para coordinar.</p>
-    <a class="btn ghost" href="https://wa.me/${gym}" target="_blank" rel="noopener">${icon("whatsapp")} Escribir a Grupo Amplifia</a></div>`;
+    <a class="btn ghost" href="https://wa.me/${gym}" target="_blank" rel="noopener">${icon("whatsapp")} Escribir a Vientos</a></div>`;
 }
 
 /* ------------------------------------------------- programas por semanas

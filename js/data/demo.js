@@ -2,7 +2,7 @@
    Todos los nombres son inventados. Se reemplazan por los reales al conectar Supabase. */
 import { rng, DAY } from "../core/util.js";
 
-export const DEMO_PASS = "Amplifia2026";
+export const DEMO_PASS = "Vientos2026";
 export const DEMO_ACCOUNTS = [
   /* Vientos GYM */
   { user: "ana", label: "Socio nuevo", hint: "Ana · primer día, todo en cero" },

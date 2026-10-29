@@ -6,7 +6,7 @@ import { me, isAdmin, logout } from "../core/auth.js";
 import { go, refresh } from "../core/router.js";
 import { field, dateField, limitList, formData, toast, sheet, confirmDialog, pageHead, empty, avatar, feePill, spaceLogo } from "../core/ui.js";
 import { heatmap } from "./progress.js";
-import { makeXlsx } from "../core/xlsx.js";
+import { downloadMaster } from "./exportar.js";
 import { routineView } from "./routine.js";
 import { qrSvg, installUrl } from "./install.js";
 
@@ -106,7 +106,7 @@ export function panelHome() {
 
   return {
     layout: "panel", nav: "resumen", title: "Resumen",
-    html: `<section class="phello"><span class="kicker">${esc(fmtDate(Date.now()))}${S.isProvider() ? ` · ${esc(S.spaceInfo(sp).name)}` : ""}</span><h1>Hola, ${esc(firstName(u.name))}</h1></section>
+    html: `<section class="phello"><span class="kicker">${esc(fmtDate(Date.now()))}${S.isProvider() ? ` · ${esc(S.spaceInfo(sp).name)}` : ""}</span><h1>Hola, ${esc(firstName(u.name))}</h1>${admin ? `<div class="phello-a"><button class="btn ghost sm" type="button" data-xlsx>${icon("download", "sm")} Descargar Excel</button></div>` : ""}</section>
       <section class="kpis">
         ${kpi(live.length, "socios activos", "#/panel/socios", "", "con la cuota al día")}
         ${kpi(soon.length, "cuotas por vencer", "#/panel/cuotas?f=soon", soon.length ? "warn" : "", "en los próximos días")}
@@ -120,20 +120,23 @@ export function panelHome() {
         <a class="mlink" href="#/panel/caja"><small>Resultado de ${now.toLocaleDateString("es-AR", { month: "long" })}</small><b class="${resultado < 0 ? "bad" : ""}">${money(resultado)}</b><em>${money(thisMonth + otrosMes)} de ingresos − ${money(gastosMes)} de gastos</em><span class="cta">Ingresos y gastos ${icon("right", "xs")}</span></a>
       </section>` : ""}
       ${pend.length ? `<section class="card alert-card"><div class="card-h"><h2>${icon("userplus", "sm")} Socios nuevos para aprobar</h2><span class="pill red">${pend.length}</span></div>
+        <p class="muted tiny">Personas que se registraron solas desde la app. Hasta que el dueño o un profe las apruebe, no pueden usarla.</p>
         ${pend.slice(0, 5).map((m) => `<div class="mrow">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>${esc(m.email)} · ${esc(relDay(m.joined))}</small></span><button class="btn primary sm" type="button" data-approve="${m.id}">Revisar</button></div>`).join("")}
       ${pend.length > 5 ? `<a class="btn ghost sm block" href="#/panel/socios?f=pend">Ver las ${pend.length} solicitudes</a>` : ""}
       </section>` : ""}
       <div class="pgrid">
         <section class="card"><div class="card-h"><h2>${icon("alert", "sm")} Cuotas vencidas</h2><span class="muted">${late.length}</span></div>
+          <p class="muted tiny">Socios a los que se les venció la cuota hace 30 días o menos. Cada uno vence en su propia fecha (la del día que se anotó o pagó). Si pagan, vuelven a estar al día.</p>
           ${late.slice(0, 10).map((m) => mrow(m, m.fee.unpaid ? `Se anotó el ${fmtDate(m.joined)} y todavía no pagó` : `Venció ${S.standing(m).over ? `hace ${plural(S.standing(m).over, "día", "días")}` : "hoy"} · ${fmtDate(m.fee.dueAt)}`)).join("") || `<p class="muted">Nadie tiene la cuota vencida.</p>`}
           ${late.length > 10 ? `<a class="btn ghost sm" href="#/panel/socios?f=vencida">Ver los ${late.length}</a>` : ""}
         </section>
         <section class="card"><div class="card-h"><h2>${icon("dumbbell", "sm")} Sin rutina asignada</h2><span class="muted">${noRoutine.length}</span></div>
+          <p class="muted tiny">Socios ya aprobados que todavía no tienen rutina: entran a la app pero no tienen nada para entrenar. Cualquier profe se la puede armar.</p>
           ${noRoutine.slice(0, 10).map((m) => mrow(m, `Socio desde ${fmtDate(m.joined, new Date(m.joined).getFullYear() === now.getFullYear() ? {} : { year: true })}`)).join("") || `<p class="muted">Todos los socios tienen rutina.</p>`}
           ${noRoutine.length > 10 ? `<a class="btn ghost sm" href="#/panel/socios?f=sin">Ver los ${noRoutine.length}</a>` : ""}
         </section>
         ${admin && by.baja.length ? `<section class="card"><div class="card-h"><h2>${icon("logout", "sm")} Se fueron</h2><span class="muted">${by.baja.length}</span></div>
-          <p class="muted tiny">Hace más de 30 días que no pagan. No cuentan como socios activos ni en lo que falta cobrar (deuda vieja: ${money(owedOld)}).</p>
+          <p class="muted tiny">Se les venció la cuota hace más de 30 días y no volvieron a pagar: probablemente dejaron de venir. No cuentan como socios activos ni en lo que hay por cobrar (su deuda vieja es de ${money(owedOld)}). Si alguno paga, vuelve solo a estar al día.</p>
           ${by.baja.slice(0, 5).map((m) => mrow(m, `Venció hace ${S.standing(m).over} días`)).join("")}
           <a class="btn ghost sm" href="#/panel/socios?f=baja">Ver los ${by.baja.length}</a>
         </section>` : ""}
@@ -157,7 +160,7 @@ export function panelHome() {
         $$("[data-mi]", host).forEach((x) => x.classList.toggle("cur", x === c));
         $("[data-mdet]", host).innerHTML = detail(hist[+c.dataset.mi]);
       });
-      host.addEventListener("click", (e) => { const b = e.target.closest("[data-approve]"); if (b) approveSheet(S.user(b.dataset.approve)); });
+      host.addEventListener("click", (e) => { const b = e.target.closest("[data-approve]"); if (b) approveSheet(S.user(b.dataset.approve)); if (e.target.closest("[data-xlsx]")) downloadMaster(); });
     },
   };
 }
@@ -205,7 +208,7 @@ export function membersView(params, query) {
 
   return {
     layout: "panel", nav: "socios", title: "Socios",
-    html: `${pageHead({ title: "Socios", actions: `<button class="btn primary sm" type="button" data-act="new">${icon("userplus", "sm")} Nuevo socio</button>` })}
+    html: `${pageHead({ title: "Socios", actions: `${isAdmin() ? `<button class="btn ghost sm" type="button" data-xlsx>${icon("download", "sm")} Descargar Excel</button>` : ""}<button class="btn primary sm" type="button" data-act="new">${icon("userplus", "sm")} Nuevo socio</button>` })}
       <div class="filters"><label class="search">${icon("search", "sm")}<input type="search" data-q value="${esc(q)}" placeholder="Buscar por nombre, email o teléfono" aria-label="Buscar socio"></label></div>
       <div class="chips-scroll">${FILTERS.filter(([k]) => k !== "mios" || me().role === "profe").map(([k, l]) => `<a class="chip ${k === f ? "on" : ""}" href="#/panel/socios${k ? "?f=" + k : ""}">${l}${k === "pend" && pend ? ` <b>${pend}</b>` : ""}</a>`).join("")}</div>
       <p class="muted tiny">${plural(list.length, "socio", "socios")}</p>
@@ -221,6 +224,7 @@ export function membersView(params, query) {
       if (q) { inp.focus(); inp.setSelectionRange(q.length, q.length); }
       host.addEventListener("click", (e) => {
         if (e.target.closest("[data-act=new]")) newMemberSheet();
+        if (e.target.closest("[data-xlsx]")) downloadMaster();
         const a = e.target.closest("[data-approve]");
         if (a) approveSheet(S.user(a.dataset.approve));
       });
@@ -752,7 +756,7 @@ export function recaudacionView(params, query) {
   const yearTotal = sum(all.filter((p) => mkey(p.at).slice(0, 4) === sel.slice(0, 4)));
   return {
     layout: "panel", nav: "cuotas", title: "Recaudación",
-    html: `${pageHead({ back: "#/panel/cuotas", kicker: "Cuotas", title: "Recaudación", actions: `<button class="btn ghost sm" type="button" data-csv="month">${icon("download", "sm")} Excel del mes</button><button class="btn ghost sm" type="button" data-csv="all">${icon("download", "sm")} Excel de todo</button>` })}
+    html: `${pageHead({ back: "#/panel/cuotas", kicker: "Cuotas", title: "Recaudación", actions: `<button class="btn ghost sm" type="button" data-xlsx>${icon("download", "sm")} Descargar Excel</button>` })}
       <div class="rc-nav">
         <a class="icon-btn ${prev ? "" : "off"}" ${prev ? `href="#/panel/recaudacion?m=${prev}"` : 'aria-disabled="true"'} aria-label="Mes anterior">${icon("left")}</a>
         <label class="rc-sel"><select data-month aria-label="Elegir mes">${months.slice().reverse().map((k) => `<option value="${k}" ${k === sel ? "selected" : ""}>${esc(mlabel(k))}${k === now ? " (este mes)" : ""}</option>`).join("")}</select></label>
@@ -821,72 +825,12 @@ export function recaudacionView(params, query) {
       host.addEventListener("click", (e) => {
         const r = e.target.closest("[data-payid]");
         if (r) payDetailSheet(S.db.payments.find((x) => x.id === r.dataset.payid));
-        const c = e.target.closest("[data-csv]");
-        if (c) downloadPaymentsXlsx(c.dataset.csv === "all" ? all : list, c.dataset.csv === "all" ? "historial" : sel);
+        if (e.target.closest("[data-xlsx]")) downloadMaster();
       });
     },
   };
 }
 
-/* Planilla de Excel (.xlsx): una fila por pago, con fórmulas (el descuento y los totales se
-   recalculan solos si la persona cambia un monto). Hoja "Pagos" + hoja "Por mes" que suma desde "Pagos". */
-function downloadPaymentsXlsx(rows, name) {
-  const sorted = rows.slice().sort((a, b) => a.at - b.at);
-  const data = sorted.map((p) => { const u = S.user(p.userId); const lista = p.list ?? p.amount ?? 0, monto = p.amount || 0; return {
-    at: p.at, socio: u?.name || "Socio eliminado", dni: u?.user || "", plan: S.plan(p.planId)?.name || "", meses: p.months || 1,
-    lista, convenio: p.discount?.name || "", desc: Math.max(0, lista - monto), monto,
-    desde: p.from || "", hasta: p.to || "", cobro: S.user(p.by)?.name || "", nota: p.note || "",
-  }; });
-  const sumOf = (k) => data.reduce((a, x) => a + (x[k] || 0), 0);
-  const byMonth = {};
-  data.forEach((x) => { const d = new Date(x.at), k = mkey(x.at); (byMonth[k] ||= { mes: new Date(d.getFullYear(), d.getMonth(), 1).getTime(), pagos: 0, total: 0, desc: 0 }); byMonth[k].pagos++; byMonth[k].total += x.monto; byMonth[k].desc += x.desc; });
-  const meses = Object.keys(byMonth).sort().map((k) => byMonth[k]);
-  const L = (r) => `Pagos!$A:$A,">="&A${r},Pagos!$A:$A,"<"&EDATE(A${r},1)`;
-  const blob = makeXlsx([
-    {
-      name: "Pagos",
-      columns: [
-        { header: "Fecha de cobro", key: "at", type: "date", width: 16 }, { header: "Socio", key: "socio", type: "text", width: 28 },
-        { header: "DNI", key: "dni", type: "text", width: 14 }, { header: "Plan", key: "plan", type: "text", width: 32 },
-        { header: "Meses", key: "meses", type: "int", width: 9 }, { header: "Precio de lista", key: "lista", type: "money", width: 17 },
-        { header: "Convenio", key: "convenio", type: "text", width: 24 },
-        { header: "Descuento", key: "desc", type: "money", width: 15, formula: (r) => `MAX(0,F${r}-I${r})` },
-        { header: "Monto cobrado", key: "monto", type: "money", width: 17 }, { header: "Cubre desde", key: "desde", type: "date", width: 15 },
-        { header: "Cubre hasta", key: "hasta", type: "date", width: 15 }, { header: "Cobró", key: "cobro", type: "text", width: 24 },
-        { header: "Nota", key: "nota", type: "text", width: 34 },
-      ],
-      rows: data,
-      total: (c, L2, n) => c.key === "at" ? "TOTAL"
-        : c.key === "socio" ? { f: `COUNT(A2:A${n + 1})&" "&IF(COUNT(A2:A${n + 1})=1,"pago","pagos")`, v: `${n} ${n === 1 ? "pago" : "pagos"}` }
-        : c.key === "lista" ? { f: `SUM(F2:F${n + 1})`, v: sumOf("lista") }
-        : c.key === "desc" ? { f: `SUM(H2:H${n + 1})`, v: sumOf("desc") }
-        : c.key === "monto" ? { f: `SUM(I2:I${n + 1})`, v: sumOf("monto") } : "",
-    },
-    {
-      name: "Por mes",
-      columns: [
-        { header: "Mes", key: "mes", type: "month", width: 22 },
-        { header: "Pagos", key: "pagos", type: "int", width: 12, formula: (r) => `COUNTIFS(${L(r)})` },
-        { header: "Total cobrado", key: "total", type: "money", width: 20, formula: (r) => `SUMIFS(Pagos!$I:$I,${L(r)})` },
-        { header: "Descuentos por convenio", key: "desc", type: "money", width: 26, formula: (r) => `SUMIFS(Pagos!$H:$H,${L(r)})` },
-      ],
-      rows: meses,
-      total: (c, L2, n) => c.key === "mes" ? "TOTAL"
-        : c.key === "pagos" ? { f: `SUM(B2:B${n + 1})`, v: meses.reduce((a, x) => a + x.pagos, 0) }
-        : c.key === "total" ? { f: `SUM(C2:C${n + 1})`, v: meses.reduce((a, x) => a + x.total, 0) }
-        : { f: `SUM(D2:D${n + 1})`, v: meses.reduce((a, x) => a + x.desc, 0) },
-    },
-  ]);
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob); a.download = `Grupo Amplifia - Recaudación ${name}.xlsx`;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-  toast("Excel descargado");
-}
-
-/* ------------------------------------------------------------- convenios
-   Empresas con descuento (ej. Enerflex): porcentaje o monto fijo por mes.
-   Se asigna al socio y se aplica solo al registrar cada pago. */
 function convOptions() {
   return [["", "Sin convenio"], ...S.convenios().filter((c) => c.active !== false).map((c) => [c.id, S.convLabel(c)])];
 }

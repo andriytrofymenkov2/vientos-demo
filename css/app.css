@@ -1384,3 +1384,6 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .money b.good { color: var(--ok); }
 .pgrid .card.wide { grid-column: 1 / -1; }
 @media (max-width: 860px) { .caja2 { grid-template-columns: 1fr; } }
+.phello { position: relative; }
+.phello-a { position: absolute; right: 0; top: 18px; }
+@media (max-width: 720px) { .phello-a { position: static; margin-top: 10px; } }

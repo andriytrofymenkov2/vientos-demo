@@ -8,7 +8,7 @@ import * as S from "../core/store.js";
 import { me } from "../core/auth.js";
 import { go, refresh } from "../core/router.js";
 import { field, dateField, formData, toast, sheet, confirmDialog, pageHead } from "../core/ui.js";
-import { makeXlsx } from "../core/xlsx.js";
+import { downloadMaster } from "./exportar.js";
 
 const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 const money = (n) => "$ " + Math.round(n || 0).toLocaleString("es-AR");
@@ -57,7 +57,7 @@ export function cajaView(params, query = {}) {
 
   return {
     layout: "panel", nav: "caja", title: "Ingresos y gastos",
-    html: `${pageHead({ title: "Ingresos y gastos", kicker: "Caja del gimnasio", actions: `<button class="btn ghost sm" type="button" data-xlsx>${icon("download", "sm")} Excel del mes</button>` })}
+    html: `${pageHead({ title: "Ingresos y gastos", kicker: "Caja del gimnasio", actions: `<button class="btn ghost sm" type="button" data-xlsx>${icon("download", "sm")} Descargar Excel</button>` })}
       <div class="rc-nav">
         <a class="icon-btn ${prev ? "" : "off"}" ${prev ? `href="#/panel/caja?m=${prev}"` : 'aria-disabled="true"'} aria-label="Mes anterior">${icon("left")}</a>
         <label class="rc-sel"><select data-month aria-label="Elegir mes">${months.slice().reverse().map((k) => `<option value="${k}" ${k === sel ? "selected" : ""}>${esc(mlabel(k))}${k === now ? " (este mes)" : ""}</option>`).join("")}</select></label>
@@ -100,7 +100,7 @@ export function cajaView(params, query = {}) {
         if (n) return movementSheet({ kind: n.dataset.new }, sel);
         const ed = e.target.closest("[data-edit]");
         if (ed) return movementSheet(moves.find((m) => m.id === ed.dataset.edit), sel);
-        if (e.target.closest("[data-xlsx]")) return downloadMonth(sel, pM, oM, gM);
+        if (e.target.closest("[data-xlsx]")) return downloadMaster();
         if (e.target.closest("[data-copy]")) {
           const todo = prevG;
           if (!todo.length) return toast("Esos gastos ya están cargados este mes");
@@ -149,52 +149,4 @@ function movementSheet(m, month) {
       });
     },
   });
-}
-
-/* Un solo Excel con el mes completo: resumen, todos los movimientos (ingresos y gastos en columnas
-   separadas) y el detalle de las cuotas de cada socio. */
-function downloadMonth(k, pM, oM, gM) {
-  const cuotas = sum(pM), extra = sum(oM), egr = sum(gM);
-  const resumen = [
-    { tipo: "INGRESOS", concepto: "Cuotas de socios", monto: cuotas, n: pM.length },
-    ...S.INCOME_CATS.map((c) => ({ tipo: "INGRESOS", concepto: c, monto: sum(oM.filter((x) => x.cat === c)), n: oM.filter((x) => x.cat === c).length })).filter((r) => r.n),
-    { tipo: "INGRESOS", concepto: "TOTAL INGRESOS", monto: cuotas + extra, n: "" },
-    { tipo: "", concepto: "", monto: "", n: "" },
-    ...S.EXPENSE_CATS.map((c) => ({ tipo: "GASTOS", concepto: c, monto: sum(gM.filter((x) => x.cat === c)), n: gM.filter((x) => x.cat === c).length })).filter((r) => r.n),
-    { tipo: "GASTOS", concepto: "TOTAL GASTOS", monto: egr, n: "" },
-    { tipo: "", concepto: "", monto: "", n: "" },
-    { tipo: "RESULTADO", concepto: cuotas + extra - egr >= 0 ? "GANANCIA DEL MES" : "PÉRDIDA DEL MES", monto: cuotas + extra - egr, n: "" },
-  ];
-  const movs = [
-    ...pM.map((p) => { const u = S.user(p.userId); return { at: p.at, tipo: "Ingreso", cat: "Cuota de socio", det: `${u?.name || "Socio eliminado"}${u?.user ? " · DNI " + u.user : ""} · ${S.plan(p.planId)?.name || ""}`, ing: p.amount || 0, gas: "" }; }),
-    ...oM.map((m) => ({ at: m.at, tipo: "Ingreso", cat: m.cat, det: m.note || "", ing: m.amount || 0, gas: "" })),
-    ...gM.map((m) => ({ at: m.at, tipo: "Gasto", cat: m.cat, det: m.note || "", ing: "", gas: m.amount || 0 })),
-  ].sort((a, b) => a.at - b.at);
-  const n = movs.length;
-  const blob = makeXlsx([
-    {
-      name: "Resumen",
-      columns: [{ header: "Tipo", key: "tipo", type: "text", width: 14 }, { header: "Concepto", key: "concepto", type: "text", width: 34 },
-        { header: "Cantidad", key: "n", type: "int", width: 11 }, { header: "Monto", key: "monto", type: "money", width: 20 }],
-      rows: resumen,
-    },
-    {
-      name: "Movimientos",
-      columns: [
-        { header: "Fecha", key: "at", type: "date", width: 14 }, { header: "Tipo", key: "tipo", type: "text", width: 11 },
-        { header: "Categoría", key: "cat", type: "text", width: 30 }, { header: "Detalle", key: "det", type: "text", width: 52 },
-        { header: "Ingreso", key: "ing", type: "money", width: 17 }, { header: "Gasto", key: "gas", type: "money", width: 17 },
-      ],
-      rows: movs,
-      total: (c) => c.key === "at" ? "TOTAL"
-        : c.key === "det" ? { f: `"Resultado: "&TEXT(E${n + 3}-F${n + 3},"$ #,##0")`, v: `Resultado: ${money(cuotas + extra - egr)}` }
-        : c.key === "ing" ? { f: `SUM(E2:E${n + 1})`, v: cuotas + extra }
-        : c.key === "gas" ? { f: `SUM(F2:F${n + 1})`, v: egr } : "",
-    },
-  ]);
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob); a.download = `${S.gymOf().name} - Caja ${mlabel(k)}.xlsx`;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-  toast("Excel descargado");
 }

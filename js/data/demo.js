@@ -189,6 +189,8 @@ export async function buildDemo(D, { hashPass, uid, normDays }) {
   for (let k = 0; k < 3; k++) {
     const m0 = new Date(new Date().getFullYear(), new Date().getMonth() - k, 1);
     CAJA.forEach(([cat, amount, day], n) => { const at = new Date(m0.getFullYear(), m0.getMonth(), day, 12).getTime(); if (at < now) D.movements.push({ id: uid("m"), kind: "gasto", at, amount: Math.round(amount * (0.95 + R() * 0.1) / 100) * 100, cat, note: "", space: "vientos" }); });
+    const alq = new Date(m0.getFullYear(), m0.getMonth(), 3, 12).getTime();
+    if (alq < now) D.movements.push({ id: uid("m"), kind: "ingreso", at: alq, amount: 600000, cat: "Alquiler de espacios", note: "Alquiler del piso de arriba", space: "vientos" });
     const at = new Date(m0.getFullYear(), m0.getMonth(), 25, 12).getTime();
     if (at < now) D.movements.push({ id: uid("m"), kind: "ingreso", at, amount: Math.round(300000 * (0.9 + R() * 0.2) / 100) * 100, cat: "Shop y bebidas", note: "Bebidas y suplementos", space: "vientos" });
   }

@@ -1,12 +1,14 @@
 /* Caja: ingresos y gastos del gimnasio (solo el dueño).
-   Ingresos = cuotas cobradas (salen de los pagos) + otros ingresos que carga el dueño (shop, pases sueltos).
-   Egresos = gastos que carga el dueño. Todo mes a mes y comparado con el mes anterior. */
+   Ingresos = cuotas cobradas (salen solas de los pagos de los socios) + otros ingresos que carga el dueño
+   (alquiler de espacios, shop, pases sueltos). Gastos = lo que carga el dueño (alquiler, sueldos, servicios…).
+   Todo queda guardado mes a mes y se puede ver cualquier mes anterior. Un solo Excel con el mes completo. */
 import { icon } from "../core/icons.js";
-import { esc, plural, dayKey, $, $$ } from "../core/util.js";
+import { esc, plural, dayKey, $ } from "../core/util.js";
 import * as S from "../core/store.js";
 import { me } from "../core/auth.js";
 import { go, refresh } from "../core/router.js";
-import { field, dateField, formData, toast, sheet, confirmDialog, pageHead, empty } from "../core/ui.js";
+import { field, dateField, formData, toast, sheet, confirmDialog, pageHead } from "../core/ui.js";
+import { makeXlsx } from "../core/xlsx.js";
 
 const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 const money = (n) => "$ " + Math.round(n || 0).toLocaleString("es-AR");
@@ -20,11 +22,16 @@ function bars(rows, total) {
   const max = Math.max(...rows.map((r) => r.n), 1);
   return `<div class="hb">${rows.map((r) => `<div class="hb-row"><span class="hb-l">${esc(r.label)}</span><span class="hb-t"><i style="width:${Math.max(r.n ? 3 : 0, (r.n / max) * 100)}%"></i></span><span class="hb-v"><b>${money(r.n)}</b><em>${Math.round((r.n / total) * 100)} %</em></span></div>`).join("")}</div>`;
 }
+const byCat = (list, cats) => cats.map((c) => ({ label: c, n: sum(list.filter((x) => (x.cat || cats[cats.length - 1]) === c)) })).filter((r) => r.n).sort((a, b) => b.n - a.n);
+const mrowHtml = (m) => { const d = new Date(m.at); return `<button type="button" class="prow" data-edit="${esc(m.id)}">
+  <span class="prow-d"><b>${d.getDate()}</b><small>${MONTHS[d.getMonth()]}</small></span>
+  <span class="prow-t"><b>${esc(m.cat || "")}</b><small>${esc(m.note || "Sin detalle")}</small></span>
+  <span class="prow-a ${m.kind === "gasto" ? "bad" : "up"}">${m.kind === "gasto" ? "−" : "+"} ${money(m.amount)}</span></button>`; };
 
 export function cajaView(params, query = {}) {
   if (me()?.role !== "admin") return go("/panel", { replace: true });
   const now = mkey(Date.now());
-  const pays = S.paymentsOf().map((p) => ({ at: p.at, amount: p.amount || 0 }));
+  const pays = S.paymentsOf();
   const moves = S.movementsOf();
   const gastos = moves.filter((m) => m.kind === "gasto"), otros = moves.filter((m) => m.kind === "ingreso");
   const firstTs = Math.min(Date.now(), ...pays.map((p) => p.at), ...moves.map((m) => m.at));
@@ -35,71 +42,93 @@ export function cajaView(params, query = {}) {
   const inM = (list, k) => list.filter((x) => mkey(x.at) === k);
   /* mes en curso: se compara contra el mismo tramo de días del mes anterior */
   const partial = sel === now ? Date.now() - mstart(sel) : null;
-  const same = (list, k, k0) => (k0 && partial !== null ? list.filter((x) => mkey(x.at) === k0 && x.at < mstart(k0) + partial) : inM(list, k0));
-  const cuotas = sum(inM(pays, sel)), extra = sum(inM(otros, sel)), ing = cuotas + extra, egr = sum(inM(gastos, sel)), res = ing - egr;
-  const pIng = prev ? sum(same(pays, sel, prev)) + sum(same(otros, sel, prev)) : null, pEgr = prev ? sum(same(gastos, sel, prev)) : null;
+  const same = (list, k0) => (partial !== null ? inM(list, k0).filter((x) => x.at < mstart(k0) + partial) : inM(list, k0));
+  const pM = inM(pays, sel), oM = inM(otros, sel).sort((a, b) => b.at - a.at), gM = inM(gastos, sel).sort((a, b) => b.at - a.at);
+  const cuotas = sum(pM), extra = sum(oM), ing = cuotas + extra, egr = sum(gM), res = ing - egr;
+  const pIng = prev ? sum(same(pays, prev)) + sum(same(otros, prev)) : null, pEgr = prev ? sum(same(gastos, prev)) : null;
   const delta = (a, b) => (b ? Math.round(((a - b) / b) * 100) : null);
   const dIng = delta(ing, pIng), dEgr = delta(egr, pEgr);
-  const catRows = S.EXPENSE_CATS.map((c) => ({ label: c, n: sum(inM(gastos, sel).filter((g) => (g.cat || "Otros") === c)) })).filter((r) => r.n).sort((a, b) => b.n - a.n);
-  const list = [...inM(gastos, sel), ...inM(otros, sel)].sort((a, b) => b.at - a.at);
+  const ingRows = [{ label: "Cuotas de socios", n: cuotas }, ...byCat(oM, S.INCOME_CATS)].filter((r) => r.n);
   const last6 = months.slice(-6).map((k) => { const g = sum(inM(gastos, k)), c = sum(inM(pays, k)) + sum(inM(otros, k)); return { k, c, g, r: c - g }; });
   const cmp = (d, up) => (d === null ? "" : `<em class="${(d >= 0) === up ? "up" : "down"}">${d >= 0 ? "▲" : "▼"} ${Math.abs(d)} % vs. ${esc(mlabel(prev, true))}${partial !== null ? " (mismos días)" : ""}</em>`);
+  /* gastos del mes anterior que todavía no se cargaron este mes (mismo concepto y detalle) */
+  const ya = new Set(gM.map((g) => `${g.cat}|${g.note || ""}`));
+  const prevG = (prev ? inM(gastos, prev) : []).filter((g) => !ya.has(`${g.cat}|${g.note || ""}`));
 
   return {
     layout: "panel", nav: "caja", title: "Ingresos y gastos",
-    html: `${pageHead({ title: "Ingresos y gastos", kicker: "Caja", actions: `<button class="btn ghost sm" type="button" data-new="ingreso">${icon("plus", "sm")} Otro ingreso</button><button class="btn primary sm" type="button" data-new="gasto">${icon("plus", "sm")} Registrar gasto</button>` })}
+    html: `${pageHead({ title: "Ingresos y gastos", kicker: "Caja del gimnasio", actions: `<button class="btn ghost sm" type="button" data-xlsx>${icon("download", "sm")} Excel del mes</button>` })}
       <div class="rc-nav">
         <a class="icon-btn ${prev ? "" : "off"}" ${prev ? `href="#/panel/caja?m=${prev}"` : 'aria-disabled="true"'} aria-label="Mes anterior">${icon("left")}</a>
         <label class="rc-sel"><select data-month aria-label="Elegir mes">${months.slice().reverse().map((k) => `<option value="${k}" ${k === sel ? "selected" : ""}>${esc(mlabel(k))}${k === now ? " (este mes)" : ""}</option>`).join("")}</select></label>
         <a class="icon-btn ${next ? "" : "off"}" ${next ? `href="#/panel/caja?m=${next}"` : 'aria-disabled="true"'} aria-label="Mes siguiente">${icon("right")}</a>
       </div>
       <section class="money rc-money">
-        <div><small>Ingresos</small><b>${money(ing)}</b>${cmp(dIng, true)}<em>${money(cuotas)} en cuotas${extra ? ` · ${money(extra)} otros` : ""}</em></div>
-        <div><small>Gastos</small><b>${money(egr)}</b>${cmp(dEgr, false)}</div>
-        <div><small>Resultado del mes</small><b class="${res < 0 ? "bad" : ""}">${money(res)}</b><em>${res >= 0 ? "ingresos menos gastos" : "se gastó más de lo que entró"}</em></div>
+        <div><small>Ingresos</small><b>${money(ing)}</b>${cmp(dIng, true)}<em>${money(cuotas)} de cuotas${extra ? ` · ${money(extra)} otros` : ""}</em></div>
+        <div><small>Gastos</small><b>${money(egr)}</b>${cmp(dEgr, false)}<em>${plural(gM.length, "gasto cargado", "gastos cargados")}</em></div>
+        <div><small>Resultado del mes</small><b class="${res < 0 ? "bad" : "good"}">${money(res)}</b><em>${res >= 0 ? "ganancia: ingresos menos gastos" : "pérdida: se gastó más de lo que entró"}</em></div>
       </section>
-      <div class="pgrid">
-        <section class="card"><div class="card-h"><h2>${icon("trend", "sm")} Últimos meses</h2></div>
-          <div class="cajatab"><div class="ct-h"><span></span><span>Ingresos</span><span>Gastos</span><span>Resultado</span></div>
-          ${last6.slice().reverse().map((x) => `<a class="ct-r ${x.k === sel ? "on" : ""}" href="#/panel/caja?m=${x.k}"><span>${esc(mlabel(x.k))}</span><span>${money(x.c)}</span><span>${money(x.g)}</span><b class="${x.r < 0 ? "bad" : ""}">${money(x.r)}</b></a>`).join("")}</div>
+      <div class="caja2">
+        <section class="card"><div class="card-h"><h2 class="ok-t">${icon("plus", "sm")} Ingresos</h2><button class="btn primary sm" type="button" data-new="ingreso">${icon("plus", "sm")} Ingreso</button></div>
+          <a class="prow cuotas-row" href="#/panel/recaudacion?m=${sel}">
+            <span class="prow-d">${icon("card", "sm")}</span>
+            <span class="prow-t"><b>Cuotas de socios</b><small>${plural(pM.length, "pago", "pagos")} · se suman solas · tocá para ver el detalle</small></span>
+            <span class="prow-a up">+ ${money(cuotas)}</span></a>
+          ${oM.map(mrowHtml).join("")}
+          ${oM.length ? "" : `<p class="muted tiny">Otros ingresos: alquiler de espacios, shop, pases sueltos. Se cargan con el botón "Ingreso".</p>`}
+          <div class="caja-tot"><span>Total ingresos</span><b>${money(ing)}</b></div>
         </section>
-        <section class="card"><div class="card-h"><h2>${icon("card", "sm")} En qué se gastó</h2><span class="muted">${esc(mlabel(sel))}</span></div>${bars(catRows, egr)}</section>
+        <section class="card"><div class="card-h"><h2 class="bad-t">${icon("minus", "sm")} Gastos</h2><button class="btn primary sm" type="button" data-new="gasto">${icon("plus", "sm")} Gasto</button></div>
+          ${gM.map(mrowHtml).join("") || `<p class="muted">Todavía no hay gastos cargados en ${esc(mlabel(sel))}.</p>`}
+          ${prevG.length && sel === now ? `<button class="btn ghost sm block" type="button" data-copy>${icon("copy", "sm")} Cargar los gastos fijos de ${esc(mlabel(prev, true))} que faltan (${plural(prevG.length, "gasto", "gastos")})</button>` : ""}
+          <div class="caja-tot"><span>Total gastos</span><b>${money(egr)}</b></div>
+        </section>
       </div>
-      <section class="card"><div class="card-h"><h2>Gastos y otros ingresos de ${esc(mlabel(sel))}</h2><span class="muted">${plural(list.length, "movimiento", "movimientos")}</span></div>
-        <p class="muted tiny">Las cuotas cobradas no hace falta cargarlas: se suman solas desde los pagos de los socios.</p>
-        ${list.length ? `<div class="paylist">${list.map((m) => { const d = new Date(m.at); return `<div class="prow">
-          <span class="prow-d"><b>${d.getDate()}</b><small>${MONTHS[d.getMonth()]}</small></span>
-          <span class="prow-t"><b>${esc(m.cat || (m.kind === "gasto" ? "Gasto" : "Ingreso"))}</b><small>${esc(m.note || "")}</small></span>
-          <span class="prow-a ${m.kind === "gasto" ? "bad" : "up"}"><b>${m.kind === "gasto" ? "−" : "+"} ${money(m.amount)}</b></span>
-          <button class="icon-btn" type="button" data-del="${esc(m.id)}" aria-label="Borrar">${icon("trash", "sm")}</button></div>`; }).join("")}</div>`
-        : empty("card", "Todavía no cargaste gastos ni otros ingresos este mes")}
-      </section>`,
+      <div class="pgrid">
+        <section class="card"><div class="card-h"><h2>${icon("card", "sm")} De dónde vino la plata</h2></div>${bars(ingRows, ing)}</section>
+        <section class="card"><div class="card-h"><h2>${icon("card", "sm")} En qué se gastó</h2></div>${bars(byCat(gM, S.EXPENSE_CATS), egr)}</section>
+        <section class="card wide"><div class="card-h"><h2>${icon("trend", "sm")} Últimos meses</h2><span class="muted">tocá un mes para verlo</span></div>
+          <div class="cajatab"><div class="ct-h"><span>Mes</span><span>Ingresos</span><span>Gastos</span><span>Resultado</span></div>
+          ${last6.slice().reverse().map((x) => `<a class="ct-r ${x.k === sel ? "on" : ""}" href="#/panel/caja?m=${x.k}"><span>${esc(mlabel(x.k))}</span><span>${money(x.c)}</span><span>${money(x.g)}</span><b class="${x.r < 0 ? "bad" : ""}">${money(x.r)}</b></a>`).join("")}</div>
+          <p class="muted tiny">Todos los meses quedan guardados: con las flechas de arriba podés ver cualquier mes anterior.</p>
+        </section>
+      </div>`,
     mount(host) {
       $("[data-month]", host)?.addEventListener("change", (e) => { location.hash = `#/panel/caja?m=${e.target.value}`; });
       host.addEventListener("click", async (e) => {
         const n = e.target.closest("[data-new]");
-        if (n) return movementSheet(n.dataset.new, sel);
-        const d = e.target.closest("[data-del]");
-        if (d && await confirmDialog({ title: "¿Borrar este movimiento?", text: "Se saca de la caja del mes.", ok: "Borrar", danger: true })) { S.api.deleteMovement(d.dataset.del); toast("Borrado"); refresh(); }
+        if (n) return movementSheet({ kind: n.dataset.new }, sel);
+        const ed = e.target.closest("[data-edit]");
+        if (ed) return movementSheet(moves.find((m) => m.id === ed.dataset.edit), sel);
+        if (e.target.closest("[data-xlsx]")) return downloadMonth(sel, pM, oM, gM);
+        if (e.target.closest("[data-copy]")) {
+          const todo = prevG;
+          if (!todo.length) return toast("Esos gastos ya están cargados este mes");
+          const ok = await confirmDialog({ title: `¿Repetir ${plural(todo.length, "gasto", "gastos")} de ${mlabel(prev, true)}?`, text: `Se cargan con el mismo monto (${money(sum(todo))} en total) y el mismo día de este mes. Después podés cambiar cualquiera.`, ok: "Repetir" });
+          if (!ok) return;
+          const [y, mo] = sel.split("-").map(Number), last = new Date(y, mo, 0).getDate();
+          todo.forEach((g) => S.api.addMovement({ kind: "gasto", amount: g.amount, cat: g.cat, note: g.note || "", at: new Date(y, mo - 1, Math.min(new Date(g.at).getDate(), last), 12).getTime() }));
+          toast(`${plural(todo.length, "gasto cargado", "gastos cargados")}`); refresh();
+        }
       });
     },
   };
 }
 
-function movementSheet(kind, month) {
-  const gasto = kind === "gasto";
+function movementSheet(m, month) {
+  const isNew = !m.id, gasto = m.kind === "gasto";
   const cats = gasto ? S.EXPENSE_CATS : S.INCOME_CATS;
   /* fecha por defecto: hoy si es el mes en curso; si no, el primer día del mes que se está mirando */
-  const start = month === mkey(Date.now()) ? Date.now() : mstart(month);
+  const at = m.at || (month === mkey(Date.now()) ? Date.now() : mstart(month));
   sheet({
-    title: gasto ? "Registrar un gasto" : "Registrar otro ingreso",
+    title: isNew ? (gasto ? "Cargar un gasto" : "Cargar un ingreso") : (gasto ? "Gasto" : "Ingreso"),
     html: `<form novalidate>
-      ${dateField({ label: "Fecha", name: "at", value: dayKey(start), req: true })}
-      ${field({ label: "Categoría", name: "cat", value: cats[0], options: cats.map((c) => [c, c]) })}
-      ${field({ label: "Monto ($)", name: "amount", type: "number", ph: "Ej: 150000", req: true, attrs: 'inputmode="decimal" min="0" step="any"' })}
-      ${field({ label: "Detalle (opcional)", name: "note", ph: gasto ? "Ej: Factura de luz de octubre" : "Ej: Venta de bebidas" })}
+      ${field({ label: "¿Qué es?", name: "cat", value: m.cat || cats[0], options: cats.map((c) => [c, c]) })}
+      ${field({ label: "Monto ($)", name: "amount", type: "number", value: m.amount || "", ph: gasto ? "Ej: 450000" : "Ej: 300000", req: true, attrs: 'inputmode="decimal" min="0" step="any"' })}
+      ${dateField({ label: "Fecha", name: "at", value: dayKey(at), req: true })}
+      ${field({ label: "Detalle (opcional)", name: "note", value: m.note || "", ph: gasto ? "Ej: Sueldo de Ezequiel" : "Ej: Alquiler del piso de arriba" })}
       <p class="form-err" role="alert" hidden></p>
-      <div class="row-btns"><button class="btn primary block" type="submit">${icon("check", "sm")} Guardar</button></div>
+      <div class="row-btns">${isNew ? "" : `<button class="btn ghost danger-t" type="button" data-del>${icon("trash", "sm")} Borrar</button>`}<button class="btn primary" type="submit">${icon("check", "sm")} Guardar</button></div>
     </form>`,
     onMount(b, close) {
       $("form", b).addEventListener("submit", (e) => {
@@ -107,10 +136,65 @@ function movementSheet(kind, month) {
         const f = formData(e.target), err = $(".form-err", b);
         const amount = parseFloat(String(f.amount || "").replace(",", "."));
         if (!(amount > 0)) { err.textContent = "Poné un monto mayor a cero."; err.hidden = false; return; }
-        const at = f.at ? new Date(f.at + "T12:00").getTime() : Date.now();
-        S.api.addMovement({ kind, at, amount, cat: f.cat, note: (f.note || "").trim() });
-        close(); toast(gasto ? "Gasto guardado" : "Ingreso guardado"); refresh();
+        if (!f.at) { err.textContent = "Elegí la fecha."; err.hidden = false; return; }
+        const [y, mo, da] = f.at.split("-").map(Number);
+        const data = { kind: m.kind, at: new Date(y, mo - 1, da, 12).getTime(), amount, cat: f.cat, note: (f.note || "").trim() };
+        if (isNew) S.api.addMovement(data); else S.api.updateMovement({ ...m, ...data });
+        close(); toast(isNew ? (gasto ? "Gasto guardado" : "Ingreso guardado") : "Cambios guardados");
+        if (mkey(data.at) !== month) go(`/panel/caja?m=${mkey(data.at)}`); else refresh();
+      });
+      $("[data-del]", b)?.addEventListener("click", async () => {
+        close();
+        if (await confirmDialog({ title: `¿Borrar ${gasto ? "este gasto" : "este ingreso"}?`, text: `${m.cat} · ${money(m.amount)}`, ok: "Borrar", danger: true })) { S.api.deleteMovement(m.id); toast("Borrado"); refresh(); }
       });
     },
   });
+}
+
+/* Un solo Excel con el mes completo: resumen, todos los movimientos (ingresos y gastos en columnas
+   separadas) y el detalle de las cuotas de cada socio. */
+function downloadMonth(k, pM, oM, gM) {
+  const cuotas = sum(pM), extra = sum(oM), egr = sum(gM);
+  const resumen = [
+    { tipo: "INGRESOS", concepto: "Cuotas de socios", monto: cuotas, n: pM.length },
+    ...S.INCOME_CATS.map((c) => ({ tipo: "INGRESOS", concepto: c, monto: sum(oM.filter((x) => x.cat === c)), n: oM.filter((x) => x.cat === c).length })).filter((r) => r.n),
+    { tipo: "INGRESOS", concepto: "TOTAL INGRESOS", monto: cuotas + extra, n: "" },
+    { tipo: "", concepto: "", monto: "", n: "" },
+    ...S.EXPENSE_CATS.map((c) => ({ tipo: "GASTOS", concepto: c, monto: sum(gM.filter((x) => x.cat === c)), n: gM.filter((x) => x.cat === c).length })).filter((r) => r.n),
+    { tipo: "GASTOS", concepto: "TOTAL GASTOS", monto: egr, n: "" },
+    { tipo: "", concepto: "", monto: "", n: "" },
+    { tipo: "RESULTADO", concepto: cuotas + extra - egr >= 0 ? "GANANCIA DEL MES" : "PÉRDIDA DEL MES", monto: cuotas + extra - egr, n: "" },
+  ];
+  const movs = [
+    ...pM.map((p) => { const u = S.user(p.userId); return { at: p.at, tipo: "Ingreso", cat: "Cuota de socio", det: `${u?.name || "Socio eliminado"}${u?.user ? " · DNI " + u.user : ""} · ${S.plan(p.planId)?.name || ""}`, ing: p.amount || 0, gas: "" }; }),
+    ...oM.map((m) => ({ at: m.at, tipo: "Ingreso", cat: m.cat, det: m.note || "", ing: m.amount || 0, gas: "" })),
+    ...gM.map((m) => ({ at: m.at, tipo: "Gasto", cat: m.cat, det: m.note || "", ing: "", gas: m.amount || 0 })),
+  ].sort((a, b) => a.at - b.at);
+  const n = movs.length;
+  const blob = makeXlsx([
+    {
+      name: "Resumen",
+      columns: [{ header: "Tipo", key: "tipo", type: "text", width: 14 }, { header: "Concepto", key: "concepto", type: "text", width: 34 },
+        { header: "Cantidad", key: "n", type: "int", width: 11 }, { header: "Monto", key: "monto", type: "money", width: 20 }],
+      rows: resumen,
+    },
+    {
+      name: "Movimientos",
+      columns: [
+        { header: "Fecha", key: "at", type: "date", width: 14 }, { header: "Tipo", key: "tipo", type: "text", width: 11 },
+        { header: "Categoría", key: "cat", type: "text", width: 30 }, { header: "Detalle", key: "det", type: "text", width: 52 },
+        { header: "Ingreso", key: "ing", type: "money", width: 17 }, { header: "Gasto", key: "gas", type: "money", width: 17 },
+      ],
+      rows: movs,
+      total: (c) => c.key === "at" ? "TOTAL"
+        : c.key === "det" ? { f: `"Resultado: "&TEXT(E${n + 3}-F${n + 3},"$ #,##0")`, v: `Resultado: ${money(cuotas + extra - egr)}` }
+        : c.key === "ing" ? { f: `SUM(E2:E${n + 1})`, v: cuotas + extra }
+        : c.key === "gas" ? { f: `SUM(F2:F${n + 1})`, v: egr } : "",
+    },
+  ]);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = `${S.gymOf().name} - Caja ${mlabel(k)}.xlsx`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast("Excel descargado");
 }

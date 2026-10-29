@@ -1373,3 +1373,14 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .prow-a { flex: none; font: 700 16px "Barlow Condensed", sans-serif; }
 .prow-a.up { color: #3ccf7e; }
 @media (max-width: 560px) { .cajatab .ct-h, .cajatab .ct-r { font-size: 12px; gap: 4px; } }
+.caja2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; align-items: start; }
+.caja2 .card { margin: 0; }
+.caja2 .prow { text-decoration: none; }
+.caja2 .prow-d .i { color: var(--ok); }
+.ok-t { color: var(--ok); } .bad-t { color: var(--bad); }
+.caja-tot { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 4px 2px; margin-top: 4px; border-top: 2px solid var(--line2); }
+.caja-tot span { color: var(--muted); font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+.caja-tot b { font: 700 22px "Barlow Condensed", sans-serif; }
+.money b.good { color: var(--ok); }
+.pgrid .card.wide { grid-column: 1 / -1; }
+@media (max-width: 860px) { .caja2 { grid-template-columns: 1fr; } }

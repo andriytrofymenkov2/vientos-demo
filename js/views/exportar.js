@@ -134,7 +134,9 @@ export async function downloadMaster() {
     return { mes: mstart(mkey(p.at)), at: p.at, dni: u?.user || "", nombre: u?.name || "Socio eliminado", plan: S.plan(p.planId)?.name || "", meses: p.months || 1,
       lista, conv: p.discount?.name || "", desc: Math.max(0, lista - monto), monto, desde: p.from || "", hasta: p.to || "", cobro: S.user(p.by)?.name || "", nota: p.note || "" }; });
   const mRows = moves.slice().reverse().map((m) => ({ mes: mstart(mkey(m.at)), at: m.at, tipo: m.kind === "gasto" ? "Gasto" : "Ingreso", cat: m.cat || "", det: m.note || "", ing: m.kind === "gasto" ? "" : m.amount || 0, gas: m.kind === "gasto" ? m.amount || 0 : "" }));
-  const sumCol = (L, n) => `SUM(${L}2:${L}${n + 1})`;
+  /* SUBTOTAL: los totales cuentan solo las filas visibles, así se ajustan al filtrar (por mes, plan, estado…) */
+  const sumCol = (L, n) => `SUBTOTAL(109,${L}2:${L}${n + 1})`;
+  const TOT = "TOTAL (lo que se ve)";
 
   let logo = null;
   try {
@@ -159,7 +161,7 @@ export async function downloadMaster() {
         { header: "Socio desde", key: "alta", type: "date", width: 13 },
       ],
       rows: sRows,
-      total: (c, L, n) => c.key === "dni" ? "TOTAL" : c.key === "nombre" ? { f: `COUNTA(B2:B${n + 1})&" socios"`, v: `${n} socios` } : c.key === "total" ? { f: sumCol(L, n), v: sum(pays) } : "",
+      total: (c, L, n) => c.key === "dni" ? TOT : c.key === "nombre" ? { f: `SUBTOTAL(103,B2:B${n + 1})&" socios"`, v: `${n} socios` } : c.key === "total" ? { f: sumCol(L, n), v: sum(pays) } : "",
     },
     {
       name: "Cobros",
@@ -174,7 +176,7 @@ export async function downloadMaster() {
         { header: "Nota", key: "nota", type: "text", width: 28 },
       ],
       rows: cRows,
-      total: (c, L, n) => c.key === "mes" ? "TOTAL" : c.key === "nombre" ? { f: `COUNT(B2:B${n + 1})&" pagos"`, v: `${n} pagos` }
+      total: (c, L, n) => c.key === "mes" ? TOT : c.key === "nombre" ? { f: `SUBTOTAL(102,B2:B${n + 1})&" pagos"`, v: `${n} pagos` }
         : ["lista", "desc", "monto"].includes(c.key) ? { f: sumCol(L, n), v: cRows.reduce((a, x) => a + (x[c.key] || 0), 0) } : "",
     },
     {
@@ -186,7 +188,7 @@ export async function downloadMaster() {
         { header: "Gasto", key: "gas", type: "money", width: 15 },
       ],
       rows: mRows,
-      total: (c, L, n) => c.key === "mes" ? "TOTAL" : ["ing", "gas"].includes(c.key) ? { f: sumCol(L, n), v: mRows.reduce((a, x) => a + (x[c.key] || 0), 0) } : "",
+      total: (c, L, n) => c.key === "mes" ? TOT : ["ing", "gas"].includes(c.key) ? { f: sumCol(L, n), v: mRows.reduce((a, x) => a + (x[c.key] || 0), 0) } : "",
     },
   ], { logo });
   const d = new Date(now);

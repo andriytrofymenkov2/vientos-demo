@@ -1,5 +1,6 @@
 /* Genera archivos de Excel (.xlsx) reales, sin librerías: un .xlsx es un ZIP con
-   archivos XML. Varias hojas en blanco y negro (encabezado negro, filas alternadas en gris),
+   archivos XML. Varias hojas en blanco y negro (títulos de sección en negro, encabezados en
+   negrita con una línea abajo, filas alternadas en gris muy suave),
    filtros, primera fila fija, fechas, montos, FÓRMULAS (se recalculan solas si la persona
    cambia un dato), links entre hojas y el logo del gimnasio en la hoja de resumen. */
 
@@ -33,7 +34,7 @@ const colName = (i) => { let s = ""; for (i++; i > 0; i = Math.floor((i - 1) / 2
 const serial = (ts) => { const d = new Date(ts); return (Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) - Date.UTC(1899, 11, 30)) / 86400000; };
 
 /* Blanco y negro: tinta, grises y blanco */
-const INK = "FF111111", ZEBRA = "FFF3F3F3", SOFT = "FFE4E4E4", LINE = "FFD0D0D0", MUTED = "FF6B6B6B";
+const INK = "FF111111", ZEBRA = "FFF7F7F7", SOFT = "FFEFEFEF", LINE = "FFDDDDDD", MUTED = "FF6B6B6B";
 const NUMFMT = { text: 0, int: 0, money: 164, date: 165, month: 166 };
 /* fuentes: 0 normal · 1 blanca negrita · 2 título · 3 gris chico · 4 negrita · 5 negrita grande · 6 link · 7 negrita mediana */
 const FONTS = [
@@ -48,7 +49,13 @@ const FONTS = [
 ];
 /* rellenos: 0 nada · 1 (obligatorio) · 2 negro · 3 gris alternado · 4 gris de totales */
 const FILLS = ["none", "gray125", INK, ZEBRA, SOFT].map((f) => (f === "none" || f === "gray125") ? `<fill><patternFill patternType="${f}"/></fill>` : `<fill><patternFill patternType="solid"><fgColor rgb="${f}"/><bgColor indexed="64"/></patternFill></fill>`);
-const BORDERS = [`<border><left/><right/><top/><bottom/><diagonal/></border>`, `<border>${["left", "right", "top", "bottom"].map((s) => `<${s} style="thin"><color rgb="${LINE}"/></${s}>`).join("")}<diagonal/></border>`];
+/* bordes: 0 nada · 1 línea fina abajo · 2 línea negra abajo (encabezados) · 3 línea negra arriba (totales) */
+const BORDERS = [
+  `<border><left/><right/><top/><bottom/><diagonal/></border>`,
+  `<border><left/><right/><top/><bottom style="thin"><color rgb="${LINE}"/></bottom><diagonal/></border>`,
+  `<border><left/><right/><top/><bottom style="medium"><color rgb="${INK}"/></bottom><diagonal/></border>`,
+  `<border><left/><right/><top style="medium"><color rgb="${INK}"/></top><bottom/><diagonal/></border>`,
+];
 
 const xfs = [];
 const XF = {};
@@ -56,25 +63,31 @@ const addXf = (name, { num = 0, font = 0, fill = 0, border = 1, h = "center", wr
   XF[name] = xfs.length;
   xfs.push(`<xf numFmtId="${num}" fontId="${font}" fillId="${fill}" borderId="${border}" xfId="0" applyNumberFormat="1" applyFont="1" applyFill="1" applyBorder="1" applyAlignment="1"><alignment horizontal="${h}" vertical="center"${wrap ? ' wrapText="1"' : ""}/></xf>`);
 };
-addXf("head", { font: 1, fill: 2, wrap: true });
+addXf("head", { font: 4, border: 2, wrap: true });
+addXf("headl", { font: 4, border: 2, h: "left", wrap: true });
 const KINDS = ["text", "int", "money", "date", "month"];
 KINDS.forEach((k) => {
   addXf(`${k}-plain`, { num: NUMFMT[k], h: k === "text" ? "left" : "center" });
   addXf(`${k}-zebra`, { num: NUMFMT[k], fill: 3, h: k === "text" ? "left" : "center" });
-  addXf(`${k}-total`, { num: NUMFMT[k], font: 4, fill: 4, h: k === "text" ? "left" : "center" });
+  addXf(`${k}-total`, { num: NUMFMT[k], font: 4, border: 3, h: k === "text" ? "left" : "center" });
 });
 /* estilos de la hoja de resumen (diseño libre) */
 addXf("title", { font: 2, border: 0, h: "left" });
 addXf("sub", { font: 3, border: 0, h: "left" });
-addXf("sec", { font: 1, fill: 2, h: "left" });
+addXf("sec", { font: 1, fill: 2, border: 0, h: "left" });
 addXf("label", { h: "left" });
-addXf("hint", { font: 3, h: "left", wrap: true });
+addXf("hint", { font: 3, border: 0, h: "left", wrap: true });
 addXf("big", { font: 5, h: "center" });
 addXf("bigmoney", { num: 164, font: 5, h: "center" });
 addXf("link", { font: 6, h: "left" });
 addXf("linkr", { font: 6, border: 0, h: "right" });
-addXf("labelb", { font: 7, h: "left" });
-addXf("moneyb", { num: 164, font: 7, h: "center" });
+addXf("labelb", { font: 7, border: 3, fill: 4, h: "left" });
+addXf("moneyb", { num: 164, font: 7, border: 3, fill: 4, h: "center" });
+addXf("moneyr", { num: 164, h: "right" });
+addXf("moneyrz", { num: 164, fill: 3, h: "right" });
+addXf("moneyrt", { num: 164, font: 4, border: 3, h: "right" });
+addXf("moneyrb", { num: 164, font: 7, border: 3, fill: 4, h: "right" });
+addXf("headr", { font: 4, border: 2, h: "right", wrap: true });
 addXf("blank", { border: 0 });
 
 const STYLES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -110,7 +123,7 @@ const HEAD = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 /* Hoja de tabla: encabezado en la fila 1 (lista para filtrar o importar a una base de datos) */
 function tableXml(sheet) {
   const cols = sheet.columns;
-  const head = `<row r="1" ht="34" customHeight="1">${cols.map((c, i) => `<c r="${colName(i)}1" s="${XF.head}" t="inlineStr"><is><t>${esc(c.header)}</t></is></c>`).join("")}</row>`;
+  const head = `<row r="1" ht="30" customHeight="1">${cols.map((c, i) => `<c r="${colName(i)}1" s="${c.type === "text" ? XF.headl : XF.head}" t="inlineStr"><is><t>${esc(c.header)}</t></is></c>`).join("")}</row>`;
   const n = sheet.rows.length;
   const body = sheet.rows.map((row, ri) => `<row r="${ri + 2}" ht="20" customHeight="1">${cols.map((c, ci) => {
     const val = c.formula ? { f: c.formula(ri + 2, n), v: row[c.key] } : row[c.key];
@@ -144,7 +157,7 @@ function freeXml(sheet, hasDrawing) {
     return `<row r="${ri + 1}"${r.ht ? ` ht="${r.ht}" customHeight="1"` : ""}>${cells}</row>`;
   }).join("");
   return `${HEAD}
-<sheetViews><sheetView workbookViewId="0" showGridLines="0"/></sheetViews>
+<sheetViews><sheetView workbookViewId="0" showGridLines="0">${sheet.freeze ? `<pane${sheet.freeze.col ? ` xSplit="${sheet.freeze.col}"` : ""}${sheet.freeze.row ? ` ySplit="${sheet.freeze.row}"` : ""} topLeftCell="${colName(sheet.freeze.col || 0)}${(sheet.freeze.row || 0) + 1}" activePane="${sheet.freeze.col && sheet.freeze.row ? "bottomRight" : sheet.freeze.row ? "bottomLeft" : "topRight"}" state="frozen"/>` : ""}</sheetView></sheetViews>
 <sheetFormatPr defaultRowHeight="20"/>
 <cols>${sheet.widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join("")}</cols>
 <sheetData>${rows}</sheetData>

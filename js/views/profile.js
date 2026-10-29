@@ -40,6 +40,7 @@ export function profileView(params, query = {}) {
         ${toggle("sound", "Sonido al terminar el descanso", u.prefs?.sound !== false, "El teléfono también vibra.")}
         ${toggle("remember", "Recordarme en este dispositivo", remembered(), "No te pide la contraseña cada vez que abrís la app.")}
       </section>
+      ${!staff && !S.db.off?.opiniones ? `<section class="card"><a class="lrow" href="#/opinion">${icon("chat", "sm")}<span>Sugerencias, reclamos y calificar el gimnasio</span>${icon("right", "sm")}</a></section>` : ""}
       <section class="card">
         <div class="card-h"><h2>${icon("shield", "sm")} Seguridad</h2></div>
         <button class="lrow" type="button" data-act="pass">${icon("lock", "sm")}<span>Cambiar contraseña</span>${icon("right", "sm")}</button>

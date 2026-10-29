@@ -194,6 +194,18 @@ export async function buildDemo(D, { hashPass, uid, normDays }) {
     const at = new Date(m0.getFullYear(), m0.getMonth(), 25, 12).getTime();
     if (at < now) D.movements.push({ id: uid("m"), kind: "ingreso", at, amount: Math.round(300000 * (0.9 + R() * 0.2) / 100) * 100, cat: "Shop y bebidas", note: "Bebidas y suplementos", space: "vientos" });
   }
+  /* Opiniones de ejemplo: calificaciones de este mes y del anterior, y algunos mensajes */
+  D.feedback = [];
+  const socios = D.users.filter((u) => u.role === "socio" && u.status === "activo" && !u.prefs?.space);
+  socios.slice(0, 14).forEach((u, i) => {
+    const sc = (b) => Math.max(4, Math.min(10, Math.round(b + (R() - 0.5) * 3)));
+    D.feedback.push({ id: uid("f"), userId: u.id, kind: "puntaje", at: now - (i % 2 ? 35 : 3 + i) * DAY, space: "vientos", status: "visto",
+      scores: { limpieza: sc(8.5), atencion: sc(9), profes: sc(9.2), maquinas: sc(7), instalaciones: sc(8), comodidad: sc(7.5), clases: sc(8.3) },
+      text: ["", "", "Las cintas a veces están todas ocupadas a la tarde.", "", "Excelente la atención de los profes."][i % 5] });
+  });
+  [["reclamo", "El vestuario de mujeres no tenía papel ni jabón el martes a la noche.", 2, "nuevo"], ["sugerencia", "Estaría bueno sumar una clase de ciclo a las 21.", 6, "visto"],
+   ["sugerencia", "Poner un dispenser de agua fría en la sala de musculación.", 12, "resuelto"], ["reclamo", "La música muy fuerte a la mañana temprano.", 20, "resuelto"]]
+    .forEach(([kind, text, d, status], i) => socios[i + 3] && D.feedback.push({ id: uid("f"), userId: socios[i + 3].id, kind, text, at: now - d * DAY, space: "vientos", status, ...(status === "resuelto" ? { reply: "¡Gracias por avisar! Ya lo solucionamos." } : {}) }));
   D.notices = [
     { id: uid("n"), at: now - 2 * DAY, title: "Nuevos horarios de ciclo indoor", body: "Sumamos una clase a las 7:00 de lunes a viernes. Reservá tu lugar por WhatsApp." },
     { id: uid("n"), at: now - 1 * DAY, space: "fitz", title: "Nuevo bloque de 6 semanas", body: "El lunes arranca un bloque nuevo. Lo ves en la app o pedile a tu profe la hoja impresa." },

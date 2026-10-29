@@ -7,6 +7,7 @@ import { go, refresh } from "../core/router.js";
 import { field, dateField, limitList, formData, toast, sheet, confirmDialog, pageHead, empty, avatar, feePill, spaceLogo } from "../core/ui.js";
 import { heatmap } from "./progress.js";
 import { downloadMaster } from "./exportar.js";
+import { ratingSummary } from "./opinion.js";
 import { routineView } from "./routine.js";
 import { qrSvg, installUrl } from "./install.js";
 
@@ -117,7 +118,7 @@ export function panelHome() {
         <a class="mlink" href="#/panel/recaudacion"><small>Cobrado en ${now.toLocaleDateString("es-AR", { month: "long" })}</small><b>${money(thisMonth)}</b>${diff !== null ? `<em class="${diff >= 0 ? "up" : "down"}">${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)} % vs. ${MONTHS[new Date(pm0).getMonth()]} (mismos días)</em>` : `<em>${MONTHS[new Date(pm0).getMonth()]}: ${money(lastMonth)} en total</em>`}<span class="cta">Ver historial ${icon("right", "xs")}</span></a>
         <div><small>Falta cobrar este mes</small><b>${money(toCollect.reduce((x, m) => x + priceOf(m), 0))}</b><em>${plural(toCollect.length, "cuota vence", "cuotas vencen")} hasta fin de mes</em></div>
         <div><small>Por cobrar de cuotas vencidas</small><b class="${owed ? "bad" : ""}">${money(owed)}</b><em>${plural(late.length, "socio", "socios")} vencidos hace hasta 30 días${by.baja.length ? ` · no incluye a los ${by.baja.length} que se fueron` : ""}</em></div>
-        <a class="mlink" href="#/panel/caja"><small>Resultado de ${now.toLocaleDateString("es-AR", { month: "long" })}</small><b class="${resultado < 0 ? "bad" : ""}">${money(resultado)}</b><em>${money(thisMonth + otrosMes)} de ingresos − ${money(gastosMes)} de gastos</em><span class="cta">Ingresos y gastos ${icon("right", "xs")}</span></a>
+        ${S.db.off?.caja ? "" : `<a class="mlink" href="#/panel/caja"><small>Resultado de ${now.toLocaleDateString("es-AR", { month: "long" })}</small><b class="${resultado < 0 ? "bad" : ""}">${money(resultado)}</b><em>${money(thisMonth + otrosMes)} de ingresos − ${money(gastosMes)} de gastos</em><span class="cta">Ingresos y gastos ${icon("right", "xs")}</span></a>`}
       </section>` : ""}
       ${pend.length ? `<section class="card alert-card"><div class="card-h"><h2>${icon("userplus", "sm")} Socios nuevos para aprobar</h2><span class="pill red">${pend.length}</span></div>
         <p class="muted tiny">Personas que se registraron solas desde la app. Hasta que el dueño o un profe las apruebe, no pueden usarla.</p>
@@ -140,6 +141,12 @@ export function panelHome() {
           ${by.baja.slice(0, 5).map((m) => mrow(m, `Venció hace ${S.standing(m).over} días`)).join("")}
           <a class="btn ghost sm" href="#/panel/socios?f=baja">Ver los ${by.baja.length}</a>
         </section>` : ""}
+        ${admin && !S.db.off?.opiniones ? (() => { const r = ratingSummary(), fb = S.feedbackOf().filter((x) => x.kind !== "puntaje" && x.status !== "resuelto");
+          return `<section class="card"><div class="card-h"><h2>${icon("chat", "sm")} Opiniones de los socios</h2><a class="muted" href="#/panel/opiniones">Ver todo</a></div>
+          <p class="muted tiny">Calificaciones del 1 al 10 y mensajes que mandan los socios desde la app. Solo las ve el dueño.</p>
+          <div class="mstats"><div class="ms-main"><b>${r.all === null ? "—" : r.all.toFixed(1).replace(".", ",")}</b><small>nota promedio · ${plural(r.count, "calificación", "calificaciones")}</small></div>
+          <div><b>${fb.filter((x) => x.kind === "reclamo").length}</b><small>reclamos sin resolver</small></div><div><b>${fb.filter((x) => x.kind === "sugerencia").length}</b><small>sugerencias sin resolver</small></div></div>
+          ${r.count ? `<p class="muted tiny">Lo peor calificado: <b>${esc(r.cats.filter((c) => c.n !== null).sort((a, b) => a.n - b.n)[0]?.label || "—")}</b>.</p>` : ""}</section>`; })() : ""}
         ${admin ? `
         <section class="card"><div class="card-h"><h2>${icon("users", "sm")} Socios por mes</h2><span class="muted">activos · tocá un mes</span></div>${hist.length ? `${monthCols(mrows)}<div data-mdet>${detail(hist[hist.length - 1])}</div>
           <p class="muted tiny">"Activos" son los socios con cuota vigente ese mes, según los pagos registrados. Cada socio vence en su propia fecha. Cada persona cuenta como "nueva" una sola vez (el mes de su alta). Los meses anteriores al uso de la app no tienen datos.</p>` : `<p class="muted">Todavía no hay datos.</p>`}</section>
@@ -1124,7 +1131,7 @@ export function qrView() {
 export function moreView() {
   const items = [
     ["#/panel/cuotas", "card", "Cuotas"], ["#/panel/avisos", "bell", "Avisos a los socios"],
-    ...(isAdmin() ? [["#/panel/convenios", "card", "Convenios"], ["#/panel/gimnasio", "settings", "Datos del gimnasio y equipo"]] : []),
+    ...(isAdmin() ? [...(S.db.off?.caja ? [] : [["#/panel/caja", "trend", "Ingresos y gastos"]]), ...(S.db.off?.opiniones ? [] : [["#/panel/opiniones", "chat", "Opiniones de los socios"]]), ["#/panel/convenios", "card", "Convenios"], ["#/panel/gimnasio", "settings", "Datos del gimnasio y equipo"]] : []),
     ["#/panel/qr", "qr", "QR de la app"], ["#/panel/cuenta", "user", "Mi cuenta"],
   ];
   return {

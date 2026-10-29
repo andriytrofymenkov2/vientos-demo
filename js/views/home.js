@@ -18,6 +18,7 @@ export function homeView() {
   const coach = S.user(u.coachId);
   const fee = S.feeStatus(u);
   const logs = S.logsOf(u.id);
+  const rated = (S.db.feedback || []).some((f) => f.userId === u.id && f.kind === "puntaje" && new Date(f.at).getMonth() === new Date().getMonth() && new Date(f.at).getFullYear() === new Date().getFullYear());
   const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
   const month = logs.filter((l) => l.at >= monthStart.getTime()).length;
   const streak = S.streakWeeks(u.id);
@@ -100,6 +101,7 @@ export function homeView() {
         <dl class="hours">${S.hoursList(g.open).map((h) => `<div class="${h.days.includes(new Date().getDay()) ? "now" : ""}"><dt>${esc(h.d)}</dt><dd>${esc(h.h)}</dd></div>`).join("")}</dl>
       </div>
     </section>
+    ${S.db.off?.opiniones ? "" : `<a class="card op-card" href="#/opinion">${icon("chat")}<span><b>${rated ? "¿Algo para sugerir o reclamar?" : "¿Qué te parece el gimnasio?"}</b><small>${rated ? "Lo lee el dueño del gimnasio." : "Calificalo del 1 al 10. Lo lee solo el dueño."}</small></span>${icon("right", "sm")}</a>`}
     <p class="foot-note">${fz ? "" : `${icon("wind", "xs")} `}${esc(g.name)} · Río Gallegos</p>`,
     mount(host) {
       $$("[data-count]", host).forEach((el) => countUp(el, +el.dataset.count));

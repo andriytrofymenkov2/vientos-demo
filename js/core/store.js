@@ -30,12 +30,13 @@ const listeners = new Set();
 export const onChange = (fn) => (listeners.add(fn), () => listeners.delete(fn));
 
 let saveT = 0;
+const writeNow = () => { clearTimeout(saveT); saveT = 0; try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { console.warn("No se pudo guardar", e); } };
+/* si se cierra o se cambia de página justo después de un cambio, se guarda igual */
+if (MODE === "demo") addEventListener("pagehide", () => { if (saveT) writeNow(); });
 export function save() {
   if (MODE === "demo") {
     clearTimeout(saveT);
-    saveT = setTimeout(() => {
-      try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { console.warn("No se pudo guardar", e); }
-    }, 60);
+    saveT = setTimeout(writeNow, 60);
   }
   listeners.forEach((fn) => fn());
 }
@@ -52,6 +53,7 @@ export async function init() {
   try { db = JSON.parse(localStorage.getItem(KEY) || "null"); } catch { db = null; }
   if (!db || db.v !== 6) { db = await seed(); localStorage.setItem(KEY, JSON.stringify(db)); }
   db.movements ||= [];
+  db.feedback ||= [];
   return db;
 }
 
@@ -139,7 +141,7 @@ async function seed() {
   const d = defaults();
   /* La demo arma sus plantillas desde los datos con peso (para inventar el historial) */
   const templates = baseTemplates();
-  const base = { v: 6, seededAt: Date.now(), ...d, templates, users: [], routines: [], logs: [], payments: [], notices: [], movements: [], live: {} };
+  const base = { v: 6, seededAt: Date.now(), ...d, templates, users: [], routines: [], logs: [], payments: [], notices: [], movements: [], feedback: [], live: {} };
   return buildDemo(base, { hashPass, uid, normDays });
 }
 
@@ -183,6 +185,9 @@ export const paymentsOf = (sp = currentSpace()) => db.payments.filter((p) => pay
 /* Caja: gastos y otros ingresos que carga el dueño (las cuotas ya son ingresos por los pagos) */
 export const EXPENSE_CATS = ["Alquiler", "Sueldos", "Servicios (luz, agua, internet)", "Mantenimiento y máquinas", "Insumos y limpieza", "Impuestos y cargas", "Marketing", "Otros"];
 export const INCOME_CATS = ["Alquiler de espacios", "Shop y bebidas", "Pases sueltos y clases", "Otros ingresos"];
+/* Opiniones: rubros que califica cada socio del 1 al 10 */
+export const RATE_CATS = [["limpieza", "Limpieza"], ["atencion", "Atención"], ["profes", "Profes"], ["maquinas", "Máquinas"], ["instalaciones", "Instalaciones"], ["comodidad", "Comodidad"], ["clases", "Clases y dinámicas"]];
+export const feedbackOf = (sp = currentSpace()) => (db.feedback || []).filter((f) => (f.space === "fitz" ? "fitz" : "vientos") === sp);
 export const movementsOf = (sp = currentSpace()) => (db.movements || []).filter((m) => (m.space === "fitz" ? "fitz" : "vientos") === sp);
 export const noticesOf = (sp = currentSpace()) => db.notices.filter((n) => (n.space === "fitz" ? "fitz" : "vientos") === sp);
 /* Contacto y horario de cada espacio. Fitz Club guarda los suyos aparte; lo que no
@@ -789,6 +794,15 @@ export const api = {
   savePlans(plans) { db.plans = plans; save(); push("saveGym"); },
   addMovement(m) { const x = { id: uid("m"), at: Date.now(), space: currentSpace() === "fitz" ? "fitz" : "vientos", ...m }; (db.movements ||= []).push(x); save(); push("saveMovement", x); return x; },
   updateMovement(m) { const i = (db.movements || []).findIndex((x) => x.id === m.id); if (i < 0) return; db.movements[i] = m; save(); push("saveMovement", m); },
+  /* sugerencia, reclamo o calificación: nueva o cambio (estado, respuesta del dueño) */
+  saveFeedback(f) {
+    db.feedback ||= [];
+    let x = f.id && db.feedback.find((y) => y.id === f.id);
+    if (x) Object.assign(x, f);
+    else { x = { id: uid("f"), at: Date.now(), space: spaceOf(user(f.userId)), status: "nuevo", ...f }; db.feedback.push(x); }
+    save(); push("saveFeedback", x);
+    return x;
+  },
   deleteMovement(id) { db.movements = (db.movements || []).filter((m) => m.id !== id); save(); push("deleteMovement", id); },
   addNotice(n) { const x = { id: uid("n"), at: Date.now(), ...n }; db.notices.unshift(x); save(); push("saveNotice", x); },
   deleteNotice(id) { db.notices = db.notices.filter((n) => n.id !== id); save(); push("deleteNotice", id); },

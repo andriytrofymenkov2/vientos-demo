@@ -29,7 +29,7 @@ const mrowHtml = (m) => { const d = new Date(m.at); return `<button type="button
   <span class="prow-a ${m.kind === "gasto" ? "bad" : "up"}">${m.kind === "gasto" ? "−" : "+"} ${money(m.amount)}</span></button>`; };
 
 export function cajaView(params, query = {}) {
-  if (me()?.role !== "admin") return go("/panel", { replace: true });
+  if (me()?.role !== "admin" || S.db.off?.caja) return go("/panel", { replace: true });
   const now = mkey(Date.now());
   const pays = S.paymentsOf();
   const moves = S.movementsOf();

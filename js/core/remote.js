@@ -52,7 +52,7 @@ function friendly(err) {
 
 function emptyDb() {
   const d = S.defaults();
-  return { v: 4, gym: d.gym, plans: d.plans, exercises: [], templates: [], users: [], routines: [], logs: [], payments: [], notices: [], movements: [], live: {}, me: null };
+  return { v: 4, gym: d.gym, plans: d.plans, exercises: [], templates: [], users: [], routines: [], logs: [], payments: [], notices: [], movements: [], feedback: [], live: {}, me: null };
 }
 
 /* Sin sesión: datos de contacto y horarios del gimnasio (sin código ni precios) */
@@ -94,6 +94,7 @@ async function allRows(table, { orderBy = "id", desc = false, tie = null } = {})
   }
   return { data: rows, error: null };
 }
+const toFb = (r) => ({ ...r.data, id: r.id, userId: r.user_id, at: ms(r.at), kind: r.kind });
 const toMove = (r) => ({ ...r.data, id: r.id, at: ms(r.at), amount: Number(r.amount), kind: r.kind });
 const allPayments = () => allRows("payments", { orderBy: "at", desc: true, tie: "id" });
 
@@ -107,7 +108,7 @@ async function loadAll(uid) {
   const q = (t) => sb.from(t).select("*");
   const since = iso(Date.now() - 150 * 86400000);
 
-  const [gym, exercises, templates, notices, people, routines, logs, live, payments, movements] = await Promise.all([
+  const raw = await Promise.all([
     q("gym").eq("id", 1).maybeSingle(),
     q("exercises"),
     staff ? q("templates") : Promise.resolve({ data: [] }),
@@ -118,8 +119,13 @@ async function loadAll(uid) {
     allRows("live", { orderBy: "user_id" }),
     staff ? allPayments() : q("payments").eq("user_id", uid),
     /* si todavía no se creó la tabla de caja, el dueño igual ingresa (sin caja) */
-    prof.role === "admin" ? allRows("movements", { orderBy: "at", desc: true, tie: "id" }).then((r) => (r.error ? { data: [], error: null } : r)) : Promise.resolve({ data: [], error: null }),
-  ]).then((rs) => rs.map(must));
+    prof.role === "admin" ? allRows("movements", { orderBy: "at", desc: true, tie: "id" }).then((r) => (r.error ? { data: [], error: null, off: true } : r)) : Promise.resolve({ data: [], error: null }),
+    /* opiniones: el dueño ve todas; el socio, las suyas. Si la tabla todavía no existe, se sigue sin ellas */
+    (prof.role === "admin" ? allRows("feedback", { orderBy: "at", desc: true, tie: "id" }) : prof.role === "socio" ? q("feedback").eq("user_id", uid) : Promise.resolve({ data: [], error: null })).then((r) => (r.error ? { data: [], error: null, off: true } : r)),
+  ]);
+  /* tablas que se suman después (caja, opiniones): si todavía no se crearon en el servidor, esas secciones no se muestran */
+  const off = { caja: !!raw[9].off, opiniones: !!raw[10].off };
+  const [gym, exercises, templates, notices, people, routines, logs, live, payments, movements, feedback] = raw.map(must);
 
   /* Primer ingreso de un profe o del dueño: carga ejercicios, plantillas y datos del gimnasio */
   if (staff && (!gym || !exercises.length)) await firstSetup(prof, gym, exercises, templates);
@@ -142,6 +148,8 @@ async function loadAll(uid) {
   D.live = Object.fromEntries(live.map((r) => [r.user_id, r.data]));
   D.payments = payments.map(toPay);
   D.movements = (movements || []).map(toMove);
+  D.feedback = (feedback || []).map(toFb);
+  D.off = off;
   D.me = uid;
   return D;
 }
@@ -377,6 +385,7 @@ export const remoteAdapter = {
   async deletePayment(id) { must(await sb.from("payments").delete().eq("id", id)); },
   async saveGym(data) { must(await sb.from("gym").upsert({ id: 1, data: data || { ...S.db.gym, plans: S.db.plans }, updated_at: iso() })); },
   async saveMovement(m) { must(await sb.from("movements").upsert({ id: m.id, at: iso(m.at), amount: m.amount || 0, kind: m.kind, data: strip(m, "id", "at", "amount", "kind") })); },
+  async saveFeedback(f) { must(await sb.from("feedback").upsert({ id: f.id, user_id: f.userId, at: iso(f.at), kind: f.kind, data: strip(f, "id", "userId", "at", "kind") })); },
   async deleteMovement(id) { must(await sb.from("movements").delete().eq("id", id)); },
   async saveNotice(n) { must(await sb.from("notices").insert({ id: n.id, at: iso(n.at), data: strip(n, "id", "at") })); },
   async deleteNotice(id) { must(await sb.from("notices").delete().eq("id", id)); },

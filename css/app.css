@@ -1387,3 +1387,23 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .phello { position: relative; }
 .phello-a { position: absolute; right: 0; top: 18px; }
 @media (max-width: 720px) { .phello-a { position: static; margin-top: 10px; } }
+
+/* Opiniones: calificación del 1 al 10, sugerencias y reclamos */
+.rate-row { display: grid; gap: 6px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.rate-row > span { font-weight: 600; font-size: 14.5px; }
+.rate { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; }
+.rate button { height: 36px; border-radius: 10px; border: 1px solid var(--line); background: var(--card2); color: var(--text); font: 700 15px "Barlow Condensed", sans-serif; cursor: pointer; }
+.rate button.on { background: var(--red); border-color: var(--red); color: #fff; }
+.fb-item { padding: 12px 0; border-bottom: 1px solid var(--line); display: grid; gap: 6px; }
+.fb-item:last-child { border-bottom: 0; }
+.fb-item.done { opacity: .6; }
+.fb-item p { margin: 0; line-height: 1.45; }
+.fb-top { display: flex; align-items: center; gap: 10px; }
+.fb-top > span:not(.pill):not(.av) { flex: 1; display: grid; }
+.fb-top .pill { margin-left: auto; }
+.fb-reply { background: var(--card2); border-radius: 12px; padding: 10px 12px; font-size: 14px; }
+.fb-reply b { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.op-card { display: flex; align-items: center; gap: 12px; text-decoration: none; color: inherit; }
+.op-card > .i:first-child { color: var(--red2); }
+.op-card span { flex: 1; display: grid; gap: 2px; }
+.op-card small { color: var(--muted); }

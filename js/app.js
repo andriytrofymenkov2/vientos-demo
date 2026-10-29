@@ -1,6 +1,7 @@
 /* Arranque de la app de Vientos */
 import * as S from "./core/store.js";
 import { cajaView } from "./views/caja.js";
+import { opinionView, opinionesView } from "./views/opinion.js";
 import { restore, me, refreshMe, logout } from "./core/auth.js";
 import { route, start, setShell, refresh, go } from "./core/router.js";
 import { shell, applyTheme, toast } from "./core/ui.js";
@@ -51,6 +52,7 @@ async function boot() {
   route("/progreso", progressView, member);
   route("/asistente", assistantView, member);
   route("/perfil", profileView, member);
+  route("/opinion", opinionView, member);
 
   route("/panel", panelHome, staff);
   route("/panel/socios", membersView, staff);
@@ -64,6 +66,7 @@ async function boot() {
   route("/panel/convenios", conveniosView, { staff: true, admin: true });
   route("/panel/recaudacion", recaudacionView, { staff: true, admin: true });
   route("/panel/caja", cajaView, { staff: true, admin: true });
+  route("/panel/opiniones", opinionesView, { staff: true, admin: true });
   route("/panel/avisos", noticesView, staff);
   route("/panel/gimnasio", gymView, { staff: true, admin: true });
   route("/panel/qr", qrView, staff);

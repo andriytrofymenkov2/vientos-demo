@@ -31,6 +31,7 @@ const PANEL = [
   { id: "ejercicios", href: "#/panel/ejercicios", icon: "dumbbell", label: "Ejercicios", tab: true },
   { id: "cuotas", href: "#/panel/cuotas", icon: "card", label: "Cuotas" },
   { id: "caja", href: "#/panel/caja", icon: "trend", label: "Ingresos y gastos", admin: true },
+  { id: "opiniones", href: "#/panel/opiniones", icon: "chat", label: "Opiniones", admin: true },
   { id: "avisos", href: "#/panel/avisos", icon: "bell", label: "Avisos" },
   { id: "gimnasio", href: "#/panel/gimnasio", icon: "settings", label: "Gimnasio", admin: true },
   { id: "qr", href: "#/panel/qr", icon: "qr", label: "QR de la app" },
@@ -65,7 +66,8 @@ if (typeof document !== "undefined") {
 
 function panelSide() {
   const u = me();
-  const items = PANEL.filter((n) => !n.admin || isAdmin());
+  /* caja y opiniones se esconden si su tabla todavía no se creó en el servidor (S.db.off) */
+  const items = PANEL.filter((n) => (!n.admin || isAdmin()) && !S.db?.off?.[n.id]);
   const pend = S.pending().filter((m) => S.inSpace(m)).length;
   return `<aside class="side" aria-label="Panel">
     ${brand("#/panel", S.currentSpace())}

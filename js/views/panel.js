@@ -48,9 +48,11 @@ export function panelHome() {
   const mine = S.membersOf(u.id);
   /* Cada socio vence en su propia fecha y con la cuota vencida no puede entrar (ver S.standing).
      Activos = cuota vigente. Vencida hasta 30 días = sin acceso, se puede recuperar. Más de 30 días = se fue. */
-  const by = { vencida: [], baja: [] };
-  act.forEach((m) => { const k = S.standing(m).key; if (by[k]) by[k].push(m); });
-  const live = act.filter((m) => !["vencida", "baja"].includes(S.standing(m).key));
+  /* Cada socio cae en UN solo grupo según su fecha de vencimiento comparada con hoy (no se pisan):
+     al día (vence en más de 5 días) · por vencer (hoy o en 5 días) · vencida (hace 1 a 30 días) · se fue (más de 30). Activos = al día + por vencer. */
+  const by = { ok: [], soon: [], vencida: [], baja: [], none: [] };
+  act.forEach((m) => { const k = S.standing(m).key; (by[k] || by.none).push(m); });
+  const live = [...by.ok, ...by.soon];
   const soon = live.filter((m) => S.feeStatus(m).state === "soon");
   const late = by.vencida.slice().sort((a, b) => S.standing(a).over - S.standing(b).over);
   /* Sin rutina: todos los profes y el dueño ven a todos (si un profe falta, otro lo cubre). Los que esperan hace más, primero. */
@@ -67,16 +69,16 @@ export function panelHome() {
   const priceOf = (m) => S.priceWith(m.fee?.planId, 1, m.fee?.convenioId).total;
   /* Falta cobrar este mes: cuotas que todavía no vencieron (o vencen hoy) y vencen antes de fin de mes.
      Las que ya vencieron van en "Deuda". Usa el mismo criterio de días que el estado de cada socio. */
-  const toCollect = act.filter((m) => { const st = S.feeStatus(m); return st.state !== "none" && st.state !== "late" && m.fee.dueAt < m1; });
-  const owed = late.reduce((x, m) => x + priceOf(m), 0);
-  const owedOld = by.baja.reduce((x, m) => x + priceOf(m), 0);
   const movs = S.movementsOf().filter((x) => x.at >= m0 && x.at < m1);
   const gastosMes = movs.filter((x) => x.kind === "gasto").reduce((a, x) => a + (x.amount || 0), 0);
   const otrosMes = movs.filter((x) => x.kind === "ingreso").reduce((a, x) => a + (x.amount || 0), 0);
   const resultado = thisMonth + otrosMes - gastosMes;
   /* Comparación justa: lo cobrado hasta hoy contra lo cobrado en el MISMO período del mes anterior */
-  const lastSame = paid(pm0, Math.min(m0, pm0 + (Date.now() - m0)));
-  const diff = lastSame ? Math.round(((thisMonth - lastSame) / lastSame) * 100) : null;
+  const cutPrev = Math.min(m0, pm0 + (Date.now() - m0));
+  const otrosEntre = (a, b) => S.movementsOf().filter((x) => x.kind === "ingreso" && x.at >= a && x.at < b).reduce((t, x) => t + (x.amount || 0), 0);
+  const lastSame = paid(pm0, cutPrev) + otrosEntre(pm0, cutPrev);
+  const cobradoMes = thisMonth + otrosEntre(m0, m1);
+  const diff = lastSame ? Math.round(((cobradoMes - lastSame) / lastSame) * 100) : null;
   const MONTHS = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
 
   /* Perfil de los socios */
@@ -108,17 +110,23 @@ export function panelHome() {
   return {
     layout: "panel", nav: "resumen", title: "Resumen",
     html: `<section class="phello"><span class="kicker">${esc(fmtDate(Date.now()))}${S.isProvider() ? ` · ${esc(S.spaceInfo(sp).name)}` : ""}</span><h1>Hola, ${esc(firstName(u.name))}</h1>${admin ? `<div class="phello-a"><button class="btn ghost sm" type="button" data-xlsx>${icon("download", "sm")} Descargar Excel</button></div>` : ""}</section>
+      <section class="card socbar"><div class="card-h"><h2>${icon("users", "sm")} Los socios hoy</h2><span class="muted">${act.length} en total</span></div>
+        <p class="sb-main"><b data-count="${live.length}">0</b> socios activos <small class="muted">(al día + por vencer)</small></p>
+        ${(() => { const G = [["ok", "Al día", "Le vence en más de 5 días", "#/panel/socios?f=aldia"], ["soon", "Por vencer", "Le vence hoy o en los próximos 5 días", "#/panel/cuotas?f=soon"],
+            ["vencida", "Cuota vencida", "Venció hace 1 a 30 días", "#/panel/socios?f=vencida"], ["baja", "Se fue", "Venció hace más de 30 días", "#/panel/socios?f=baja"], ...(by.none.length ? [["none", "Sin cuota cargada", "Todavía no tiene plan ni vencimiento", "#/panel/socios?f=sincuota"]] : [])];
+          const tot = Math.max(1, act.length);
+          return `<div class="sb-bar" role="img" aria-label="${G.map(([k, l]) => `${l}: ${by[k].length}`).join(", ")}">${G.map(([k]) => by[k].length ? `<i class="sb-${k}" style="width:${(by[k].length / tot) * 100}%"></i>` : "").join("")}</div>
+          <div class="sb-leg">${G.map(([k, l, rule, href]) => `<a class="sb-item" href="${href}"><span class="sb-dot sb-${k}"></span><span><b>${by[k].length}</b> ${l}<small>${rule}</small></span></a>`).join("")}</div>`; })()}
+        <p class="muted tiny">Cada socio está en un solo grupo, según su fecha de vencimiento (la del día que se anotó o pagó). Los grupos suman el total. Aparte: ${plural(pend.length, "persona para aprobar", "personas para aprobar")}.</p>
+      </section>
       <section class="kpis">
-        ${kpi(live.length, "socios activos", "#/panel/socios", "", "con la cuota al día")}
-        ${kpi(soon.length, "cuotas por vencer", "#/panel/cuotas?f=soon", soon.length ? "warn" : "", "en los próximos días")}
-        ${kpi(late.length, "cuotas vencidas", "#/panel/socios?f=vencida", late.length ? "bad" : "", "vencieron hace hasta 30 días")}
         ${kpi(noRoutine.length, "sin rutina asignada", "#/panel/socios?f=sin", noRoutine.length ? "warn" : "")}
+        ${kpi(pend.length, "para aprobar", "#/panel/socios?f=pend", pend.length ? "warn" : "")}
       </section>
       ${admin ? `<section class="money">
-        <a class="mlink" href="#/panel/recaudacion"><small>Cobrado en ${now.toLocaleDateString("es-AR", { month: "long" })}</small><b>${money(thisMonth)}</b>${diff !== null ? `<em class="${diff >= 0 ? "up" : "down"}">${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)} % vs. ${MONTHS[new Date(pm0).getMonth()]} (mismos días)</em>` : `<em>${MONTHS[new Date(pm0).getMonth()]}: ${money(lastMonth)} en total</em>`}<span class="cta">Ver historial ${icon("right", "xs")}</span></a>
-        <div><small>Falta cobrar este mes</small><b>${money(toCollect.reduce((x, m) => x + priceOf(m), 0))}</b><em>${plural(toCollect.length, "cuota vence", "cuotas vencen")} hasta fin de mes</em></div>
-        <div><small>Por cobrar de cuotas vencidas</small><b class="${owed ? "bad" : ""}">${money(owed)}</b><em>${plural(late.length, "socio", "socios")} vencidos hace hasta 30 días${by.baja.length ? ` · no incluye a los ${by.baja.length} que se fueron` : ""}</em></div>
-        ${S.db.off?.caja ? "" : `<a class="mlink" href="#/panel/caja"><small>Resultado de ${now.toLocaleDateString("es-AR", { month: "long" })}</small><b class="${resultado < 0 ? "bad" : ""}">${money(resultado)}</b><em>${money(thisMonth + otrosMes)} de ingresos − ${money(gastosMes)} de gastos</em><span class="cta">Ingresos y gastos ${icon("right", "xs")}</span></a>`}
+        <a class="mlink" href="#/panel/recaudacion"><small>Cobrado este mes</small><b>${money(cobradoMes)}</b>${diff !== null ? `<em class="${diff >= 0 ? "up" : "down"}">${diff >= 0 ? "▲" : "▼"} ${Math.abs(diff)} % vs. ${MONTHS[new Date(pm0).getMonth()]} (mismos días)</em>` : ""}<em>${money(thisMonth)} de cuotas${otrosMes ? ` · ${money(otrosMes)} otros` : ""}</em><span class="cta">Ver cobros ${icon("right", "xs")}</span></a>
+        ${S.db.off?.caja ? "" : `<a class="mlink" href="#/panel/caja"><small>Gastado este mes</small><b>${money(gastosMes)}</b><em>${gastosMes ? "según los gastos cargados" : "todavía no se cargaron gastos"}</em><span class="cta">Cargar gastos ${icon("right", "xs")}</span></a>
+        <a class="mlink" href="#/panel/caja"><small>Te quedó</small><b class="${resultado < 0 ? "bad" : ""}">${money(resultado)}</b><em>cobrado menos gastado</em><span class="cta">Ingresos y gastos ${icon("right", "xs")}</span></a>`}
       </section>` : ""}
       ${pend.length ? `<section class="card alert-card"><div class="card-h"><h2>${icon("userplus", "sm")} Socios nuevos para aprobar</h2><span class="pill red">${pend.length}</span></div>
         <p class="muted tiny">Personas que se registraron solas desde la app. Hasta que el dueño o un profe las apruebe, no pueden usarla.</p>
@@ -137,7 +145,7 @@ export function panelHome() {
           ${noRoutine.length > 10 ? `<a class="btn ghost sm" href="#/panel/socios?f=sin">Ver los ${noRoutine.length}</a>` : ""}
         </section>
         ${admin && by.baja.length ? `<section class="card"><div class="card-h"><h2>${icon("logout", "sm")} Se fueron</h2><span class="muted">${by.baja.length}</span></div>
-          <p class="muted tiny">Se les venció la cuota hace más de 30 días y no volvieron a pagar: probablemente dejaron de venir. No cuentan como socios activos ni en lo que hay por cobrar (su deuda vieja es de ${money(owedOld)}). Si alguno paga, vuelve solo a estar al día.</p>
+          <p class="muted tiny">Se les venció la cuota hace más de 30 días y no volvieron a pagar: probablemente dejaron de venir. No cuentan como socios activos. Si alguno vuelve a pagar, pasa solo a "Al día".</p>
           ${by.baja.slice(0, 5).map((m) => mrow(m, `Venció hace ${S.standing(m).over} días`)).join("")}
           <a class="btn ghost sm" href="#/panel/socios?f=baja">Ver los ${by.baja.length}</a>
         </section>` : ""}
@@ -198,7 +206,7 @@ export function approveSheet(m) {
 }
 
 /* ---------------------------------------------------------------- socios */
-const FILTERS = [["", "Todos"], ["mios", "A mi cargo"], ["sin", "Sin rutina"], ["soon", "Cuota por vencer"], ["vencida", "Cuota vencida"], ["baja", "Se fueron"], ["pend", "Para aprobar"]];
+const FILTERS = [["", "Todos"], ["mios", "A mi cargo"], ["sin", "Sin rutina"], ["aldia", "Al día"], ["soon", "Por vencer"], ["vencida", "Cuota vencida"], ["baja", "Se fueron"], ["pend", "Para aprobar"]];
 
 export function membersView(params, query) {
   const f = query.f || "", q = query.q || "";
@@ -209,6 +217,8 @@ export function membersView(params, query) {
   if (f === "sin") list = list.filter((m) => !S.activeRoutine(m.id));
   if (f === "soon" || f === "late") list = list.filter((m) => S.feeStatus(m).state === f);
   if (f === "vencida" || f === "baja") list = list.filter((m) => S.standing(m).key === f);
+  if (f === "aldia") list = list.filter((m) => S.standing(m).key === "ok");
+  if (f === "sincuota") list = list.filter((m) => S.standing(m).key === "none");
   if (q) list = list.filter((m) => fold(m.name + " " + m.email + " " + m.phone).includes(fold(q)));
   list.sort((a, b) => a.name.localeCompare(b.name, "es"));
   const pend = S.pending().filter((m) => S.inSpace(m)).length;

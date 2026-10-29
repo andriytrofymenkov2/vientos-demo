@@ -53,9 +53,7 @@ export async function downloadMaster() {
 
   /* ---------- hoy */
   const act = S.activeMembers().filter((u) => S.inSpace(u, sp));
-  const count = (k) => act.filter((u) => S.standing(u).key === k).length;
-  const owed = act.filter((u) => S.standing(u).key === "vencida").reduce((a, u) => a + S.priceWith(u.fee?.planId, 1, u.fee?.convenioId).total, 0);
-  const activos = act.filter((u) => !["vencida", "baja"].includes(S.standing(u).key)).length;
+  const activos = act.filter((u) => ["ok", "soon"].includes(S.standing(u).key)).length;
   const pend = S.pending().filter((u) => S.inSpace(u, sp)).length;
   const m0 = months[months.length - 1];
 
@@ -65,6 +63,10 @@ export async function downloadMaster() {
     { ht: 26, cells: list.map((x) => ({ v: x.label, s: "cardlab", span: 2 })) },
     { ht: 38, cells: list.map((x) => ({ v: x.v, t: x.t, s: x.t === "money" ? "cardmoney" : "cardval", span: 2 })) },
   ];
+  const G = { ok: 0, soon: 0, vencida: 0, baja: 0, none: 0 };
+  act.forEach((u) => { const k = S.standing(u).key; G[k in G ? k : "none"]++; });
+  const otrosMes = m0.o, cobrado = m0.c + m0.o, quedo = cobrado - m0.g;
+  const fmt = (n) => "$ " + Math.round(n).toLocaleString("es-AR");
   const resumen = [
     { ht: 84, cells: [] },
     { ht: 32, cells: [T(`Reporte de gestión · ${BRAND}`, "title", 10)] },
@@ -72,13 +74,14 @@ export async function downloadMaster() {
     { cells: [] },
     { ht: 24, cells: [T("LOS SOCIOS HOY", "sec", 10)] },
     { ht: 8, cells: [] },
-    ...kpiRow([KPI("Socios activos", activos), KPI("Cuotas vencidas", count("vencida")), KPI("Se fueron", count("baja")), KPI("Para aprobar", pend)]),
-    { ht: 44, cells: [T("Activos: cuota al día. Cuotas vencidas: vencieron hace 30 días o menos (cada socio vence en su propia fecha). Se fueron: más de 30 días sin pagar; no cuentan como activos ni como deuda. Para aprobar: se registraron solos en la app y todavía nadie los aprobó.", "hint", 10)] },
+    ...kpiRow([KPI("Al día", G.ok), KPI("Por vencer", G.soon), KPI("Cuota vencida", G.vencida), KPI("Se fue", G.baja)]),
+    { ht: 20, cells: [T("Le vence en más de 5 días", "hint", 2), T("Le vence hoy o en los próximos 5 días", "hint", 2), T("Venció hace 1 a 30 días", "hint", 2), T("Venció hace más de 30 días", "hint", 2)] },
+    { ht: 40, cells: [T(`Socios activos: ${activos} (al día + por vencer). Total: ${act.length} socios; cada uno está en un solo grupo según su fecha de vencimiento.${G.none ? ` Sin cuota cargada: ${G.none}.` : ""} Aparte, ${pend} para aprobar.`, "hint", 10)] },
     { cells: [] },
     { ht: 24, cells: [T(`LA PLATA DE ${mname(cur).toUpperCase()}`, "sec", 10)] },
     { ht: 8, cells: [] },
-    ...kpiRow([KPI("Cobrado en cuotas", m0.c, "money"), KPI("Otros ingresos", m0.o, "money"), KPI("Gastos", m0.g, "money"), KPI("Resultado", m0.c + m0.o - m0.g, "money")]),
-    { ht: 22, cells: [T(`Además hay ${"$ " + Math.round(owed).toLocaleString("es-AR")} por cobrar de cuotas vencidas hace 30 días o menos.`, "hint", 10)] },
+    ...kpiRow([KPI("Cobrado este mes", cobrado, "money"), KPI("Gastado este mes", m0.g, "money"), KPI("Te quedó", quedo, "money")]),
+    { ht: 22, cells: [T(`Cobrado: ${fmt(m0.c)} de cuotas${otrosMes ? ` y ${fmt(otrosMes)} de otros ingresos` : ""}. Gastado: lo que se cargó en "Ingresos y gastos". Te quedó: cobrado menos gastado.`, "hint", 10)] },
     { cells: [] },
     { ht: 24, cells: [T("MES POR MES", "sec", 10)] },
     { ht: 30, cells: [{ v: "Mes", s: "headl" }, ...["Socios activos", "Altas", "Se fueron"].map((v) => ({ v, s: "head" })), ...["Cuotas cobradas", "Otros ingresos", "Gastos", "Resultado"].map((v) => ({ v, s: "headr" }))] },

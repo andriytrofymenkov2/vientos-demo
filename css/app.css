@@ -1409,3 +1409,17 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .op-card small { color: var(--muted); }
 .op-card { border-color: rgba(209, 31, 42, .35); background: linear-gradient(180deg, var(--red-soft), var(--card) 80%); }
 .op-card .btn { flex: none; pointer-events: none; }
+
+/* Los socios hoy: una barra con los grupos que suman el total */
+.socbar .sb-main { font-size: 15px; margin: 2px 0 10px; }
+.socbar .sb-main b { font: 700 34px/1 "Barlow Condensed", sans-serif; margin-right: 4px; }
+.sb-bar { display: flex; height: 14px; border-radius: 8px; overflow: hidden; background: var(--card3); gap: 2px; }
+.sb-bar i { display: block; height: 100%; }
+.sb-ok { background: #3ccf7e; } .sb-soon { background: #f0b429; } .sb-vencida { background: var(--red); } .sb-baja { background: #6b6d73; } .sb-none { background: #a9adb4; }
+.sb-leg { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 12px 0 6px; }
+.sb-item { display: flex; gap: 8px; align-items: flex-start; padding: 8px 10px; border-radius: 12px; background: var(--card2); color: inherit; text-decoration: none; }
+.sb-item:hover { background: var(--card3); }
+.sb-item > span:last-child { display: grid; gap: 2px; font-size: 14px; }
+.sb-item b { font: 700 20px/1 "Barlow Condensed", sans-serif; }
+.sb-item small { color: var(--muted); font-size: 11.5px; }
+.sb-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; }

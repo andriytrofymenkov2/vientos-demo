@@ -144,7 +144,7 @@ export async function downloadMaster() {
   const mRows = moves.slice().reverse().map((m) => ({ mes: mstart(mkey(m.at)), at: m.at, tipo: m.kind === "gasto" ? "Gasto" : "Ingreso", cat: m.cat || "", det: m.note || "", ing: m.kind === "gasto" ? "" : m.amount || 0, gas: m.kind === "gasto" ? m.amount || 0 : "" }));
   /* SUBTOTAL: los totales cuentan solo las filas visibles, así se ajustan al filtrar (por mes, plan, estado…) */
   const sumCol = (L, n) => `SUBTOTAL(109,${L}2:${L}${n + 1})`;
-  const TOT = "TOTAL (lo que se ve)";
+  const TOT = "TOTAL";
 
   let logo = null;
   try {

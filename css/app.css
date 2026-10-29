@@ -1426,3 +1426,5 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .inst-spin { width: 34px; height: 34px; margin: 10px auto; border-radius: 50%; border: 3px solid var(--card3); border-top-color: var(--red); animation: instspin .9s linear infinite; }
 @keyframes instspin { to { transform: rotate(360deg); } }
 .linkbtn { background: none; border: 0; padding: 0; color: var(--red2); text-decoration: underline; font: inherit; cursor: pointer; }
+.feecard.ok { background: var(--card); border-color: var(--line); }
+.feecard.ok > .i { color: #3ccf7e; }

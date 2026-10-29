@@ -55,10 +55,11 @@ export function homeView() {
     todayCard = `<div class="today empty-t"><span class="kicker">Mi rutina</span><h2>Tu profe te está armando la rutina</h2><span class="today-meta">Te avisamos apenas esté lista.</span>${WAVES}</div>`;
   }
 
-  const feeCard = fee.state === "soon" || fee.state === "late" ? `<div class="feecard ${fee.state}">
-      ${icon(fee.state === "late" ? "alert" : "card")}
-      <div><b>${fee.state === "late" ? "Tu cuota está vencida" : `Tu cuota ${fee.days === 0 ? "vence hoy" : `vence en ${fee.days} ${fee.days === 1 ? "día" : "días"}`}`}</b>
-      <small>${esc(p?.name || "Cuota mensual")} · ${u.fee.unpaid ? "desde el " : ""}${fmtDate(u.fee.dueAt)}</small></div>
+  /* la cuota siempre a la vista: al día (cuándo vence), por vencer o vencida */
+  const feeCard = u.fee?.dueAt && fee.state !== "none" ? `<div class="feecard ${fee.state}">
+      ${icon(fee.state === "late" ? "alert" : fee.state === "ok" ? "checkc" : "card")}
+      <div><b>${fee.state === "late" ? "Tu cuota está vencida" : fee.state === "ok" ? `Cuota al día · vence en ${fee.days} días` : `Tu cuota ${fee.days === 0 ? "vence hoy" : `vence en ${fee.days} ${fee.days === 1 ? "día" : "días"}`}`}</b>
+      <small>${esc(p?.name || "Cuota mensual")} · ${u.fee.unpaid ? "desde el " : "vence el "}${fmtDate(u.fee.dueAt)}</small></div>
     </div>` : "";
 
   const notices = S.noticesOf(sp).slice(0, 2).map((n) => `<article class="notice"><span class="notice-d">${relDay(n.at)}</span><h3>${esc(n.title)}</h3><p>${esc(n.body)}</p></article>`).join("");

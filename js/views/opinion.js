@@ -1,5 +1,5 @@
-/* Opiniones de los socios: calificación del 1 al 10 por rubro (una por mes, se puede corregir)
-   y sugerencias o reclamos. Las lee SOLO el dueño, que puede marcarlas como resueltas y responder. */
+/* Opiniones de los socios: calificación del 1 al 10 por rubro (UNA sola vez por socio)
+   y sugerencias o reclamos (todas las veces que quiera). Las lee SOLO el dueño, que puede marcarlas como resueltas y responder. */
 import { icon } from "../core/icons.js";
 import { esc, fmtDate, relDay, plural, $, $$ } from "../core/util.js";
 import * as S from "../core/store.js";
@@ -7,7 +7,6 @@ import { me } from "../core/auth.js";
 import { go, refresh } from "../core/router.js";
 import { field, formData, toast, sheet, pageHead, empty, avatar } from "../core/ui.js";
 
-const mkey = (ts) => { const d = new Date(ts); return `${d.getFullYear()}-${d.getMonth()}`; };
 const STATUS = { nuevo: "Recibido", visto: "Lo leyó el dueño", resuelto: "Resuelto" };
 const avg = (list) => (list.length ? list.reduce((a, b) => a + b, 0) / list.length : null);
 const fmt1 = (n) => (n === null ? "—" : n.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
@@ -17,23 +16,29 @@ export function opinionView() {
   if (S.db.off?.opiniones) return go("/inicio", { replace: true });
   const u = me();
   const mine = (S.db.feedback || []).filter((f) => f.userId === u.id).sort((a, b) => b.at - a.at);
-  const rated = mine.find((f) => f.kind === "puntaje" && mkey(f.at) === mkey(Date.now()));
+  /* la calificación se hace una sola vez; las sugerencias y reclamos, cuando quiera */
+  const rated = mine.find((f) => f.kind === "puntaje");
   const msgs = mine.filter((f) => f.kind !== "puntaje");
   const scale = (key, val) => `<div class="rate" role="radiogroup" data-key="${key}">${Array.from({ length: 10 }, (_, i) => `<button type="button" role="radio" aria-checked="${val === i + 1}" class="${val === i + 1 ? "on" : ""}" data-v="${i + 1}">${i + 1}</button>`).join("")}</div>`;
   return {
     title: "Tu opinión",
     html: `${pageHead({ back: "#/perfil", kicker: S.gymOf(S.spaceOf(u)).name, title: "Tu opinión" })}
       <p class="muted">Lo que escribas acá lo lee solo el dueño del gimnasio. Nos ayuda a mejorar.</p>
-      <section class="card">
-        <div class="card-h"><h2>${icon("trophy", "sm")} Calificá el gimnasio</h2>${rated ? `<span class="pill">Ya calificaste este mes</span>` : ""}</div>
-        <p class="muted tiny">Del 1 (muy mal) al 10 (excelente). Podés calificar una vez por mes y cambiarlo cuando quieras.</p>
+      ${rated ? `<section class="card">
+        <div class="card-h"><h2>${icon("trophy", "sm")} Tu calificación</h2><span class="pill">¡Gracias!</span></div>
+        <p class="muted tiny">Calificaste el gimnasio el ${esc(fmtDate(rated.at, { year: true }))}. Se califica una sola vez.</p>
+        <div class="hb">${S.RATE_CATS.map(([k, label]) => `<div class="hb-row"><span class="hb-l">${esc(label)}</span><span class="hb-t"><i style="width:${(rated.scores?.[k] || 0) * 10}%"></i></span><span class="hb-v"><b>${rated.scores?.[k] || "—"}</b><em>de 10</em></span></div>`).join("")}</div>
+        ${rated.text ? `<p class="muted">“${esc(rated.text)}”</p>` : ""}
+      </section>` : `<section class="card">
+        <div class="card-h"><h2>${icon("trophy", "sm")} Calificá el gimnasio</h2></div>
+        <p class="muted tiny">Del 1 (muy mal) al 10 (excelente). Se califica una sola vez, así que tomate un minuto.</p>
         <form data-rate novalidate>
-          ${S.RATE_CATS.map(([k, label]) => `<div class="rate-row"><span>${esc(label)}</span>${scale(k, rated?.scores?.[k])}</div>`).join("")}
-          ${field({ label: "¿Querés agregar algo? (opcional)", name: "text", type: "textarea", value: rated?.text || "", ph: "Ej: las bicis de ciclo están muy bien" })}
+          ${S.RATE_CATS.map(([k, label]) => `<div class="rate-row"><span>${esc(label)}</span>${scale(k)}</div>`).join("")}
+          ${field({ label: "¿Querés agregar algo? (opcional)", name: "text", type: "textarea", ph: "Ej: las bicis de ciclo están muy bien" })}
           <p class="form-err" role="alert" hidden></p>
-          <button class="btn primary block" type="submit">${icon("check", "sm")} ${rated ? "Guardar los cambios" : "Enviar calificación"}</button>
+          <button class="btn primary block" type="submit">${icon("check", "sm")} Enviar calificación</button>
         </form>
-      </section>
+      </section>`}
       <section class="card">
         <div class="card-h"><h2>${icon("chat", "sm")} Sugerencia o reclamo</h2></div>
         <form data-msg novalidate>
@@ -47,18 +52,19 @@ export function opinionView() {
         ${msgs.map((f) => `<div class="fb-item"><div class="fb-top"><span class="pill ${f.kind === "reclamo" ? "red" : ""}">${f.kind === "reclamo" ? "Reclamo" : "Sugerencia"}</span><small class="muted">${esc(relDay(f.at))} · ${esc(STATUS[f.status] || STATUS.nuevo)}</small></div>
           <p>${esc(f.text)}</p>${f.reply ? `<div class="fb-reply"><b>Respuesta del gimnasio</b><p>${esc(f.reply)}</p></div>` : ""}</div>`).join("")}</section>` : ""}`,
     mount(host) {
-      const scores = { ...(rated?.scores || {}) };
+      const scores = {};
       $$(".rate", host).forEach((g) => g.addEventListener("click", (e) => {
         const b = e.target.closest("[data-v]"); if (!b) return;
         scores[g.dataset.key] = +b.dataset.v;
         $$("button", g).forEach((x) => { const on = x === b; x.classList.toggle("on", on); x.setAttribute("aria-checked", on); });
       }));
-      $("[data-rate]", host).addEventListener("submit", (e) => {
+      $("[data-rate]", host)?.addEventListener("submit", (e) => {
         e.preventDefault();
         const err = $(".form-err", e.target);
         if (Object.keys(scores).length < S.RATE_CATS.length) { err.textContent = "Calificá todos los rubros (tocá un número en cada uno)."; err.hidden = false; return; }
         const text = formData(e.target).text?.trim() || "";
-        S.api.saveFeedback(rated ? { ...rated, scores, text } : { userId: u.id, kind: "puntaje", scores, text });
+        if ((S.db.feedback || []).some((f) => f.userId === u.id && f.kind === "puntaje")) return refresh();
+        S.api.saveFeedback({ userId: u.id, kind: "puntaje", scores, text });
         toast("¡Gracias! Tu calificación le llegó al dueño"); refresh();
       });
       $("[data-msg]", host).addEventListener("submit", (e) => {
@@ -72,10 +78,9 @@ export function opinionView() {
   };
 }
 
-/* Resumen de puntajes: promedios por rubro de los últimos 3 meses */
+/* Resumen de puntajes: promedio por rubro de todas las calificaciones (cada socio califica una vez) */
 export function ratingSummary(list = S.feedbackOf()) {
-  const since = new Date(new Date().getFullYear(), new Date().getMonth() - 2, 1).getTime();
-  const r = list.filter((f) => f.kind === "puntaje" && f.at >= since);
+  const r = list.filter((f) => f.kind === "puntaje");
   const cats = S.RATE_CATS.map(([k, label]) => ({ k, label, n: avg(r.map((f) => f.scores?.[k]).filter(Boolean)) }));
   const all = avg(cats.map((c) => c.n).filter((x) => x !== null));
   return { count: r.length, cats, all };
@@ -97,14 +102,14 @@ export function opinionesView(params, query = {}) {
     layout: "panel", nav: "opiniones", title: "Opiniones",
     html: `${pageHead({ title: "Opiniones de los socios", kicker: "Solo lo ve el dueño" })}
       <section class="kpis">
-        <div class="kpi"><b>${fmt1(sum.all)}</b><small>nota promedio (de 10)</small><em class="kpi-sub">últimos 3 meses</em></div>
-        <div class="kpi"><b>${sum.count}</b><small>calificaciones</small><em class="kpi-sub">últimos 3 meses</em></div>
+        <div class="kpi"><b>${fmt1(sum.all)}</b><small>nota promedio (de 10)</small><em class="kpi-sub">de todos los socios que calificaron</em></div>
+        <div class="kpi"><b>${sum.count}</b><small>calificaciones</small><em class="kpi-sub">de todos los socios que calificaron</em></div>
         <a class="kpi ${open.filter((x) => x.kind === "reclamo").length ? "bad" : ""}" href="#/panel/opiniones?f=abiertos"><b>${open.filter((x) => x.kind === "reclamo").length}</b><small>reclamos sin resolver</small></a>
         <a class="kpi" href="#/panel/opiniones?f=sugerencia"><b>${open.filter((x) => x.kind === "sugerencia").length}</b><small>sugerencias sin resolver</small></a>
       </section>
       <div class="pgrid">
-        <section class="card"><div class="card-h"><h2>${icon("trophy", "sm")} Nota por rubro</h2><span class="muted">promedio, últimos 3 meses</span></div>
-          ${sum.count ? `<div class="hb">${sum.cats.map(bar).join("")}</div><p class="muted tiny">Cada socio califica del 1 al 10 una vez por mes. Lo más bajo es lo primero para mejorar.</p>` : `<p class="muted">Todavía nadie calificó.</p>`}</section>
+        <section class="card"><div class="card-h"><h2>${icon("trophy", "sm")} Nota por rubro</h2><span class="muted">promedio de todas las calificaciones</span></div>
+          ${sum.count ? `<div class="hb">${sum.cats.map(bar).join("")}</div><p class="muted tiny">Cada socio califica del 1 al 10 una sola vez. Lo más bajo es lo primero para mejorar.</p>` : `<p class="muted">Todavía nadie calificó.</p>`}</section>
         <section class="card"><div class="card-h"><h2>${icon("note", "sm")} Comentarios de las calificaciones</h2></div>
           ${comments.map((x) => { const u = S.user(x.userId); return `<div class="fb-item"><div class="fb-top"><b>${esc(u?.name || "Socio")}</b><small class="muted">${esc(relDay(x.at))}</small></div><p>${esc(x.text)}</p></div>`; }).join("") || `<p class="muted">Sin comentarios todavía.</p>`}</section>
       </div>

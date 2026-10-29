@@ -1,6 +1,6 @@
 /* Perfil del socio (y cuenta del profe): datos, cuota, preferencias y seguridad */
 import { icon } from "../core/icons.js";
-import { esc, fmtDate, waNumber, $ } from "../core/util.js";
+import { esc, fmtDate, $ } from "../core/util.js";
 import * as S from "../core/store.js";
 import { me, logout, remembered, setRemember, passwordIssues, isStaff } from "../core/auth.js";
 import { go, refresh } from "../core/router.js";
@@ -21,17 +21,21 @@ export function profileView(params, query = {}) {
       ${!staff ? `<section class="card fee">
         <div class="card-h"><h2>${icon("card", "sm")} Mi cuota</h2>${feePill(u)}</div>
         ${u.fee ? `<dl class="kv"><div><dt>Plan</dt><dd>${esc(p?.name || "—")}</dd></div><div><dt>${u.fee.unpaid ? "Debe desde" : "Vence"}</dt><dd>${fmtDate(u.fee.dueAt, { year: true })}</dd></div></dl>` : `<p class="muted">Todavía no hay una cuota cargada.</p>`}
-        <a class="btn ghost block sm" href="https://wa.me/${waNumber(g.whatsapp || S.user(u.coachId)?.phone || "")}?text=${encodeURIComponent(`Hola! Soy ${u.name}, les aviso que pagué la cuota.`)}" target="_blank" rel="noopener">${icon("whatsapp", "sm")} Avisar que pagué</a>
       </section>` : ""}
       <form class="card" data-form="info" novalidate>
         <div class="card-h"><h2>${icon("user", "sm")} Información personal</h2></div>
-        ${field({ label: "Nombre y apellido", name: "fullname", value: u.name, req: true })}
+        ${staff ? field({ label: "Nombre y apellido", name: "fullname", value: u.name, req: true }) : `<dl class="kv">
+          <div><dt>Nombre y apellido</dt><dd>${esc(u.name)}</dd></div>
+          ${u.user ? `<div><dt>Usuario (DNI)</dt><dd>${esc(u.user)}</dd></div>` : ""}
+          ${u.email && !/@sin-email\.vientos\.app$/.test(u.email) ? `<div><dt>Email</dt><dd>${esc(u.email)}</dd></div>` : ""}
+        </dl>
+        <p class="muted tiny">El nombre, el DNI y el email los corrige el gimnasio: si algo está mal, avisá en recepción.</p>`}
+        ${field({ label: "Teléfono", name: "phone", type: "tel", value: u.phone })}
         <div class="grid2">
           ${dateField({ label: "Fecha de nacimiento", name: "birth", value: u.birth })}
           ${field({ label: "Género", name: "gender", value: u.gender, options: [["", "Prefiero no decir"], "Femenino", "Masculino", "No binario", "Otro"] })}
         </div>
-        ${field({ label: "Teléfono", name: "phone", type: "tel", value: u.phone })}
-        ${S.MODE === "supabase" ? field({ label: "Email", name: "email", type: "email", value: /@sin-email\.vientos\.app$/.test(u.email) ? "" : u.email, attrs: "readonly", hint: `Tu usuario para ingresar es ${u.user}. Para cambiar el email, pedilo en el gimnasio.` }) : field({ label: "Email", name: "email", type: "email", value: u.email, req: true })}
+        ${staff ? (S.MODE === "supabase" ? field({ label: "Email", name: "email", type: "email", value: /@sin-email\.vientos\.app$/.test(u.email) ? "" : u.email, attrs: "readonly", hint: "Para cambiar el email, pedilo al dueño." }) : field({ label: "Email", name: "email", type: "email", value: u.email, req: true })) : ""}
         <button class="btn primary" type="submit">Guardar cambios</button>
       </form>
       <section class="card" data-form="prefs">
@@ -55,10 +59,11 @@ export function profileView(params, query = {}) {
       $("[data-form=info]", host).addEventListener("submit", (e) => {
         e.preventDefault();
         const d = formData(e.target);
-        if (!d.fullname.trim()) return toast("Escribí tu nombre.", "err");
-        const patch = { name: d.fullname.trim(), birth: d.birth, gender: d.gender, phone: d.phone };
+        /* el socio cambia su teléfono, nacimiento y género; el nombre, el DNI y el email los corrige el gimnasio */
+        if (staff && !d.fullname.trim()) return toast("Escribí tu nombre.", "err");
+        const patch = { birth: d.birth, gender: d.gender, phone: d.phone, ...(staff ? { name: d.fullname.trim() } : {}) };
         /* Con servidor el email no se cambia desde acá; en la demostración es opcional */
-        if (S.MODE !== "supabase" && d.email.trim()) {
+        if (staff && S.MODE !== "supabase" && d.email?.trim()) {
           if (!/^\S+@\S+\.\S+$/.test(d.email)) return toast("Revisá el email.", "err");
           const other = S.findLogin(d.email);
           if (other && other.id !== u.id) return toast("Ese email ya lo usa otra cuenta.", "err");

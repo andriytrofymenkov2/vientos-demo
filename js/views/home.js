@@ -18,7 +18,7 @@ export function homeView() {
   const coach = S.user(u.coachId);
   const fee = S.feeStatus(u);
   const logs = S.logsOf(u.id);
-  const rated = (S.db.feedback || []).some((f) => f.userId === u.id && f.kind === "puntaje" && new Date(f.at).getMonth() === new Date().getMonth() && new Date(f.at).getFullYear() === new Date().getFullYear());
+  const rated = (S.db.feedback || []).some((f) => f.userId === u.id && f.kind === "puntaje");
   const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
   const month = logs.filter((l) => l.at >= monthStart.getTime()).length;
   const streak = S.streakWeeks(u.id);
@@ -82,7 +82,7 @@ export function homeView() {
         <div><b>${logs[0] ? esc(relDay(logs[0].at)) : "—"}</b><small>último</small></div>
       </div>
     </section>
-    ${S.db.off?.opiniones ? "" : `<a class="card op-card" href="#/opinion">${icon("chat")}<span><b>${rated ? "¿Algo para sugerir o reclamar?" : "¿Qué te parece el gimnasio?"}</b><small>${rated ? "Lo lee el dueño del gimnasio." : "Calificalo del 1 al 10. Lo lee solo el dueño."}</small></span><span class="btn primary sm">${rated ? "Escribir" : "Calificar"}</span></a>`}
+    ${S.db.off?.opiniones ? "" : `<a class="card op-card" href="#/opinion">${icon("chat")}<span><b>${rated ? "¿Tenés una sugerencia o un reclamo?" : "¿Qué te parece el gimnasio?"}</b><small>${rated ? "Escribila cuando quieras. Lo lee el dueño del gimnasio." : "Calificalo del 1 al 10. Lo lee solo el dueño."}</small></span><span class="btn primary sm">${rated ? "Escribir" : "Calificar"}</span></a>`}
     ${notices ? `<section class="sec"><h2 class="sec-t">Novedades de ${fz ? "Fitz Club" : "Vientos"}</h2>${notices}</section>` : ""}
     ${coach ? `<section class="sec"><h2 class="sec-t">Tu profe</h2>
       <div class="coach">${avatar(coach, "lg")}<div><b>${esc(coach.name)}</b><small>Entrenador · ${esc(g.name)}</small></div>

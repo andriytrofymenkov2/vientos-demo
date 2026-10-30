@@ -516,7 +516,12 @@ export const api = {
   /* Alta en recepción: el usuario es el DNI; el email es opcional */
   async createMember({ name, dni, email = "", phone, birth = "", gender = "", pass, coachId, planId, convenioId = null, space = "vientos" }) {
     const username = (dni || email).trim().toLowerCase();
-    if (findLogin(username) || (email && findLogin(email))) throw new Error(dni ? "Ya hay un socio con ese DNI." : "Ya hay una cuenta con ese email.");
+    let prev = findLogin(username) || (email && findLogin(email));
+    /* con servidor: puede ser una cuenta que ya se borró (esta pantalla la tenía en memoria) */
+    if (prev && R) { const live = await R.profileByUsername(prev.user); if (!live) { db.users = db.users.filter((x) => x.id !== prev.id); delete db.faces?.[prev.id]; prev = null; } else Object.assign(prev, live); }
+    /* era socio y se dio de baja: se ofrece reactivarlo (con su historial) en vez de crear otro */
+    if (prev && prev.status === "baja") { const e = new Error(`Ese DNI es de ${prev.name}, que se dio de baja.`); e.code = "BAJA"; e.user = prev; throw e; }
+    if (prev) throw new Error(dni ? "Ya hay un socio con ese DNI." : "Ya hay una cuenta con ese email.");
     const mail = (email || `socio${dni}@sin-email.vientos.app`).trim().toLowerCase();
     /* con plan pero sin pago (el pago se registra aparte): queda debiendo desde hoy */
     const fee = planId ? { planId, dueAt: Date.now(), unpaid: true, ...(convenioId ? { convenioId } : {}) } : null;
@@ -533,6 +538,14 @@ export const api = {
     };
     db.users.push(u);
     save();
+    return u;
+  },
+
+  /* vuelve un socio que se había dado de baja: se reactiva su cuenta (con su historial) y queda debiendo el plan */
+  reactivate(userId, { planId, coachId = null, convenioId = null }) {
+    const u = user(userId);
+    const fee = planId ? { planId, dueAt: Date.now(), unpaid: true, ...(convenioId ? { convenioId } : {}) } : u.fee;
+    api.updateUser(userId, { status: "activo", fee, ...(coachId ? { coachId } : {}) });
     return u;
   },
 
@@ -564,7 +577,11 @@ export const api = {
   },
   reject(userId) { db.users = db.users.filter((u) => u.id !== userId); save(); push("reject", userId); },
 
-  updateUser(userId, patch) { Object.assign(user(userId), patch); save(); push("saveProfile", user(userId)); },
+  updateUser(userId, patch) {
+    Object.assign(user(userId), patch);
+    if (patch.status === "baja" && db.faces?.[userId]) delete db.faces[userId];
+    save(); push("saveProfile", user(userId));
+  },
 
   async changePassword(userId, oldPass, newPass) {
     if (R) { await R.changePassword(oldPass, newPass); api.updateUser(userId, { prefs: { ...user(userId).prefs, tempPass: false } }); return; }

@@ -347,7 +347,19 @@ function newMemberSheet() {
           if (d.paid) S.api.registerPayment(m.id, { planId: d.plan, months: 1, amount: +d.amount || 0, by: me().id, convenioId: d.conv || null });
           close(); go("/panel/socios/" + m.id);
           setTimeout(() => credentialsSheet(S.user(m.id) || m, pass), 300);
-        } catch (e2) { fail(e2.message); btn.disabled = false; }
+        } catch (e2) {
+          if (e2.code === "BAJA") {
+            const old = e2.user;
+            btn.disabled = false;
+            const ok = await confirmDialog({ title: `¿Reactivar a ${old.name}?`, text: `Ese DNI es de ${old.name}, que se dio de baja. Se reactiva su cuenta con todo su historial y entra con su contraseña de siempre (si no la recuerda, generale una nueva desde su ficha).`, ok: "Reactivar" });
+            if (!ok) return fail("Ese DNI ya es de un socio dado de baja.");
+            S.api.reactivate(old.id, { planId: d.plan, coachId: d.coach, convenioId: d.conv || null });
+            if (d.paid) S.api.registerPayment(old.id, { planId: d.plan, months: 1, amount: +d.amount || 0, by: me().id, convenioId: d.conv || null });
+            close(); toast(`${old.name.split(" ")[0]} volvió a ser socio`); go("/panel/socios/" + old.id);
+            return;
+          }
+          fail(e2.message); btn.disabled = false;
+        }
       });
     },
   });

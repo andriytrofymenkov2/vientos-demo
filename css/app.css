@@ -1484,3 +1484,8 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .rc-voice { margin-top: 10px; }
 .rc-voice-row { display: flex; gap: 8px; }
 .rc-voice-row select { flex: 1; min-width: 0; }
+.rc-enroll { border: 2px dashed var(--line2); border-radius: 16px; padding: 14px; display: grid; gap: 8px; margin-bottom: 12px; }
+.rc-enroll ol { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; color: var(--muted); }
+.rc-list { margin-top: 8px; }
+.rc-list summary { cursor: pointer; color: var(--muted); font-size: 13.5px; padding: 6px 0; }
+.rc-list .mrow .btn { flex: none; }

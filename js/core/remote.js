@@ -313,6 +313,15 @@ export const remoteAdapter = {
      El entrenamiento en curso de este celular se conserva: es más nuevo que el del servidor. */
   /* trae del servidor el perfil y la huella facial de un socio (lo usa Recepción: el socio pudo haber
      aceptado el reconocimiento facial desde su celular después de que se abrió esta pantalla) */
+  async profileByUsername(username) {
+    const p = must(await sb.from("profiles").select("*").eq("username", username).maybeSingle());
+    return p ? toUser(p) : null;
+  },
+  /* todas las huellas faciales (las pudo registrar otro equipo) */
+  async reloadFaces() {
+    const res = await allRows("faces", { orderBy: "user_id" });
+    if (!res.error) S.db.faces = Object.fromEntries(res.data.map((x) => [x.user_id, x.data]));
+  },
   async refreshMember(id) {
     const p = must(await sb.from("profiles").select("*").eq("id", id).maybeSingle());
     if (p) { const u = S.db.users.find((x) => x.id === id); if (u) Object.assign(u, toUser(p)); else S.db.users.push(toUser(p)); }

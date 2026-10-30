@@ -1207,8 +1207,8 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .mstats > div { background: var(--card2); border-radius: 14px; padding: 10px 6px; text-align: center; display: grid; gap: 2px; }
 .mstats b { font: 700 26px/1 "Barlow Condensed", sans-serif; }
 .mstats small { font-size: 12px; color: var(--muted); }
-.mstats .ms-main { grid-column: 1 / -1; background: var(--red); color: #fff; }
-.mstats .ms-main small { color: rgba(255, 255, 255, .85); }
+.mstats .ms-main { grid-column: 1 / -1; background: var(--card2); color: inherit; border: 1px solid var(--line2); }
+.mstats .ms-main small { color: var(--muted); }
 .mstats .ms-main b { font-size: 36px; }
 @media (max-width: 420px) { .mstats { grid-template-columns: repeat(2, 1fr); } }
 
@@ -1463,3 +1463,15 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .rc-card.none { border-color: var(--line2); background: var(--card2); }
 .rc-card.none > .i { width: 64px; height: 64px; padding: 14px; border-radius: 50%; background: var(--card3); color: var(--muted); flex: none; }
 .rc-card.none .rc-head { color: var(--muted); }
+
+/* Indicadores parejos dentro de una tarjeta */
+.statrow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 10px 0 4px; }
+.statrow > div { background: var(--card2); border-radius: 14px; padding: 12px 10px; display: grid; gap: 2px; text-align: center; }
+.statrow b { font: 700 30px/1 "Barlow Condensed", sans-serif; }
+.statrow small { color: var(--muted); font-size: 12px; line-height: 1.3; }
+/* Asistencia a lo ancho: gráfico de días y horarios lado a lado */
+.att-grid { display: grid; gap: 18px; margin-top: 6px; }
+@media (min-width: 860px) { .att-grid { grid-template-columns: 1.1fr 1fr; align-items: start; } }
+.att-days { height: 120px; }
+.att-days span { grid-template-rows: auto 1fr auto; }
+.att-days em { font-style: normal; font-size: 11px; color: var(--muted); min-height: 14px; }

@@ -827,7 +827,7 @@ export const api = {
     (db.checkins ||= []).push(c); save(); push("saveCheckin", c);
     return c;
   },
-  saveFace(userId, emb) { (db.faces ||= {})[userId] = { emb, at: Date.now() }; save(); push("saveFace", userId, db.faces[userId]); },
+  saveFace(userId, emb, extra = {}) { (db.faces ||= {})[userId] = { emb, at: Date.now(), ...extra }; save(); push("saveFace", userId, db.faces[userId]); },
   deleteFace(userId) { if (db.faces) delete db.faces[userId]; save(); push("deleteFace", userId); },
   deleteMovement(id) { db.movements = (db.movements || []).filter((m) => m.id !== id); save(); push("deleteMovement", id); },
   addNotice(n) { const x = { id: uid("n"), at: Date.now(), ...n }; db.notices.unshift(x); save(); push("saveNotice", x); },

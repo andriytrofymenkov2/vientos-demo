@@ -13,6 +13,44 @@ import { me } from "../core/auth.js";
 const MATCH = 0.55, STABLE = 2;
 let human = null;
 
+/* Sonido y voz al reconocer: un "ding-dong" que sube si puede pasar, un tono neutro si no lo reconoce y dos
+   notas que bajan si no puede pasar, seguidos de una frase corta. Por discreción la voz nunca dice el motivo
+   (cuota vencida): eso se ve solo en la pantalla. Se puede apagar y queda guardado en este equipo. */
+const SOUND_KEY = "vientos_recepcion_sonido";
+const soundOn = () => { try { return localStorage.getItem(SOUND_KEY) !== "0"; } catch { return true; } };
+let actx = null;
+const audio = () => { try { actx ||= new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume(); } catch { actx = null; } return actx; };
+function tones(notes) {
+  const a = audio(); if (!a) return;
+  let t = a.currentTime + 0.02;
+  notes.forEach(([freq, dur]) => {
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = "sine"; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.25, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(a.destination); o.start(t); o.stop(t + dur + 0.05);
+    t += dur * 0.85;
+  });
+}
+function speak(text) {
+  try {
+    const ss = window.speechSynthesis; if (!ss) return;
+    ss.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const vs = ss.getVoices();
+    u.voice = vs.find((v) => /es[-_](AR|419|US|MX)/i.test(v.lang)) || vs.find((v) => /^es/i.test(v.lang)) || null;
+    u.lang = u.voice?.lang || "es-AR"; u.rate = 1; u.pitch = 1.05;
+    ss.speak(u);
+  } catch { /* sin voz */ }
+}
+function announce(kind, name) {
+  if (!soundOn()) return;
+  const first = String(name || "").split(" ")[0];
+  if (kind === "ok") { tones([[784, 0.22], [1047, 0.38]]); setTimeout(() => speak(`¡Hola ${first}, bienvenido!`), 450); }
+  else if (kind === "warn") { tones([[784, 0.22], [1047, 0.38]]); setTimeout(() => speak(`¡Hola ${first}! Pasá por recepción cuando puedas.`), 450); }
+  else if (kind === "bad") { tones([[659, 0.25], [494, 0.4]]); setTimeout(() => speak(`Hola ${first}, pasá por recepción, por favor.`), 500); }
+  else { tones([[587, 0.35]]); setTimeout(() => speak("No te reconozco. Acercate a recepción, por favor."), 400); }
+}
+
 async function loadHuman() {
   if (human) return human;
   const { default: Human } = await import("../../vendor/human/human.esm.js");
@@ -68,7 +106,7 @@ export function recepcionView() {
           <div class="card-h"><h2>${icon("eye", "sm")} Reconocimiento facial</h2><span class="muted" data-enrolled>${plural(enrolled(), "rostro registrado", "rostros registrados")}</span></div>
           ${faceOff ? `<p class="muted">El reconocimiento facial todavía no está activado en el servidor. Mientras tanto, buscá al socio por DNI.</p>` : `
           <div class="rc-video"><video data-video playsinline muted></video><div class="rc-overlay" data-status>Tocá “Prender cámara” para empezar.</div></div>
-          <div class="row-btns"><button class="btn primary" type="button" data-start>${icon("play", "sm")} Prender cámara</button><button class="btn ghost" type="button" data-stop hidden>${icon("pause", "sm")} Apagar</button></div>
+          <div class="row-btns"><button class="btn primary" type="button" data-start>${icon("play", "sm")} Prender cámara</button><button class="btn ghost" type="button" data-stop hidden>${icon("pause", "sm")} Apagar</button><button class="btn ghost" type="button" data-sound aria-pressed="${soundOn()}">${icon(soundOn() ? "sound" : "mute", "sm")} Sonido: ${soundOn() ? "sí" : "no"}</button></div>
           <p class="muted tiny">La cámara corre en esta computadora: no se guardan fotos ni videos. Solo reconoce a los socios que aceptaron el reconocimiento facial y tienen su rostro registrado.</p>`}
         </section>
         <section class="card">
@@ -88,7 +126,8 @@ export function recepcionView() {
       const IDLE = `<p class="muted">Acá aparece el socio reconocido o el que busques por DNI.</p>`;
       const HOLD = 5000;
       let cam = null, unknown = 0;                     /* cam = { id, seen } de lo que está mostrando la cámara */
-      const camShow = (id, html) => { if (cam?.id !== id) result.innerHTML = html; cam = { id, seen: Date.now() }; };
+      /* muestra el cartel y suena una sola vez por persona (no en cada lectura) */
+      const camShow = (id, html, kind, name) => { if (cam?.id !== id) { result.innerHTML = html; announce(kind, name); } cam = { id, seen: Date.now() }; };
       const camExpire = () => { if (cam && Date.now() - cam.seen > HOLD) { result.innerHTML = IDLE; cam = null; } };
       const updateToday = () => { const t = $("[data-today]", host); if (t) t.textContent = `Hoy entraron ${todayCount()}`; };
 
@@ -111,12 +150,21 @@ export function recepcionView() {
               if (u && count >= STABLE) {
                 /* entra solo si puede pasar y no parece una foto; si no, recepción decide con el botón */
                 if (cam?.id !== u.id && !asistOff && !fake && accessOf(u).cls !== "bad" && S.api.checkIn(u.id, "cara", me()?.id)) updateToday();
-                camShow(u.id, resultCard(u, (fake ? `<small class="rc-warn">${icon("alert", "xs")} Ojo: podría ser una foto o una pantalla.</small>` : "") + entryHtml(u, asistOff)));
+                const acc = accessOf(u);
+                camShow(u.id, resultCard(u, (fake ? `<small class="rc-warn">${icon("alert", "xs")} Ojo: podría ser una foto o una pantalla.</small>` : "") + entryHtml(u, asistOff)), fake ? "unknown" : acc.cls, u.name);
+                /* la huella acompaña los cambios de la cara (barba, pelo, anteojos): si lo reconoce con mucha
+                   seguridad y no es una foto, se ajusta un poco, como mucho una vez por día */
+                const fr = S.faceOf(u.id);
+                if (!fake && m.similarity >= 0.7 && fr && fr.upd !== new Date().toDateString()) {
+                  /* mismo promedio que al registrarla (90 % lo guardado + 10 % la lectura de hoy) */
+                  const emb = fr.emb.map((v, i) => v * 0.9 + f.embedding[i] * 0.1);
+                  S.api.saveFace(u.id, emb, { upd: new Date().toDateString(), since: fr.since || fr.at });
+                }
                 say(`Reconocido: <b>${esc(u.name)}</b> (${Math.round(m.similarity * 100)} %)`);
               }
               else if (!u && unknown >= STABLE) {
                 /* otra persona que no está registrada: el cartel cambia enseguida */
-                camShow("?", `<div class="rc-card none">${icon("user", "lg")}<div class="rc-info"><span class="rc-name">No reconocido</span><b class="rc-head">Buscalo por DNI</b><small>No está registrado o no lo reconozco bien.</small></div></div>`);
+                camShow("?", `<div class="rc-card none">${icon("user", "lg")}<div class="rc-info"><span class="rc-name">No reconocido</span><b class="rc-head">Buscalo por DNI</b><small>No está registrado o no lo reconozco bien.</small></div></div>`, "unknown");
                 say("No lo reconozco. Buscalo por DNI.");
               }
             }
@@ -177,7 +225,14 @@ export function recepcionView() {
         $("[data-start]", host).hidden = false; $("[data-start]", host).disabled = false; $("[data-stop]", host).hidden = true;
         say("Cámara apagada.");
       }
-      $("[data-start]", host)?.addEventListener("click", start);
+      $("[data-start]", host)?.addEventListener("click", () => { audio(); start(); });
+      $("[data-sound]", host)?.addEventListener("click", (e) => {
+        const on = !soundOn(); try { localStorage.setItem(SOUND_KEY, on ? "1" : "0"); } catch { /* sin almacenamiento */ }
+        e.currentTarget.innerHTML = `${icon(on ? "sound" : "mute", "sm")} Sonido: ${on ? "sí" : "no"}`; e.currentTarget.setAttribute("aria-pressed", on);
+        if (on) { audio(); tones([[784, 0.18], [1047, 0.3]]); }
+      });
+      /* el navegador no deja sonar hasta el primer toque en la página: cualquier clic lo habilita */
+      host.addEventListener("pointerdown", () => audio(), { once: true });
       $("[data-stop]", host)?.addEventListener("click", () => stop(true));
       /* si la había dejado prendida, se prende sola al volver a esta pantalla */
       if (!faceOff && wanted()) start();

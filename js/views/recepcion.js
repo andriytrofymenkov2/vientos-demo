@@ -31,14 +31,26 @@ function tones(notes) {
     t += dur * 0.85;
   });
 }
+/* Voces en español de esta computadora, de la más natural a la más robótica: primero las "naturales"
+   (Microsoft Edge trae Elena y Tomás de Argentina), después las de Google (Chrome), y al final las de Windows. */
+const VOICE_KEY = "vientos_recepcion_voz";
+function spanishVoices() {
+  const vs = (window.speechSynthesis?.getVoices() || []).filter((v) => /^es/i.test(v.lang));
+  const score = (v) => (/natural|neural/i.test(v.name) ? 0 : /online/i.test(v.name) ? 1 : /google/i.test(v.name) ? 2 : 3) * 10 + (/AR/i.test(v.lang) ? 0 : /419|US|MX/i.test(v.lang) ? 1 : 2);
+  return vs.sort((a, b) => score(a) - score(b));
+}
+function pickVoice() {
+  const vs = spanishVoices(); let saved = "";
+  try { saved = localStorage.getItem(VOICE_KEY) || ""; } catch { /* sin almacenamiento */ }
+  return vs.find((v) => v.name === saved) || vs[0] || null;
+}
 function speak(text) {
   try {
     const ss = window.speechSynthesis; if (!ss) return;
     ss.cancel();
     const u = new SpeechSynthesisUtterance(text);
-    const vs = ss.getVoices();
-    u.voice = vs.find((v) => /es[-_](AR|419|US|MX)/i.test(v.lang)) || vs.find((v) => /^es/i.test(v.lang)) || null;
-    u.lang = u.voice?.lang || "es-AR"; u.rate = 1; u.pitch = 1.05;
+    u.voice = pickVoice();
+    u.lang = u.voice?.lang || "es-AR"; u.rate = 1; u.pitch = 1;
     ss.speak(u);
   } catch { /* sin voz */ }
 }
@@ -107,6 +119,7 @@ export function recepcionView() {
           ${faceOff ? `<p class="muted">El reconocimiento facial todavía no está activado en el servidor. Mientras tanto, buscá al socio por DNI.</p>` : `
           <div class="rc-video"><video data-video playsinline muted></video><div class="rc-overlay" data-status>Tocá “Prender cámara” para empezar.</div></div>
           <div class="row-btns"><button class="btn primary" type="button" data-start>${icon("play", "sm")} Prender cámara</button><button class="btn ghost" type="button" data-stop hidden>${icon("pause", "sm")} Apagar</button><button class="btn ghost" type="button" data-sound aria-pressed="${soundOn()}">${icon(soundOn() ? "sound" : "mute", "sm")} Sonido: ${soundOn() ? "sí" : "no"}</button></div>
+          <label class="field rc-voice"><span>Voz</span><div class="rc-voice-row"><select data-voice></select><button class="btn ghost sm" type="button" data-try>${icon("sound", "sm")} Probar</button></div></label>
           <p class="muted tiny">La cámara corre en esta computadora: no se guardan fotos ni videos. Solo reconoce a los socios que aceptaron el reconocimiento facial y tienen su rostro registrado.</p>`}
         </section>
         <section class="card">
@@ -226,6 +239,17 @@ export function recepcionView() {
         say("Cámara apagada.");
       }
       $("[data-start]", host)?.addEventListener("click", () => { audio(); start(); });
+      /* lista de voces (el navegador las carga un instante después) */
+      const sel = $("[data-voice]", host);
+      const fillVoices = () => {
+        if (!sel) return;
+        const vs = spanishVoices(), cur = pickVoice()?.name;
+        sel.innerHTML = vs.length ? vs.map((v) => `<option value="${esc(v.name)}" ${v.name === cur ? "selected" : ""}>${esc(v.name.replace(/^Microsoft |^Google /, ""))} · ${esc(v.lang)}${/natural|neural|online/i.test(v.name) ? " (natural)" : ""}</option>`).join("") : `<option>Esta computadora no tiene voces en español</option>`;
+      };
+      fillVoices();
+      window.speechSynthesis?.addEventListener?.("voiceschanged", fillVoices);
+      sel?.addEventListener("change", () => { try { localStorage.setItem(VOICE_KEY, sel.value); } catch { /* sin almacenamiento */ } speak("¡Hola! Bienvenido a Vientos."); });
+      $("[data-try]", host)?.addEventListener("click", () => { audio(); tones([[784, 0.22], [1047, 0.38]]); setTimeout(() => speak("¡Hola Andriy, bienvenido!"), 450); });
       $("[data-sound]", host)?.addEventListener("click", (e) => {
         const on = !soundOn(); try { localStorage.setItem(SOUND_KEY, on ? "1" : "0"); } catch { /* sin almacenamiento */ }
         e.currentTarget.innerHTML = `${icon(on ? "sound" : "mute", "sm")} Sonido: ${on ? "sí" : "no"}`; e.currentTarget.setAttribute("aria-pressed", on);

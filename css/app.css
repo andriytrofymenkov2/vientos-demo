@@ -1481,3 +1481,6 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .pcol { display: grid; gap: 14px; align-content: start; }
 .pcol > .card { margin: 0; }
 @media (min-width: 860px) { .pcols { grid-template-columns: 1fr 1fr; align-items: start; } }
+.rc-voice { margin-top: 10px; }
+.rc-voice-row { display: flex; gap: 8px; }
+.rc-voice-row select { flex: 1; min-width: 0; }

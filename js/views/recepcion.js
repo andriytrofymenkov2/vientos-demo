@@ -58,8 +58,8 @@ function announce(kind, name) {
   if (!soundOn()) return;
   const first = String(name || "").split(" ")[0];
   if (kind === "ok") { tones([[784, 0.22], [1047, 0.38]]); setTimeout(() => speak(`¡Hola ${first}, bienvenido!`), 450); }
-  else if (kind === "warn") { tones([[784, 0.22], [1047, 0.38]]); setTimeout(() => speak(`¡Hola ${first}! Pasá por recepción cuando puedas.`), 450); }
-  else if (kind === "bad") { tones([[659, 0.25], [494, 0.4]]); setTimeout(() => speak(`Hola ${first}, pasá por recepción, por favor.`), 500); }
+  else if (kind === "warn") { tones([[784, 0.22], [1047, 0.38]]); setTimeout(() => speak(`¡Hola ${first}, bienvenido! Cuando puedas, acercate a recepción.`), 450); }
+  else if (kind === "bad") { tones([[659, 0.25], [494, 0.4]]); setTimeout(() => speak(`Hola ${first}, antes de entrar acercate a recepción, por favor.`), 500); }
   else { tones([[587, 0.35]]); setTimeout(() => speak("No te reconozco. Acercate a recepción, por favor."), 400); }
 }
 

@@ -1460,3 +1460,6 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .att-days span { display: grid; grid-template-rows: 1fr auto; height: 100%; align-items: end; text-align: center; }
 .att-days i { display: block; background: var(--red); border-radius: 4px 4px 0 0; min-height: 0; }
 .att-days small { color: var(--muted); font-size: 10.5px; }
+.rc-card.none { border-color: var(--line2); background: var(--card2); }
+.rc-card.none > .i { width: 64px; height: 64px; padding: 14px; border-radius: 50%; background: var(--card3); color: var(--muted); flex: none; }
+.rc-card.none .rc-head { color: var(--muted); }

@@ -822,7 +822,8 @@ export const api = {
   /* registra la entrada del socio (una sola vez por día); devuelve la entrada o null si ya había entrado hoy */
   checkIn(userId, via, by) {
     if (checkedInToday(userId)) return null;
-    const c = { id: uid("c"), userId, at: Date.now(), via, by };
+    const at = Date.now();
+    const c = { id: uid("c"), userId, at, day: dayKey(at), via, by };
     (db.checkins ||= []).push(c); save(); push("saveCheckin", c);
     return c;
   },

@@ -311,6 +311,19 @@ export const remoteAdapter = {
 
   /* Vuelve a traer todo del servidor (rutinas nuevas, socios, avisos...).
      El entrenamiento en curso de este celular se conserva: es más nuevo que el del servidor. */
+  /* trae del servidor el perfil y la huella facial de un socio (lo usa Recepción: el socio pudo haber
+     aceptado el reconocimiento facial desde su celular después de que se abrió esta pantalla) */
+  async refreshMember(id) {
+    const p = must(await sb.from("profiles").select("*").eq("id", id).maybeSingle());
+    if (p) { const u = S.db.users.find((x) => x.id === id); if (u) Object.assign(u, toUser(p)); else S.db.users.push(toUser(p)); }
+    const f = await sb.from("faces").select("*").eq("user_id", id).maybeSingle();
+    if (!f.error) { S.db.faces ||= {}; if (f.data) S.db.faces[id] = f.data.data; else delete S.db.faces[id]; }
+    /* su entrada de hoy, si la registró otra computadora */
+    const d0 = new Date(); d0.setHours(0, 0, 0, 0);
+    const c = await sb.from("checkins").select("*").eq("user_id", id).gte("at", iso(d0.getTime()));
+    if (!c.error) c.data.forEach((r) => { if (!S.db.checkins.some((x) => x.id === r.id)) S.db.checkins.push({ ...r.data, id: r.id, userId: r.user_id, at: ms(r.at) }); });
+    return S.user(id);
+  },
   async reload() {
     const uid = S.db.me;
     if (!uid) return false;
@@ -403,7 +416,12 @@ export const remoteAdapter = {
   async saveGym(data) { must(await sb.from("gym").upsert({ id: 1, data: data || { ...S.db.gym, plans: S.db.plans }, updated_at: iso() })); },
   async saveMovement(m) { must(await sb.from("movements").upsert({ id: m.id, at: iso(m.at), amount: m.amount || 0, kind: m.kind, data: strip(m, "id", "at", "amount", "kind") })); },
   async saveFeedback(f) { must(await sb.from("feedback").upsert({ id: f.id, user_id: f.userId, at: iso(f.at), kind: f.kind, data: strip(f, "id", "userId", "at", "kind") })); },
-  async saveCheckin(c) { must(await sb.from("checkins").insert({ id: c.id, user_id: c.userId, at: iso(c.at), data: strip(c, "id", "userId", "at") })); },
+  async saveCheckin(c) {
+    const r = await sb.from("checkins").insert({ id: c.id, user_id: c.userId, at: iso(c.at), data: strip(c, "id", "userId", "at") });
+    /* ya había una entrada de ese socio ese día (la registró otra computadora): no es un error */
+    if (r.error && r.error.code === "23505") return;
+    must(r);
+  },
   async saveFace(uid, f) { must(await sb.from("faces").upsert({ user_id: uid, data: f, updated_at: iso() })); },
   async deleteFace(uid) { must(await sb.from("faces").delete().eq("user_id", uid)); },
   async deleteMovement(id) { must(await sb.from("movements").delete().eq("id", id)); },

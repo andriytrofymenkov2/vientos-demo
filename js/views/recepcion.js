@@ -1,11 +1,13 @@
 /* Recepción: reconoce al socio con la cámara (o se lo busca por DNI) y muestra si puede pasar según su cuota.
    Reconocimiento facial con la librería Human (vendor/human, MIT): corre entero en el navegador, no manda
    imágenes a ningún lado. De cada socio se guarda solo una huella numérica de la cara, y solo si lo aceptó.
-   Recepción decide: la pantalla avisa, no abre ningún molinete. */
+   Recepción decide: la pantalla avisa, no abre ningún molinete. Cada entrada queda registrada (asistencia),
+   una vez por día: sola al reconocer la cara de alguien que puede pasar, o con el botón al buscar por DNI. */
 import { icon } from "../core/icons.js";
 import { esc, fold, fmtDate, plural, $, $$ } from "../core/util.js";
 import * as S from "../core/store.js";
 import { avatar, toast, pageHead } from "../core/ui.js";
+import { me } from "../core/auth.js";
 
 /* similitud mínima para decir "es tal socio" y cuántas lecturas seguidas iguales hacen falta */
 const MATCH = 0.55, STABLE = 2;
@@ -39,10 +41,23 @@ export function accessOf(u) {
   return { cls: "bad", head: "No puede pasar", sub: `${u.fee.unpaid ? "No pagó el alta" : `Cuota vencida hace ${plural(over, "día", "días")}`}. Tiene que pagar para entrar.` };
 }
 
+const hhmm = (ts) => new Date(ts).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+const todayIn = (u) => (S.db.checkins || []).find((c) => c.userId === u.id && new Date(c.at).toDateString() === new Date().toDateString());
+/* botón o aviso de la entrada de hoy */
+function entryHtml(u, asistOff) {
+  if (asistOff) return "";
+  const c = todayIn(u);
+  if (c) return `<small class="rc-ok">${icon("checkc", "xs")} Entró hoy a las ${hhmm(c.at)}</small>`;
+  return accessOf(u).cls === "bad"
+    ? `<button class="btn ghost sm" type="button" data-in="${u.id}" data-via="manual">${icon("check", "sm")} Dejar pasar igual</button>`
+    : `<button class="btn primary sm" type="button" data-in="${u.id}" data-via="dni">${icon("check", "sm")} Registrar entrada</button>`;
+}
 const resultCard = (u, extra = "") => { const a = accessOf(u); return `<div class="rc-card ${a.cls}">${avatar(u, "xl")}<div class="rc-info"><span class="rc-name">${esc(u.name)}</span><small>DNI ${esc(u.user || "—")}</small><b class="rc-head">${icon(a.cls === "bad" ? "x" : a.cls === "warn" ? "alert" : "checkc", "sm")} ${esc(a.head)}</b><small>${esc(a.sub)}</small>${extra}</div></div>`; };
 
 export function recepcionView() {
   const faceOff = S.MODE === "supabase" && S.db.off?.rostros;
+  const asistOff = S.MODE === "supabase" && S.db.off?.asistencia;
+  const todayCount = () => S.checkinsOf().filter((c) => new Date(c.at).toDateString() === new Date().toDateString()).length;
   const socios = () => S.activeMembers().filter((u) => S.inSpace(u));
   const enrolled = () => socios().filter((u) => S.faceOf(u.id)).length;
   return {
@@ -57,7 +72,7 @@ export function recepcionView() {
           <p class="muted tiny">La cámara corre en esta computadora: no se guardan fotos ni videos. Solo reconoce a los socios que aceptaron el reconocimiento facial y tienen su rostro registrado.</p>`}
         </section>
         <section class="card">
-          <div class="card-h"><h2>${icon("search", "sm")} Resultado</h2></div>
+          <div class="card-h"><h2>${icon("search", "sm")} Resultado</h2>${asistOff ? "" : `<span class="pill" data-today>Hoy entraron ${todayCount()}</span>`}</div>
           <div data-result><p class="muted">Acá aparece el socio reconocido o el que busques por DNI.</p></div>
           <label class="search rc-search">${icon("search", "sm")}<input type="search" data-q placeholder="Buscar por DNI o nombre" aria-label="Buscar socio" autocomplete="off"></label>
           <div data-found></div>
@@ -69,6 +84,7 @@ export function recepcionView() {
       const say = (t) => { if (status) status.innerHTML = t; };
       const known = () => socios().filter((u) => S.faceConsent(u) && S.faceOf(u.id));
       const show = (u, extra) => { result.innerHTML = resultCard(u, extra); };
+      const updateToday = () => { const t = $("[data-today]", host); if (t) t.textContent = `Hoy entraron ${todayCount()}`; };
 
       async function loop() {
         if (!stream) return;
@@ -85,7 +101,12 @@ export function recepcionView() {
               const u = m.similarity >= MATCH ? list[m.index] : null;
               const fake = typeof f.real === "number" && f.real < 0.5;
               count = u && u.id === last ? count + 1 : 1; last = u?.id || null;
-              if (u && count >= STABLE) { show(u, fake ? `<small class="rc-warn">${icon("alert", "xs")} Ojo: podría ser una foto o una pantalla.</small>` : ""); say(`Reconocido: <b>${esc(u.name)}</b> (${Math.round(m.similarity * 100)} %)`); }
+              if (u && count >= STABLE) {
+                /* entra solo si puede pasar y no parece una foto; si no, recepción decide con el botón */
+                if (!asistOff && !fake && accessOf(u).cls !== "bad" && S.api.checkIn(u.id, "cara", me()?.id)) updateToday();
+                show(u, (fake ? `<small class="rc-warn">${icon("alert", "xs")} Ojo: podría ser una foto o una pantalla.</small>` : "") + entryHtml(u, asistOff));
+                say(`Reconocido: <b>${esc(u.name)}</b> (${Math.round(m.similarity * 100)} %)`);
+              }
               else if (!u) say("No lo reconozco. Buscalo por DNI.");
             }
           }
@@ -149,10 +170,12 @@ export function recepcionView() {
         const extra = faceOff ? "" : canFace
           ? `<button class="btn ghost sm" type="button" data-enroll="${u.id}">${icon("user", "sm")} ${S.faceOf(u.id) ? "Volver a registrar su rostro" : "Registrar su rostro"}</button>`
           : `<small class="muted">No aceptó el reconocimiento facial (lo puede activar desde su Perfil, en Privacidad).</small>`;
-        show(u, extra);
+        show(u, entryHtml(u, asistOff) + extra);
         q.value = ""; found.innerHTML = "";
       });
       result.addEventListener("click", async (e) => {
+        const inb = e.target.closest("[data-in]");
+        if (inb) { const u = S.user(inb.dataset.in); S.api.checkIn(u.id, inb.dataset.via, me()?.id); updateToday(); toast(`Entrada de ${u.name.split(" ")[0]} registrada`); show(u, entryHtml(u, asistOff)); return; }
         const b = e.target.closest("[data-enroll]"); if (!b) return;
         enrollFor = S.user(b.dataset.enroll); samples = [];
         if (!stream) await start();

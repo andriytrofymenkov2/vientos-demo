@@ -55,6 +55,9 @@ export async function init() {
   db.movements ||= [];
   db.feedback ||= [];
   db.faces ||= {};
+  db.checkins ||= [];
+  /* demo guardada antes de los consentimientos: los socios de ejemplo ya los aceptaron (Lucía, también la cara) */
+  db.users.forEach((u) => { if (u.role === "socio" && !u.prefs?.consent) u.prefs = { ...u.prefs, consent: { terms: TERMS_VERSION, termsAt: Date.now(), face: u.user === "lucia" || /@demo\.vientos$/.test(u.email || "") && u.user !== "ana", ...(u.user === "lucia" ? { faceAt: Date.now() } : {}) } }; });
   return db;
 }
 
@@ -142,7 +145,7 @@ async function seed() {
   const d = defaults();
   /* La demo arma sus plantillas desde los datos con peso (para inventar el historial) */
   const templates = baseTemplates();
-  const base = { v: 6, seededAt: Date.now(), ...d, templates, users: [], routines: [], logs: [], payments: [], notices: [], movements: [], feedback: [], faces: {}, live: {} };
+  const base = { v: 6, seededAt: Date.now(), ...d, templates, users: [], routines: [], logs: [], payments: [], notices: [], movements: [], feedback: [], faces: {}, checkins: [], live: {} };
   return buildDemo(base, { hashPass, uid, normDays });
 }
 
@@ -193,6 +196,9 @@ export const needsConsent = (u) => u?.role === "socio" && u.status === "activo" 
 export const faceConsent = (u) => !!u?.prefs?.consent?.face;
 /* Huella facial: una lista de números que describe la cara (no es la foto ni permite reconstruirla) */
 export const faceOf = (userId) => db.faces?.[userId] || null;
+/* Asistencia: entradas registradas en recepción (por la cara, por DNI o "dejar pasar igual"), una por socio por día */
+export const checkinsOf = (sp = currentSpace()) => (db.checkins || []).filter((c) => spaceOf(user(c.userId)) === sp);
+export const checkedInToday = (userId) => (db.checkins || []).some((c) => c.userId === userId && dayKey(c.at) === dayKey());
 /* Opiniones: rubros que califica cada socio del 1 al 10 */
 export const RATE_CATS = [["limpieza", "Limpieza"], ["atencion", "Atención"], ["profes", "Profes"], ["maquinas", "Máquinas"], ["instalaciones", "Instalaciones"], ["comodidad", "Comodidad"], ["clases", "Clases y dinámicas"]];
 export const feedbackOf = (sp = currentSpace()) => (db.feedback || []).filter((f) => (f.space === "fitz" ? "fitz" : "vientos") === sp);
@@ -812,6 +818,13 @@ export const api = {
     const consent = { terms: TERMS_VERSION, termsAt: prev.terms === TERMS_VERSION ? prev.termsAt : now, face: !!face, ...(face ? { faceAt: prev.face ? prev.faceAt : now } : { faceOffAt: now }) };
     api.updateUser(userId, { prefs: { ...u.prefs, consent } });
     if (!face && faceOf(userId)) api.deleteFace(userId);
+  },
+  /* registra la entrada del socio (una sola vez por día); devuelve la entrada o null si ya había entrado hoy */
+  checkIn(userId, via, by) {
+    if (checkedInToday(userId)) return null;
+    const c = { id: uid("c"), userId, at: Date.now(), via, by };
+    (db.checkins ||= []).push(c); save(); push("saveCheckin", c);
+    return c;
   },
   saveFace(userId, emb) { (db.faces ||= {})[userId] = { emb, at: Date.now() }; save(); push("saveFace", userId, db.faces[userId]); },
   deleteFace(userId) { if (db.faces) delete db.faces[userId]; save(); push("deleteFace", userId); },

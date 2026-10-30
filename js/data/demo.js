@@ -206,6 +206,19 @@ export async function buildDemo(D, { hashPass, uid, normDays }) {
   [["reclamo", "El vestuario de mujeres no tenía papel ni jabón el martes a la noche.", 2, "nuevo"], ["sugerencia", "Estaría bueno sumar una clase de ciclo a las 21.", 6, "visto"],
    ["sugerencia", "Poner un dispenser de agua fría en la sala de musculación.", 12, "resuelto"], ["reclamo", "La música muy fuerte a la mañana temprano.", 20, "resuelto"]]
     .forEach(([kind, text, d, status], i) => socios[i + 3] && D.feedback.push({ id: uid("f"), userId: socios[i + 3].id, kind, text, at: now - d * DAY, space: "vientos", status, ...(status === "resuelto" ? { reply: "¡Gracias por avisar! Ya lo solucionamos." } : {}) }));
+  /* Asistencia de ejemplo: entradas en recepción de los últimos 30 días (más gente a la tarde) */
+  D.checkins = [];
+  const vienen = D.users.filter((u) => u.role === "socio" && u.status === "activo" && !u.prefs?.space);
+  for (let d = 29; d >= 0; d--) {
+    const day = new Date(now - d * DAY); day.setHours(0, 0, 0, 0);
+    if (day.getDay() === 0) continue;
+    vienen.forEach((u, i) => {
+      if (R() > 0.45 || (i % 9 === 0 && d < 20)) return;                 /* algunos dejaron de venir hace semanas */
+      const h = R() < 0.65 ? 17 + Math.floor(R() * 4) : 7 + Math.floor(R() * 5);
+      const at = day.getTime() + h * 3600000 + Math.floor(R() * 60) * 60000;
+      if (at < now) D.checkins.push({ id: uid("c"), userId: u.id, at, via: R() < 0.7 ? "cara" : "dni" });
+    });
+  }
   D.notices = [
     { id: uid("n"), at: now - 2 * DAY, title: "Nuevos horarios de ciclo indoor", body: "Sumamos una clase a las 7:00 de lunes a viernes. Reservá tu lugar por WhatsApp." },
     { id: uid("n"), at: now - 1 * DAY, space: "fitz", title: "Nuevo bloque de 6 semanas", body: "El lunes arranca un bloque nuevo. Lo ves en la app o pedile a tu profe la hoja impresa." },

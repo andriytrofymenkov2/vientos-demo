@@ -149,6 +149,26 @@ export function panelHome() {
           ${by.baja.slice(0, 5).map((m) => mrow(m, `Venció hace ${S.standing(m).over} días`)).join("")}
           <a class="btn ghost sm" href="#/panel/socios?f=baja">Ver los ${by.baja.length}</a>
         </section>` : ""}
+        ${S.MODE === "supabase" && S.db.off?.asistencia ? "" : (() => {
+          /* Asistencia: entradas registradas en Recepción (no las rutinas que marca el socio) */
+          const all = S.checkinsOf(), d0 = new Date(); d0.setHours(0, 0, 0, 0);
+          const t0 = d0.getTime(), since30 = t0 - 29 * DAY;
+          const hoy = all.filter((c) => c.at >= t0).length;
+          const last30 = all.filter((c) => c.at >= since30);
+          const days14 = Array.from({ length: 14 }, (_, i) => { const a = t0 - (13 - i) * DAY; return { a, n: all.filter((c) => c.at >= a && c.at < a + DAY).length }; });
+          const maxD = Math.max(1, ...days14.map((x) => x.n));
+          const BANDS = [["6 a 9", 6, 9], ["9 a 12", 9, 12], ["12 a 15", 12, 15], ["15 a 18", 15, 18], ["18 a 21", 18, 21], ["21 a 24", 21, 24]];
+          const bands = BANDS.map(([label, h1, h2]) => ({ label, n: last30.filter((c) => { const h = new Date(c.at).getHours(); return h >= h1 && h < h2; }).length }));
+          const lastOf = {}; all.forEach((c) => { if (!lastOf[c.userId] || c.at > lastOf[c.userId]) lastOf[c.userId] = c.at; });
+          const away = live.filter((m) => lastOf[m.id] && lastOf[m.id] < t0 - 14 * DAY).sort((x, y) => lastOf[x.id] - lastOf[y.id]);
+          const DAYS = ["D", "L", "M", "M", "J", "V", "S"];
+          return `<section class="card"><div class="card-h"><h2>${icon("calendar", "sm")} Asistencia</h2><a class="muted" href="#/panel/recepcion">Recepción</a></div>
+          <p class="muted tiny">Entradas registradas en Recepción (por la cara o por DNI). Cada socio cuenta una vez por día.</p>
+          ${all.length ? `<div class="mstats"><div class="ms-main"><b>${hoy}</b><small>vinieron hoy</small></div><div><b>${Math.round(last30.length / 30)}</b><small>por día (promedio de 30 días)</small></div></div>
+          <div class="att-days">${days14.map((x) => `<span title="${new Date(x.a).toLocaleDateString("es-AR")}: ${x.n}"><i style="height:${Math.max(x.n ? 6 : 0, (x.n / maxD) * 100)}%"></i><small>${DAYS[new Date(x.a).getDay()]}</small></span>`).join("")}</div>
+          <h3 class="sub">Horarios con más gente (últimos 30 días)</h3>${hbars(bands, Math.max(1, last30.length))}
+          ${away.length ? `<h3 class="sub">Al día, pero hace más de 14 días que no vienen (${away.length})</h3>${away.slice(0, 5).map((m) => mrow(m, `Última vez: ${fmtDate(lastOf[m.id])}`)).join("")}${away.length > 5 ? `<p class="muted tiny">Y ${away.length - 5} más. Están pagando pero no vienen: conviene escribirles.</p>` : ""}` : ""}`
+          : `<p class="muted">Todavía no hay entradas registradas. Se empiezan a contar desde la pantalla de Recepción.</p>`}</section>`; })()}
         ${admin && !S.db.off?.opiniones ? (() => { const r = ratingSummary(), fb = S.feedbackOf().filter((x) => x.kind !== "puntaje" && x.status !== "resuelto");
           return `<section class="card"><div class="card-h"><h2>${icon("chat", "sm")} Opiniones de los socios</h2><a class="muted" href="#/panel/opiniones">Ver todo</a></div>
           <p class="muted tiny">Calificaciones del 1 al 10 y mensajes que mandan los socios desde la app. Solo las ve el dueño.</p>

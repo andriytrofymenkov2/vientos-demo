@@ -1456,3 +1456,7 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .rc-info .btn { justify-self: start; margin-top: 6px; }
 .rc-warn { color: #f0b429 !important; } .rc-ok { color: #3ccf7e !important; }
 .rc-search { margin: 4px 0 8px; }
+.att-days { display: grid; grid-template-columns: repeat(14, 1fr); gap: 4px; height: 90px; align-items: end; margin: 12px 0 6px; }
+.att-days span { display: grid; grid-template-rows: 1fr auto; height: 100%; align-items: end; text-align: center; }
+.att-days i { display: block; background: var(--red); border-radius: 4px 4px 0 0; min-height: 0; }
+.att-days small { color: var(--muted); font-size: 10.5px; }

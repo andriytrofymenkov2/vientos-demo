@@ -49,7 +49,8 @@ export async function downloadMaster() {
   const hBy = Object.fromEntries(hist.map((h) => [mkey(h.start), h]));
   const keys = [...new Set([...hist.map((h) => mkey(h.start)), ...pays.map((p) => mkey(p.at)), ...moves.map((m) => mkey(m.at)), cur])].filter((k) => k <= cur).sort();
   const inM = (list, k) => list.filter((x) => mkey(x.at) === k);
-  const months = keys.map((k) => ({ k, act: hBy[k]?.active ?? 0, alt: hBy[k]?.nuevos ?? 0, fue: hBy[k]?.left ?? 0, c: sum(inM(pays, k)), o: sum(inM(ingresos, k)), g: sum(inM(gastos, k)) }));
+  const checks = S.checkinsOf(sp).slice().sort((a, b) => a.at - b.at);
+  const months = keys.map((k) => ({ k, vis: inM(checks, k).length, act: hBy[k]?.active ?? 0, alt: hBy[k]?.nuevos ?? 0, fue: hBy[k]?.left ?? 0, c: sum(inM(pays, k)), o: sum(inM(ingresos, k)), g: sum(inM(gastos, k)) }));
 
   /* ---------- hoy */
   const act = S.activeMembers().filter((u) => S.inSpace(u, sp));
@@ -84,8 +85,8 @@ export async function downloadMaster() {
     { ht: 22, cells: [T(`Cobrado: ${fmt(m0.c)} de cuotas${otrosMes ? ` y ${fmt(otrosMes)} de otros ingresos` : ""}. Gastado: lo que se cargó en "Ingresos y gastos". Te quedó: cobrado menos gastado.`, "hint", 10)] },
     { cells: [] },
     { ht: 24, cells: [T("MES POR MES", "sec", 10)] },
-    { ht: 30, cells: [{ v: "Mes", s: "headl" }, ...["Socios activos", "Altas", "Se fueron"].map((v) => ({ v, s: "head" })), ...["Cuotas cobradas", "Otros ingresos", "Gastos", "Resultado"].map((v) => ({ v, s: "headr" }))] },
-    ...months.slice().reverse().map((m, i) => ({ cells: [{ v: mname(m.k), s: `text-${z(i)}` }, { v: m.act, t: "int", s: `int-${z(i)}` }, { v: m.alt, t: "int", s: `int-${z(i)}` }, { v: m.fue, t: "int", s: `int-${z(i)}` },
+    { ht: 30, cells: [{ v: "Mes", s: "headl" }, ...["Socios activos", "Altas", "Se fueron", "Visitas"].map((v) => ({ v, s: "head" })), ...["Cuotas cobradas", "Otros ingresos", "Gastos", "Resultado"].map((v) => ({ v, s: "headr" }))] },
+    ...months.slice().reverse().map((m, i) => ({ cells: [{ v: mname(m.k), s: `text-${z(i)}` }, { v: m.act, t: "int", s: `int-${z(i)}` }, { v: m.alt, t: "int", s: `int-${z(i)}` }, { v: m.fue, t: "int", s: `int-${z(i)}` }, { v: m.vis, t: "int", s: `int-${z(i)}` },
       ...[m.c, m.o, m.g, m.c + m.o - m.g].map((v) => ({ v, t: "money", s: i % 2 ? "moneyrz" : "moneyr" }))] })),
     { cells: [] },
     { ht: 24, cells: [T("QUÉ HAY EN CADA PESTAÑA", "sec", 10)] },
@@ -93,6 +94,7 @@ export async function downloadMaster() {
     { cells: [T("Socios", "labelb"), T(`La base completa (${socios.length} personas): DNI, apellido, nombre, plan, estado de la cuota, último pago, profe y contacto.`, "hint", 9)] },
     { cells: [T("Cobros", "labelb"), T(`Cada cuota cobrada (${pays.length}). Para ver un solo mes, filtrá la columna "Mes".`, "hint", 9)] },
     { cells: [T("Movimientos", "labelb"), T(`Cada gasto y cada ingreso que no es cuota (${moves.length}). También se filtra por "Mes".`, "hint", 9)] },
+    { cells: [T("Asistencia", "labelb"), T(`Cada entrada registrada en recepción (${checks.length}): fecha, hora y socio. "Visitas" en la tabla de arriba es la cantidad de entradas de cada mes.`, "hint", 9)] },
   ];
 
   /* ---------- Ingresos y gastos: conceptos en filas, meses en columnas */
@@ -193,6 +195,19 @@ export async function downloadMaster() {
       ],
       rows: mRows,
       total: (c, L, n) => c.key === "mes" ? TOT : ["ing", "gas"].includes(c.key) ? { f: sumCol(L, n), v: mRows.reduce((a, x) => a + (x[c.key] || 0), 0) } : "",
+    },
+    {
+      name: "Asistencia",
+      columns: [
+        { header: "Mes", key: "mes", type: "month", width: 16 }, { header: "Fecha", key: "at", type: "date", width: 13 },
+        { header: "Hora", key: "hora", type: "text", width: 9 }, { header: "DNI", key: "dni", type: "text", width: 13 },
+        { header: "Apellido", key: "ape", type: "text", width: 18 }, { header: "Nombre", key: "nom", type: "text", width: 20 },
+        { header: "Cómo entró", key: "via", type: "text", width: 16 },
+      ],
+      rows: checks.slice().reverse().map((c) => { const u = S.user(c.userId);
+        return { mes: mstart(mkey(c.at)), at: c.at, hora: new Date(c.at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }), dni: u?.user || "", ...splitName(u?.name || "Socio eliminado"),
+          via: c.via === "cara" ? "Reconocimiento facial" : c.via === "manual" ? "Recepción lo dejó pasar" : "Búsqueda por DNI" }; }),
+      total: (c, L, n) => c.key === "mes" ? TOT : c.key === "ape" ? { f: `SUBTOTAL(102,B2:B${n + 1})&" entradas"`, v: `${n} entradas` } : "",
     },
   ], { logo });
   const d = new Date(now);

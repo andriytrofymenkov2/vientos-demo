@@ -437,7 +437,15 @@ export async function memberView(params) {
           <div class="mhead-a">${m.phone ? `<a class="btn ghost sm" href="https://wa.me/${waNumber(m.phone)}" target="_blank" rel="noopener">${icon("whatsapp", "sm")} WhatsApp</a>` : ""}</div>
         </div>
       </section>
-      <div class="pgrid">
+      <div class="pcols">
+        <div class="pcol">
+        <section class="card"><div class="card-h"><h2>${icon("card", "sm")} Cuota</h2>${feePill(m)}</div>
+          ${m.fee?.dueAt ? `<dl class="kv"><div><dt>Plan</dt><dd>${esc(p?.name || "—")}</dd></div><div><dt>${m.fee.unpaid ? "Debe desde" : "Vence"}</dt><dd>${fmtDate(m.fee.dueAt, { year: true })}</dd></div></dl>` : `<p class="muted">Sin cuota cargada.</p>`}
+          ${S.convenios().length ? `<label class="field"><span>Convenio</span><select data-conv>${convOptions(m.fee?.convenioId).map(([v, l]) => `<option value="${esc(v)}" ${v === (m.fee?.convenioId || "") ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}
+          <div class="row-btns"><button class="btn primary sm" type="button" data-act="pay">${icon("check", "sm")} Registrar pago</button><button class="btn ghost sm" type="button" data-act="due">Cambiar vencimiento</button></div>
+          ${pays.length ? `<h3 class="sub">Últimos pagos</h3>${pays.map(payRow).join("")}
+            ${allPays.length > pays.length ? `<button class="btn ghost sm block" type="button" data-act="pays">${icon("list", "sm")} Ver todos los pagos (${allPays.length})</button>` : ""}` : ""}
+        </section>
         <section class="card"><div class="card-h"><h2>${icon("dumbbell", "sm")} Rutina activa</h2></div>
           ${r ? `<a class="rcard" href="#/panel/rutina/${r.id}"><b>${esc(S.routineTitle(r))}</b><small>${r.personal ? esc(r.name) + " · " : ""}${esc(r.level)} · ${plural(r.days.length, "día", "días")} · desde ${fmtDate(r.startedAt)}</small>
               <span class="rcard-days">${r.days.map((d) => `<i>${esc(d.name)}: ${esc(d.focus)}</i>`).join("")}</span><span class="rcard-cta">${icon("edit", "xs")} Editar rutina</span></a>`
@@ -446,17 +454,12 @@ export async function memberView(params) {
           ${r ? `<button class="btn ghost sm block danger-t" type="button" data-act="del-routine">${icon("trash", "sm")} Borrar esta rutina</button>` : ""}
           ${all.filter((x) => !x.active).length ? `<h3 class="sub">Historial</h3>${all.filter((x) => !x.active).map((x) => `<a class="hrow" href="#/panel/rutina/${x.id}"><span><b>${esc(S.routineTitle(x))}</b><small>${fmtDate(x.startedAt)} al ${fmtDate(x.endedAt || Date.now())}</small></span>${icon("right", "sm")}</a>`).join("")}` : ""}
         </section>
+        </div>
+        <div class="pcol">
         <section class="card"><div class="card-h"><h2>${icon("trend", "sm")} Constancia</h2><span class="muted">últimos 3 meses</span></div>
           ${heatmap(m.id, 13)}
           <div class="permonth">${[2, 1, 0].map((k) => { const a = new Date(m0.getFullYear(), m0.getMonth() - k, 1), b = new Date(a.getFullYear(), a.getMonth() + 1, 1); const n = logs.filter((l) => l.at >= a.getTime() && l.at < b.getTime()).length; return `<div class="${k ? "" : "now"}"><b>${n}</b><small>${a.toLocaleDateString("es-AR", { month: "long" })}</small></div>`; }).join("")}</div>
           ${logs.slice(0, 5).map((l) => `<div class="hrow"><span><b>${esc(l.dayName)} · ${esc(l.focus)}</b><small>${esc(relDay(l.at))} · ${l.min} min${l.sets.length ? ` · ${l.sets.length} series` : ""}</small></span></div>`).join("") || `<p class="muted">Sin entrenamientos registrados.</p>`}
-        </section>
-        <section class="card"><div class="card-h"><h2>${icon("card", "sm")} Cuota</h2>${feePill(m)}</div>
-          ${m.fee?.dueAt ? `<dl class="kv"><div><dt>Plan</dt><dd>${esc(p?.name || "—")}</dd></div><div><dt>${m.fee.unpaid ? "Debe desde" : "Vence"}</dt><dd>${fmtDate(m.fee.dueAt, { year: true })}</dd></div></dl>` : `<p class="muted">Sin cuota cargada.</p>`}
-          ${S.convenios().length ? `<label class="field"><span>Convenio</span><select data-conv>${convOptions(m.fee?.convenioId).map(([v, l]) => `<option value="${esc(v)}" ${v === (m.fee?.convenioId || "") ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>` : ""}
-          <div class="row-btns"><button class="btn primary sm" type="button" data-act="pay">${icon("check", "sm")} Registrar pago</button><button class="btn ghost sm" type="button" data-act="due">Cambiar vencimiento</button></div>
-          ${pays.length ? `<h3 class="sub">Últimos pagos</h3>${pays.map(payRow).join("")}
-            ${allPays.length > pays.length ? `<button class="btn ghost sm block" type="button" data-act="pays">${icon("list", "sm")} Ver todos los pagos (${allPays.length})</button>` : ""}` : ""}
         </section>
         <section class="card"><div class="card-h"><h2>${icon("settings", "sm")} Cuenta</h2></div>
           ${field({ label: "Profe a cargo", name: "coach", value: m.coachId || "", options: [["", "Sin asignar"], ...S.coaches().map((c) => [c.id, c.name])], attrs: "data-coach" })}
@@ -464,6 +467,7 @@ export async function memberView(params) {
           <button class="lrow" type="button" data-act="reset">${icon("lock", "sm")}<span>${isDni(m.user) ? "Olvidó la contraseña: volver a su DNI" : "Generar contraseña nueva"}</span>${icon("right", "sm")}</button>
           <button class="lrow danger" type="button" data-act="drop">${icon("trash", "sm")}<span>Dar de baja de la app</span>${icon("right", "sm")}</button>
         </section>
+        </div>
       </div>`,
     mount(host) {
       $("[data-coach]", host).addEventListener("change", (e) => { S.api.updateUser(m.id, { coachId: e.target.value || null }); toast("Profe actualizado"); });

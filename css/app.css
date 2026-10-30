@@ -1475,3 +1475,9 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .att-days { height: 120px; }
 .att-days span { grid-template-rows: auto 1fr auto; }
 .att-days em { font-style: normal; font-size: 11px; color: var(--muted); min-height: 14px; }
+
+/* Ficha del socio: dos columnas que se apilan sin huecos */
+.pcols { display: grid; gap: 14px; }
+.pcol { display: grid; gap: 14px; align-content: start; }
+.pcol > .card { margin: 0; }
+@media (min-width: 860px) { .pcols { grid-template-columns: 1fr 1fr; align-items: start; } }

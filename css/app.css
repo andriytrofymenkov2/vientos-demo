@@ -1489,3 +1489,8 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .rc-list { margin-top: 8px; }
 .rc-list summary { cursor: pointer; color: var(--muted); font-size: 13.5px; padding: 6px 0; }
 .rc-list .mrow .btn { flex: none; }
+
+/* Óvalo guía de la cámara: verde cuando la cara está bien ubicada */
+.rc-oval { position: absolute; left: 50%; top: 47%; width: 40%; height: 66%; transform: translate(-50%, -50%); border: 3px dashed rgba(255, 255, 255, .6); border-radius: 50%; pointer-events: none; transition: border-color .2s, box-shadow .2s; }
+.rc-oval.on { border-style: solid; border-color: #3ccf7e; box-shadow: 0 0 0 9999px rgba(0, 0, 0, .25); }
+.rc-overlay .linkbtn { color: #fff; }

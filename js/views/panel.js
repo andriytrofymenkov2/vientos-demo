@@ -1140,7 +1140,7 @@ export function qrView() {
 
 export function moreView() {
   const items = [
-    ["#/panel/cuotas", "card", "Cuotas"], ["#/panel/avisos", "bell", "Avisos a los socios"],
+    ["#/panel/recepcion", "eye", "Recepción (entrada)"], ["#/panel/cuotas", "card", "Cuotas"], ["#/panel/avisos", "bell", "Avisos a los socios"],
     ...(isAdmin() ? [...(S.db.off?.caja ? [] : [["#/panel/caja", "trend", "Ingresos y gastos"]]), ...(S.db.off?.opiniones ? [] : [["#/panel/opiniones", "chat", "Opiniones de los socios"]]), ["#/panel/convenios", "card", "Convenios"], ["#/panel/gimnasio", "settings", "Datos del gimnasio y equipo"]] : []),
     ["#/panel/qr", "qr", "QR de la app"], ["#/panel/cuenta", "user", "Mi cuenta"],
   ];

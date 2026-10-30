@@ -5,8 +5,9 @@ import * as S from "../core/store.js";
 import { me, logout, remembered, setRemember, passwordIssues, isStaff } from "../core/auth.js";
 import { go, refresh } from "../core/router.js";
 import { appVersion, forceUpdate } from "../core/update.js";
-import { avatar, field, dateField, formData, toast, sheet, applyTheme, feePill, pageHead } from "../core/ui.js";
+import { avatar, field, dateField, formData, toast, sheet, confirmDialog, applyTheme, feePill, pageHead } from "../core/ui.js";
 import { platform } from "./install.js";
+import { privacyCard, mountPrivacy } from "./privacy.js";
 
 const toggle = (name, label, on, hint = "") => `<label class="toggle"><span><b>${esc(label)}</b>${hint ? `<small>${esc(hint)}</small>` : ""}</span><input type="checkbox" name="${name}" ${on ? "checked" : ""} role="switch"><i aria-hidden="true"></i></label>`;
 
@@ -45,6 +46,7 @@ export function profileView(params, query = {}) {
         ${toggle("remember", "Recordarme en este dispositivo", remembered(), "No te pide la contraseña cada vez que abrís la app.")}
       </section>
       ${!staff && !S.db.off?.opiniones ? `<section class="card"><a class="lrow" href="#/opinion">${icon("chat", "sm")}<span>Sugerencias, reclamos y calificar el gimnasio</span>${icon("right", "sm")}</a></section>` : ""}
+      ${!staff ? privacyCard(u) : ""}
       <section class="card">
         <div class="card-h"><h2>${icon("shield", "sm")} Seguridad</h2></div>
         <button class="lrow" type="button" data-act="pass">${icon("lock", "sm")}<span>Cambiar contraseña</span>${icon("right", "sm")}</button>
@@ -55,6 +57,7 @@ export function profileView(params, query = {}) {
       </section>
       <p class="foot-note">${esc(g.name)} · App de socios · versión ${esc(appVersion() || "—")}${S.MODE === "demo" ? " · demostración" : ""}</p>`,
     mount(host) {
+      if (!staff) mountPrivacy(host, u, { sheet, confirmDialog, refresh });
       if (query.clave) setTimeout(() => changePassword(u), 250);
       $("[data-form=info]", host).addEventListener("submit", (e) => {
         e.preventDefault();

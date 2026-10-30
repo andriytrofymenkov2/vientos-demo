@@ -52,7 +52,7 @@ function friendly(err) {
 
 function emptyDb() {
   const d = S.defaults();
-  return { v: 4, gym: d.gym, plans: d.plans, exercises: [], templates: [], users: [], routines: [], logs: [], payments: [], notices: [], movements: [], feedback: [], live: {}, me: null };
+  return { v: 4, gym: d.gym, plans: d.plans, exercises: [], templates: [], users: [], routines: [], logs: [], payments: [], notices: [], movements: [], feedback: [], faces: {}, live: {}, me: null };
 }
 
 /* Sin sesión: datos de contacto y horarios del gimnasio (sin código ni precios) */
@@ -122,10 +122,12 @@ async function loadAll(uid) {
     prof.role === "admin" ? allRows("movements", { orderBy: "at", desc: true, tie: "id" }).then((r) => (r.error ? { data: [], error: null, off: true } : r)) : Promise.resolve({ data: [], error: null }),
     /* opiniones: el dueño ve todas; el socio, las suyas. Si la tabla todavía no existe, se sigue sin ellas */
     (prof.role === "admin" ? allRows("feedback", { orderBy: "at", desc: true, tie: "id" }) : prof.role === "socio" ? q("feedback").eq("user_id", uid) : Promise.resolve({ data: [], error: null })).then((r) => (r.error ? { data: [], error: null, off: true } : r)),
+    /* huellas faciales: solo el personal (recepción). Si la tabla no existe, no hay reconocimiento */
+    (staff ? allRows("faces", { orderBy: "user_id" }) : Promise.resolve({ data: [], error: null })).then((r) => (r.error ? { data: [], error: null, off: true } : r)),
   ]);
   /* tablas que se suman después (caja, opiniones): si todavía no se crearon en el servidor, esas secciones no se muestran */
-  const off = { caja: !!raw[9].off, opiniones: !!raw[10].off };
-  const [gym, exercises, templates, notices, people, routines, logs, live, payments, movements, feedback] = raw.map(must);
+  const off = { caja: !!raw[9].off, opiniones: !!raw[10].off, rostros: !!raw[11].off };
+  const [gym, exercises, templates, notices, people, routines, logs, live, payments, movements, feedback, faces] = raw.map(must);
 
   /* Primer ingreso de un profe o del dueño: carga ejercicios, plantillas y datos del gimnasio */
   if (staff && (!gym || !exercises.length)) await firstSetup(prof, gym, exercises, templates);
@@ -149,6 +151,7 @@ async function loadAll(uid) {
   D.payments = payments.map(toPay);
   D.movements = (movements || []).map(toMove);
   D.feedback = (feedback || []).map(toFb);
+  D.faces = Object.fromEntries((faces || []).map((r) => [r.user_id, r.data]));
   D.off = off;
   D.me = uid;
   return D;
@@ -386,6 +389,8 @@ export const remoteAdapter = {
   async saveGym(data) { must(await sb.from("gym").upsert({ id: 1, data: data || { ...S.db.gym, plans: S.db.plans }, updated_at: iso() })); },
   async saveMovement(m) { must(await sb.from("movements").upsert({ id: m.id, at: iso(m.at), amount: m.amount || 0, kind: m.kind, data: strip(m, "id", "at", "amount", "kind") })); },
   async saveFeedback(f) { must(await sb.from("feedback").upsert({ id: f.id, user_id: f.userId, at: iso(f.at), kind: f.kind, data: strip(f, "id", "userId", "at", "kind") })); },
+  async saveFace(uid, f) { must(await sb.from("faces").upsert({ user_id: uid, data: f, updated_at: iso() })); },
+  async deleteFace(uid) { must(await sb.from("faces").delete().eq("user_id", uid)); },
   async deleteMovement(id) { must(await sb.from("movements").delete().eq("id", id)); },
   async saveNotice(n) { must(await sb.from("notices").insert({ id: n.id, at: iso(n.at), data: strip(n, "id", "at") })); },
   async deleteNotice(id) { must(await sb.from("notices").delete().eq("id", id)); },

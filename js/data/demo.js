@@ -37,7 +37,7 @@ export async function buildDemo(D, { hashPass, uid, normDays }) {
       id: o.id || uid("u"), role: o.role || "socio", status: o.status || "activo", name: o.name, user: o.user, email: o.email || `${o.user}@demo.vientos`,
       phone: o.phone || "2966" + String(400000 + Math.floor(R() * 500000)), birth: o.birth || (o.role && o.role !== "socio" ? "" : `${1966 + Math.floor(R() * 40)}-${String(1 + Math.floor(R() * 12)).padStart(2, "0")}-${String(1 + Math.floor(R() * 28)).padStart(2, "0")}`), gender: o.gender || "",
       salt: salt0, hash: hash0, coachId: o.coachId || null, joined: o.joined || now - 200 * DAY, fee: o.fee || null,
-      prefs: { theme: "dark", sound: true, ...(o.temp ? { tempPass: true } : {}), ...(o.space ? { space: o.space } : {}) },
+      prefs: { theme: "dark", sound: true, consent: { terms: "2026-10", termsAt: now - 30 * DAY, face: o.user === "lucia", ...(o.user === "lucia" ? { faceAt: now - 30 * DAY } : {}) }, ...(o.temp ? { tempPass: true } : {}), ...(o.space ? { space: o.space } : {}) },
     };
     D.users.push(u);
     return u;

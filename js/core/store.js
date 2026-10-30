@@ -54,6 +54,7 @@ export async function init() {
   if (!db || db.v !== 6) { db = await seed(); localStorage.setItem(KEY, JSON.stringify(db)); }
   db.movements ||= [];
   db.feedback ||= [];
+  db.faces ||= {};
   return db;
 }
 
@@ -141,7 +142,7 @@ async function seed() {
   const d = defaults();
   /* La demo arma sus plantillas desde los datos con peso (para inventar el historial) */
   const templates = baseTemplates();
-  const base = { v: 6, seededAt: Date.now(), ...d, templates, users: [], routines: [], logs: [], payments: [], notices: [], movements: [], feedback: [], live: {} };
+  const base = { v: 6, seededAt: Date.now(), ...d, templates, users: [], routines: [], logs: [], payments: [], notices: [], movements: [], feedback: [], faces: {}, live: {} };
   return buildDemo(base, { hashPass, uid, normDays });
 }
 
@@ -185,6 +186,13 @@ export const paymentsOf = (sp = currentSpace()) => db.payments.filter((p) => pay
 /* Caja: gastos y otros ingresos que carga el dueño (las cuotas ya son ingresos por los pagos) */
 export const EXPENSE_CATS = ["Alquiler", "Sueldos", "Servicios (luz, agua, internet)", "Mantenimiento y máquinas", "Insumos y limpieza", "Impuestos y cargas", "Marketing", "Otros"];
 export const INCOME_CATS = ["Alquiler de espacios", "Shop y bebidas", "Pases sueltos y clases", "Otros ingresos"];
+/* Consentimientos: versión de los términos que tiene que aceptar cada socio. Si cambia el texto,
+   se sube la versión y todos lo vuelven a aceptar. El reconocimiento facial es aparte y opcional. */
+export const TERMS_VERSION = "2026-10";
+export const needsConsent = (u) => u?.role === "socio" && u.status === "activo" && u.prefs?.consent?.terms !== TERMS_VERSION;
+export const faceConsent = (u) => !!u?.prefs?.consent?.face;
+/* Huella facial: una lista de números que describe la cara (no es la foto ni permite reconstruirla) */
+export const faceOf = (userId) => db.faces?.[userId] || null;
 /* Opiniones: rubros que califica cada socio del 1 al 10 */
 export const RATE_CATS = [["limpieza", "Limpieza"], ["atencion", "Atención"], ["profes", "Profes"], ["maquinas", "Máquinas"], ["instalaciones", "Instalaciones"], ["comodidad", "Comodidad"], ["clases", "Clases y dinámicas"]];
 export const feedbackOf = (sp = currentSpace()) => (db.feedback || []).filter((f) => (f.space === "fitz" ? "fitz" : "vientos") === sp);
@@ -798,6 +806,15 @@ export const api = {
     save(); push("saveFeedback", x);
     return x;
   },
+  /* el socio acepta los términos y decide si usa el reconocimiento facial; si lo retira, se borra su huella */
+  setConsent(userId, { face }) {
+    const u = user(userId), now = Date.now(), prev = u.prefs?.consent || {};
+    const consent = { terms: TERMS_VERSION, termsAt: prev.terms === TERMS_VERSION ? prev.termsAt : now, face: !!face, ...(face ? { faceAt: prev.face ? prev.faceAt : now } : { faceOffAt: now }) };
+    api.updateUser(userId, { prefs: { ...u.prefs, consent } });
+    if (!face && faceOf(userId)) api.deleteFace(userId);
+  },
+  saveFace(userId, emb) { (db.faces ||= {})[userId] = { emb, at: Date.now() }; save(); push("saveFace", userId, db.faces[userId]); },
+  deleteFace(userId) { if (db.faces) delete db.faces[userId]; save(); push("deleteFace", userId); },
   deleteMovement(id) { db.movements = (db.movements || []).filter((m) => m.id !== id); save(); push("deleteMovement", id); },
   addNotice(n) { const x = { id: uid("n"), at: Date.now(), ...n }; db.notices.unshift(x); save(); push("saveNotice", x); },
   deleteNotice(id) { db.notices = db.notices.filter((n) => n.id !== id); save(); push("deleteNotice", id); },

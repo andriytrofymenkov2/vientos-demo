@@ -1,0 +1,164 @@
+/* Recepción: reconoce al socio con la cámara (o se lo busca por DNI) y muestra si puede pasar según su cuota.
+   Reconocimiento facial con la librería Human (vendor/human, MIT): corre entero en el navegador, no manda
+   imágenes a ningún lado. De cada socio se guarda solo una huella numérica de la cara, y solo si lo aceptó.
+   Recepción decide: la pantalla avisa, no abre ningún molinete. */
+import { icon } from "../core/icons.js";
+import { esc, fold, fmtDate, plural, $, $$ } from "../core/util.js";
+import * as S from "../core/store.js";
+import { avatar, toast, pageHead } from "../core/ui.js";
+
+/* similitud mínima para decir "es tal socio" y cuántas lecturas seguidas iguales hacen falta */
+const MATCH = 0.55, STABLE = 2;
+let human = null;
+
+async function loadHuman() {
+  if (human) return human;
+  const { default: Human } = await import("../../vendor/human/human.esm.js");
+  human = new Human({
+    modelBasePath: new URL("../../vendor/human/models/", import.meta.url).href,
+    backend: "webgl", debug: false, cacheSensitivity: 0, warmup: "none",
+    filter: { enabled: true, equalization: false },
+    face: { enabled: true, detector: { rotation: false, maxDetected: 1, minConfidence: 0.5 }, mesh: { enabled: true }, iris: { enabled: false },
+      description: { enabled: true }, emotion: { enabled: false }, antispoof: { enabled: true }, liveness: { enabled: true } },
+    body: { enabled: false }, hand: { enabled: false }, object: { enabled: false }, gesture: { enabled: false }, segmentation: { enabled: false },
+  });
+  await human.load();
+  return human;
+}
+
+/* ¿Puede pasar? Según la cuota y los días de tolerancia del gimnasio (por defecto 7) */
+export function accessOf(u) {
+  const grace = S.gymOf(S.spaceOf(u)).accessGraceDays ?? 7;
+  const st = S.feeStatus(u), p = S.plan(u.fee?.planId);
+  if (u.status !== "activo") return { cls: "bad", head: "No es socio activo", sub: "Su cuenta está dada de baja o sin aprobar." };
+  if (st.state === "none") return { cls: "warn", head: "Sin cuota cargada", sub: "Pedile que pase por recepción a regularizar." };
+  if (st.state === "ok") return { cls: "ok", head: "Puede pasar", sub: `Cuota al día · vence el ${fmtDate(u.fee.dueAt)} (en ${plural(st.days, "día", "días")})${p ? ` · ${p.name}` : ""}` };
+  if (st.state === "soon") return { cls: "ok", head: "Puede pasar", sub: `Su cuota ${st.days === 0 ? "vence hoy" : `vence en ${plural(st.days, "día", "días")}`}: recordale pagar` };
+  const over = Math.max(0, -st.days);
+  if (over <= grace) return { cls: "warn", head: "Puede pasar, pero debe la cuota", sub: `${u.fee.unpaid ? "No pagó el alta" : `Venció hace ${plural(over, "día", "días")}`}. Tiene tolerancia hasta ${plural(grace - over, "día más", "días más")}.` };
+  return { cls: "bad", head: "No puede pasar", sub: `${u.fee.unpaid ? "No pagó el alta" : `Cuota vencida hace ${plural(over, "día", "días")}`}. Tiene que pagar para entrar.` };
+}
+
+const resultCard = (u, extra = "") => { const a = accessOf(u); return `<div class="rc-card ${a.cls}">${avatar(u, "xl")}<div class="rc-info"><span class="rc-name">${esc(u.name)}</span><small>DNI ${esc(u.user || "—")}</small><b class="rc-head">${icon(a.cls === "bad" ? "x" : a.cls === "warn" ? "alert" : "checkc", "sm")} ${esc(a.head)}</b><small>${esc(a.sub)}</small>${extra}</div></div>`; };
+
+export function recepcionView() {
+  const faceOff = S.MODE === "supabase" && S.db.off?.rostros;
+  const socios = () => S.activeMembers().filter((u) => S.inSpace(u));
+  const enrolled = () => socios().filter((u) => S.faceOf(u.id)).length;
+  return {
+    layout: "panel", nav: "recepcion", title: "Recepción",
+    html: `${pageHead({ title: "Recepción", kicker: "Entrada del gimnasio" })}
+      <div class="rc-grid">
+        <section class="card rc-cam">
+          <div class="card-h"><h2>${icon("eye", "sm")} Reconocimiento facial</h2><span class="muted" data-enrolled>${plural(enrolled(), "rostro registrado", "rostros registrados")}</span></div>
+          ${faceOff ? `<p class="muted">El reconocimiento facial todavía no está activado en el servidor. Mientras tanto, buscá al socio por DNI.</p>` : `
+          <div class="rc-video"><video data-video playsinline muted></video><div class="rc-overlay" data-status>Tocá “Prender cámara” para empezar.</div></div>
+          <div class="row-btns"><button class="btn primary" type="button" data-start>${icon("play", "sm")} Prender cámara</button><button class="btn ghost" type="button" data-stop hidden>${icon("pause", "sm")} Apagar</button></div>
+          <p class="muted tiny">La cámara corre en esta computadora: no se guardan fotos ni videos. Solo reconoce a los socios que aceptaron el reconocimiento facial y tienen su rostro registrado.</p>`}
+        </section>
+        <section class="card">
+          <div class="card-h"><h2>${icon("search", "sm")} Resultado</h2></div>
+          <div data-result><p class="muted">Acá aparece el socio reconocido o el que busques por DNI.</p></div>
+          <label class="search rc-search">${icon("search", "sm")}<input type="search" data-q placeholder="Buscar por DNI o nombre" aria-label="Buscar socio" autocomplete="off"></label>
+          <div data-found></div>
+        </section>
+      </div>`,
+    mount(host) {
+      const video = $("[data-video]", host), status = $("[data-status]", host), result = $("[data-result]", host);
+      let stream = null, timer = 0, last = null, count = 0, enrollFor = null;
+      const say = (t) => { if (status) status.innerHTML = t; };
+      const known = () => socios().filter((u) => S.faceConsent(u) && S.faceOf(u.id));
+      const show = (u, extra) => { result.innerHTML = resultCard(u, extra); };
+
+      async function loop() {
+        if (!stream) return;
+        try {
+          const res = await human.detect(video);
+          const f = res.face?.[0];
+          if (!f) { say("Esperando una cara frente a la cámara…"); count = 0; }
+          else if (enrollFor) await enrollStep(f);
+          else if (f.embedding?.length) {
+            const list = known();
+            if (!list.length) say("Todavía no hay rostros registrados. Registrá uno buscando al socio por DNI.");
+            else {
+              const m = human.match.find(f.embedding, list.map((u) => S.faceOf(u.id).emb));
+              const u = m.similarity >= MATCH ? list[m.index] : null;
+              const fake = typeof f.real === "number" && f.real < 0.5;
+              count = u && u.id === last ? count + 1 : 1; last = u?.id || null;
+              if (u && count >= STABLE) { show(u, fake ? `<small class="rc-warn">${icon("alert", "xs")} Ojo: podría ser una foto o una pantalla.</small>` : ""); say(`Reconocido: <b>${esc(u.name)}</b> (${Math.round(m.similarity * 100)} %)`); }
+              else if (!u) say("No lo reconozco. Buscalo por DNI.");
+            }
+          }
+        } catch (e) { console.warn(e); }
+        timer = setTimeout(loop, 350);
+      }
+
+      /* registrar el rostro: junta varias lecturas buenas de la cara y guarda el promedio */
+      let samples = [];
+      async function enrollStep(f) {
+        if (!f.embedding?.length || (f.score ?? 1) < 0.7) { say("Mirá de frente a la cámara, con buena luz…"); return; }
+        samples.push(f.embedding);
+        say(`Registrando el rostro de <b>${esc(enrollFor.name)}</b>… ${samples.length} de 5`);
+        if (samples.length < 5) return;
+        const emb = samples[0].map((_, i) => samples.reduce((a, s) => a + s[i], 0) / samples.length);
+        S.api.saveFace(enrollFor.id, Array.from(emb));
+        toast(`Rostro de ${enrollFor.name.split(" ")[0]} registrado`);
+        show(enrollFor, `<small class="rc-ok">${icon("checkc", "xs")} Rostro registrado</small>`);
+        $("[data-enrolled]", host).textContent = plural(enrolled(), "rostro registrado", "rostros registrados");
+        enrollFor = null; samples = [];
+      }
+
+      async function start() {
+        $("[data-start]", host).disabled = true;
+        say("Cargando el reconocimiento facial… (la primera vez tarda unos segundos)");
+        try {
+          await loadHuman();
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+          video.srcObject = stream; await video.play();
+          $("[data-start]", host).hidden = true; $("[data-stop]", host).hidden = false;
+          say("Esperando una cara frente a la cámara…");
+          loop();
+        } catch (e) {
+          console.warn(e);
+          say(e?.name === "NotAllowedError" ? "No hay permiso para usar la cámara. Permitilo en el navegador (ícono de la cámara, arriba)." : "No se pudo prender la cámara. Revisá que esté conectada.");
+          $("[data-start]", host).disabled = false;
+        }
+      }
+      function stop() {
+        clearTimeout(timer);
+        stream?.getTracks().forEach((t) => t.stop()); stream = null;
+        if (video) video.srcObject = null;
+        $("[data-start]", host).hidden = false; $("[data-start]", host).disabled = false; $("[data-stop]", host).hidden = true;
+        say("Cámara apagada.");
+      }
+      $("[data-start]", host)?.addEventListener("click", start);
+      $("[data-stop]", host)?.addEventListener("click", stop);
+
+      /* búsqueda por DNI o nombre: siempre disponible (plan B) */
+      const q = $("[data-q]", host), found = $("[data-found]", host);
+      q.addEventListener("input", () => {
+        const t = fold(q.value.trim());
+        if (t.length < 2) { found.innerHTML = ""; return; }
+        const list = socios().filter((u) => fold(`${u.user} ${u.name}`).includes(t)).slice(0, 6);
+        found.innerHTML = list.map((u) => `<button type="button" class="mrow" data-pick="${u.id}">${avatar(u, "sm")}<span><b>${esc(u.name)}</b><small>DNI ${esc(u.user || "—")} · ${esc(accessOf(u).head)}</small></span>${icon("right", "sm")}</button>`).join("") || `<p class="muted">No hay socios con ese DNI o nombre.</p>`;
+      });
+      found.addEventListener("click", (e) => {
+        const b = e.target.closest("[data-pick]"); if (!b) return;
+        const u = S.user(b.dataset.pick);
+        const canFace = !faceOff && S.faceConsent(u);
+        const extra = faceOff ? "" : canFace
+          ? `<button class="btn ghost sm" type="button" data-enroll="${u.id}">${icon("user", "sm")} ${S.faceOf(u.id) ? "Volver a registrar su rostro" : "Registrar su rostro"}</button>`
+          : `<small class="muted">No aceptó el reconocimiento facial (lo puede activar desde su Perfil, en Privacidad).</small>`;
+        show(u, extra);
+        q.value = ""; found.innerHTML = "";
+      });
+      result.addEventListener("click", async (e) => {
+        const b = e.target.closest("[data-enroll]"); if (!b) return;
+        enrollFor = S.user(b.dataset.enroll); samples = [];
+        if (!stream) await start();
+        say(`Que <b>${esc(enrollFor.name)}</b> mire de frente a la cámara…`);
+      });
+      return () => stop();
+    },
+  };
+}

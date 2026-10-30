@@ -1428,3 +1428,31 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .linkbtn { background: none; border: 0; padding: 0; color: var(--red2); text-decoration: underline; font: inherit; cursor: pointer; }
 .feecard.ok { background: var(--card); border-color: var(--line); }
 .feecard.ok > .i { color: #3ccf7e; }
+
+/* Términos y consentimiento */
+.consent { text-align: left; }
+.consent ul { padding-left: 18px; margin: 8px 0; display: grid; gap: 6px; font-size: 14px; line-height: 1.45; }
+.consent p { font-size: 14px; line-height: 1.45; }
+.cs-block { border-top: 1px solid var(--line); padding: 14px 0 6px; margin-top: 10px; }
+.cs-block h2 { display: flex; align-items: center; gap: 8px; font: 700 18px "Barlow Condensed", sans-serif; text-transform: uppercase; }
+.cs-block .check { margin-top: 10px; align-items: flex-start; }
+
+/* Recepción: cámara + resultado */
+.rc-grid { display: grid; gap: 14px; }
+@media (min-width: 980px) { .rc-grid { grid-template-columns: 1.15fr 1fr; align-items: start; } }
+.rc-grid > .card { margin: 0; }
+.rc-video { position: relative; border-radius: 16px; overflow: hidden; background: #000; aspect-ratio: 4 / 3; margin-bottom: 10px; }
+.rc-video video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.rc-overlay { position: absolute; left: 10px; right: 10px; bottom: 10px; padding: 8px 12px; border-radius: 10px; background: rgba(0, 0, 0, .65); color: #fff; font-size: 14px; }
+.rc-card { display: flex; gap: 14px; align-items: center; padding: 14px; border-radius: 16px; border: 2px solid var(--line); margin-bottom: 12px; }
+.rc-card.ok { border-color: #3ccf7e; background: rgba(60, 207, 126, .08); }
+.rc-card.warn { border-color: #f0b429; background: var(--warn-soft); }
+.rc-card.bad { border-color: var(--bad); background: var(--bad-soft); }
+.rc-info { display: grid; gap: 3px; min-width: 0; }
+.rc-name { font: 700 24px/1.05 "Barlow Condensed", sans-serif; text-transform: uppercase; }
+.rc-head { display: flex; align-items: center; gap: 6px; font: 700 20px "Barlow Condensed", sans-serif; text-transform: uppercase; margin-top: 4px; }
+.rc-card.ok .rc-head { color: #3ccf7e; } .rc-card.warn .rc-head { color: #f0b429; } .rc-card.bad .rc-head { color: var(--bad); }
+.rc-info small { color: var(--muted); font-size: 13px; }
+.rc-info .btn { justify-self: start; margin-top: 6px; }
+.rc-warn { color: #f0b429 !important; } .rc-ok { color: #3ccf7e !important; }
+.rc-search { margin: 4px 0 8px; }

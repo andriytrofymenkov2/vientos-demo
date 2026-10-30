@@ -1,4 +1,5 @@
 /* Enrutador por hash (#/ruta): funciona en cualquier hosting estático */
+import * as S from "./store.js";
 import { me, isStaff, isAdmin } from "./auth.js";
 
 const routes = [];
@@ -48,6 +49,8 @@ export async function render(isRefresh = false) {
   if (match.opts.member && isStaff()) return go("/panel", { replace: true });
   /* Contraseña inicial (su DNI): antes de usar la app tiene que elegir una propia */
   if (me()?.prefs?.tempPass && !match.opts.public && path !== "/clave") return go("/clave", { replace: true });
+  /* Términos y privacidad: el socio los acepta una vez (y de nuevo si cambia el texto) */
+  if (!me()?.prefs?.tempPass && S.needsConsent(me()) && !match.opts.public && path !== "/consentimiento") return go("/consentimiento", { replace: true });
 
   const view = await match.handler(params, query);
   if (!view) return;

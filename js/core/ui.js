@@ -27,6 +27,7 @@ const TABS = [
 const PANEL = [
   { id: "resumen", href: "#/panel", icon: "chart", label: "Resumen", tab: true },
   { id: "socios", href: "#/panel/socios", icon: "users", label: "Socios", tab: true },
+  { id: "recepcion", href: "#/panel/recepcion", icon: "eye", label: "Recepción" },
   { id: "plantillas", href: "#/panel/plantillas", icon: "layers", label: "Plantillas", tab: true },
   { id: "ejercicios", href: "#/panel/ejercicios", icon: "dumbbell", label: "Ejercicios", tab: true },
   { id: "cuotas", href: "#/panel/cuotas", icon: "card", label: "Cuotas" },

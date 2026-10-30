@@ -54,11 +54,13 @@ function speak(text) {
     ss.speak(u);
   } catch { /* sin voz */ }
 }
+/* el nombre corto del gimnasio para la voz ("Vientos GYM" → "Vientos") */
+const gymName = () => (S.gymOf().name || "Vientos").replace(/\s*gym$/i, "").trim() || "Vientos";
 function announce(kind, name) {
   if (!soundOn()) return;
   const first = String(name || "").split(" ")[0];
-  if (kind === "ok") { tones([[784, 0.22], [1047, 0.38]]); setTimeout(() => speak(`¡Hola ${first}, bienvenido!`), 450); }
-  else if (kind === "warn") { tones([[784, 0.22], [1047, 0.38]]); setTimeout(() => speak(`¡Hola ${first}, bienvenido! Cuando puedas, acercate a recepción.`), 450); }
+  if (kind === "ok") { tones([[784, 0.22], [1047, 0.38]]); setTimeout(() => speak(`¡Hola ${first}, bienvenido a ${gymName()}!`), 450); }
+  else if (kind === "warn") { tones([[784, 0.22], [1047, 0.38]]); setTimeout(() => speak(`¡Hola ${first}, bienvenido a ${gymName()}! Cuando puedas, acercate a recepción.`), 450); }
   else if (kind === "bad") { tones([[659, 0.25], [494, 0.4]]); setTimeout(() => speak(`Hola ${first}, antes de entrar acercate a recepción, por favor.`), 500); }
   else { tones([[587, 0.35]]); setTimeout(() => speak("No te reconozco. Acercate a recepción, por favor."), 400); }
 }
@@ -249,7 +251,7 @@ export function recepcionView() {
       fillVoices();
       window.speechSynthesis?.addEventListener?.("voiceschanged", fillVoices);
       sel?.addEventListener("change", () => { try { localStorage.setItem(VOICE_KEY, sel.value); } catch { /* sin almacenamiento */ } speak("¡Hola! Bienvenido a Vientos."); });
-      $("[data-try]", host)?.addEventListener("click", () => { audio(); tones([[784, 0.22], [1047, 0.38]]); setTimeout(() => speak("¡Hola Andriy, bienvenido!"), 450); });
+      $("[data-try]", host)?.addEventListener("click", () => { audio(); tones([[784, 0.22], [1047, 0.38]]); setTimeout(() => speak(`¡Hola Andriy, bienvenido a ${gymName()}!`), 450); });
       $("[data-sound]", host)?.addEventListener("click", (e) => {
         const on = !soundOn(); try { localStorage.setItem(SOUND_KEY, on ? "1" : "0"); } catch { /* sin almacenamiento */ }
         e.currentTarget.innerHTML = `${icon(on ? "sound" : "mute", "sm")} Sonido: ${on ? "sí" : "no"}`; e.currentTarget.setAttribute("aria-pressed", on);

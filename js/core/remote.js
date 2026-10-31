@@ -317,10 +317,26 @@ export const remoteAdapter = {
     const p = must(await sb.from("profiles").select("*").eq("username", username).maybeSingle());
     return p ? toUser(p) : null;
   },
+  /* rostros que cambiaron desde la última vez (liviano: primero solo quién y cuándo); devuelve si hubo cambios */
+  async syncFaces() {
+    const { data, error } = await sb.from("faces").select("user_id, updated_at");
+    if (error) return false;
+    S.db.faces ||= {}; this._facesAt ||= {};
+    const now = new Set(data.map((r) => r.user_id));
+    let changed = false;
+    for (const id of Object.keys(S.db.faces)) if (!now.has(id)) { delete S.db.faces[id]; delete this._facesAt[id]; changed = true; }
+    const stale = data.filter((r) => !S.db.faces[r.user_id] || this._facesAt[r.user_id] !== r.updated_at).map((r) => r.user_id);
+    for (let i = 0; i < stale.length; i += 100) {
+      const rows = must(await sb.from("faces").select("*").in("user_id", stale.slice(i, i + 100)));
+      rows.forEach((r) => { S.db.faces[r.user_id] = r.data; this._facesAt[r.user_id] = r.updated_at; });
+      changed = true;
+    }
+    return changed;
+  },
   /* todas las huellas faciales (las pudo registrar otro equipo) */
   async reloadFaces() {
     const res = await allRows("faces", { orderBy: "user_id" });
-    if (!res.error) S.db.faces = Object.fromEntries(res.data.map((x) => [x.user_id, x.data]));
+    if (!res.error) { S.db.faces = Object.fromEntries(res.data.map((x) => [x.user_id, x.data])); this._facesAt = Object.fromEntries(res.data.map((x) => [x.user_id, x.updated_at])); }
   },
   async refreshMember(id) {
     const p = must(await sb.from("profiles").select("*").eq("id", id).maybeSingle());

@@ -105,7 +105,7 @@ export function baseTemplates() {
 }
 /* Planes del espacio Fitz Club (precio de referencia: lo cambia el dueño en Planes y precios) */
 export const FITZ_PLANS = [
-  { id: "p-fitz-3x", name: "Fitz Club · 3 veces por semana", price: 45000, space: "fitz" },
+  { id: "p-fitz-3x", name: "Fitz Club · 3 veces por semana", price: 45000, space: "fitz", perWeek: 3 },
 ];
 
 export async function hashPass(pass, salt) { return sha256(salt + ":" + pass); }
@@ -133,7 +133,7 @@ export function defaults() {
     templates,
     plans: [
       { id: "p-libre", name: "Musculación · pase libre", price: 42000 },
-      { id: "p-3x", name: "Musculación · 3 veces por semana", price: 36000 },
+      { id: "p-3x", name: "Musculación · 3 veces por semana", price: 36000, perWeek: 3 },
       { id: "p-ciclo", name: "Ciclo indoor", price: 30000 },
       { id: "p-combo", name: "Combo musculación + ciclo", price: 55000 },
       ...FITZ_PLANS,
@@ -291,6 +291,19 @@ export const exercise = (id) => db.exercises.find((e) => e.id === id);
 export const template = (id) => db.templates.find((t) => t.id === id);
 export const routine = (id) => db.routines.find((r) => r.id === id);
 export const plan = (id) => db.plans.find((p) => p.id === id);
+/* cuántas veces por semana incluye el plan (0 = libre). Si nunca se cargó, se toma del nombre ("3 veces por semana") */
+export function planPerWeek(p) {
+  if (!p) return 0;
+  if (p.perWeek != null) return +p.perWeek || 0;
+  const m = /(\d)\s*(veces|d[ií]as)/i.exec(p.name || "");
+  return m ? +m[1] : 0;
+}
+/* entradas del socio en esta semana (de lunes a domingo), sin contar la de hoy */
+export function weekEntries(u, now = new Date()) {
+  const start = new Date(now); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  const today = new Date(now).toDateString();
+  return (db.checkins || []).filter((c) => c.userId === u.id && c.at >= +start && new Date(c.at).toDateString() !== today).length;
+}
 
 /* Convenios con empresas: descuento en porcentaje o monto fijo por mes */
 /* Los que publicó Vientos en Facebook (marzo y abril). Donde la publicación
@@ -835,6 +848,13 @@ export const api = {
     const consent = { terms: TERMS_VERSION, termsAt: prev.terms === TERMS_VERSION ? prev.termsAt : now, face: !!face, ...(face ? { faceAt: prev.face ? prev.faceAt : now } : { faceOffAt: now }) };
     api.updateUser(userId, { prefs: { ...u.prefs, consent } });
     if (!face && faceOf(userId)) api.deleteFace(userId);
+  },
+  /* recepción carga el consentimiento del rostro en persona (o lo retira, y se borra la huella) */
+  staffFaceConsent(userId, on, by) {
+    const u = user(userId), now = Date.now(), prev = u.prefs?.consent || {};
+    const consent = { ...prev, face: !!on, faceVia: "recepcion", faceBy: by || null, ...(on ? { faceAt: now } : { faceOffAt: now }) };
+    api.updateUser(userId, { prefs: { ...u.prefs, consent } });
+    if (!on && faceOf(userId)) api.deleteFace(userId);
   },
   /* registra la entrada del socio (una sola vez por día); devuelve la entrada o null si ya había entrado hoy */
   checkIn(userId, via, by) {

@@ -11,7 +11,7 @@ import { me } from "../core/auth.js";
 import { SCREEN_CHANNEL } from "./pantalla.js";
 
 /* similitud mínima para decir "es tal socio" y cuántas lecturas seguidas iguales hacen falta */
-const MATCH = 0.55, STABLE = 2;
+const MATCH = 0.6, STABLE = 3;
 /* si el segundo socio más parecido está a menos de esta distancia, no se elige a ninguno (evita confundir) */
 const MARGIN = 0.06;
 /* registrar: cuántas lecturas, qué tan parecidas entre sí y qué tan distinta a las ya registradas */
@@ -103,6 +103,10 @@ export function accessOf(u) {
   const st = S.feeStatus(u), p = S.plan(u.fee?.planId);
   if (u.status !== "activo") return { cls: "bad", head: "No es socio activo", sub: "Su cuenta está dada de baja o sin aprobar." };
   if (st.state === "none") return { cls: "warn", head: "Sin cuota cargada", sub: "Pedile que pase por recepción a regularizar." };
+  /* plan con días por semana: si ya los usó todos esta semana, recepción decide (hoy ya entró: sigue pudiendo) */
+  const perWeek = S.planPerWeek(p), used = S.weekEntries(u);
+  if (perWeek && used >= perWeek && !todayIn(u) && (st.state === "ok" || st.state === "soon" || -st.days <= grace))
+    return { cls: "bad", head: "Ya usó sus días de esta semana", sub: `Su plan es de ${plural(perWeek, "vez", "veces")} por semana y ya entró ${plural(used, "vez", "veces")} desde el lunes${p ? ` · ${p.name}` : ""}.` };
   if (st.state === "ok") return { cls: "ok", head: "Puede pasar", sub: `Cuota al día · vence el ${fmtDate(u.fee.dueAt)} (en ${plural(st.days, "día", "días")})${p ? ` · ${p.name}` : ""}` };
   if (st.state === "soon") return { cls: "ok", head: "Puede pasar", sub: `Su cuota ${st.days === 0 ? "vence hoy" : `vence en ${plural(st.days, "día", "días")}`}: recordale pagar` };
   const over = Math.max(0, -st.days);
@@ -144,7 +148,7 @@ const want = (on) => { try { localStorage.setItem(CAM_KEY, on ? "1" : "0"); } ca
 
 const E = {
   stream: null, video: null, timer: 0, wake: null, sync: 0, starting: false,
-  last: null, count: 0, unknown: 0, cam: null, lastUnknownVoice: 0, pausedUntil: 0, ovalOn: null,
+  last: null, count: 0, unknown: 0, cam: null, lastUnknownVoice: 0, holdUntil: 0, ovalOn: null,
   enrollFor: null, samples: [], capturing: false, status: "Tocá “Prender cámara” para empezar.",
 };
 /* lo que la pantalla Recepción muestra cuando está abierta (si no, no hace nada) */
@@ -154,14 +158,22 @@ const showResult = (html) => ui?.result(html);
 const screen = "BroadcastChannel" in window ? new BroadcastChannel(SCREEN_CHANNEL) : null;
 const toScreen = (m) => { try { screen?.postMessage(m); } catch { /* sin pantalla */ } };
 const sim = (a, b) => human.match.similarity(a, b);
-const pause = (ms = PAUSE) => { E.pausedUntil = Date.now() + ms; E.cam = null; };
+/* mientras recepción atiende a alguien, el cartel de recepción no se pisa; la cámara sigue reconociendo,
+   registrando entradas y saludando en la pantalla de los socios (no se frena nunca) */
+const hold = (ms = PAUSE) => { E.holdUntil = Date.now() + ms; };
+const holding = () => Date.now() < E.holdUntil;
 
 /* muestra el cartel y suena una sola vez por persona (no en cada lectura) */
 function camShow(id, html, kind, name) {
-  if (E.cam?.id !== id) { showResult(html); announce(kind, name); toScreen({ t: "show", kind, name, gym: gymName() }); }
+  if (E.cam?.id !== id) {
+    if (!holding()) showResult(html);
+    /* si recepción está atendiendo a alguien que no tiene rostro, no le dice "no te reconozco" */
+    announce(holding() && id === "?" ? "silent" : kind, name);
+    toScreen({ t: "show", kind, name, gym: gymName() });
+  }
   E.cam = { id, seen: Date.now() };
 }
-function camExpire() { if (E.cam && Date.now() - E.cam.seen > HOLD) { showResult(IDLE); E.cam = null; toScreen({ t: "idle" }); } }
+function camExpire() { if (E.cam && Date.now() - E.cam.seen > HOLD) { if (!holding()) showResult(IDLE); E.cam = null; toScreen({ t: "idle" }); } }
 
 async function loop() {
   if (!E.stream) return;
@@ -172,8 +184,9 @@ async function loop() {
     const f = faces.filter(inOval)[0];
     ui?.oval(!!f);
     if (E.ovalOn !== !!f) { E.ovalOn = !!f; toScreen({ t: "oval", on: E.ovalOn }); }
+    /* terminó de atender: el cartel de recepción vuelve a mostrar la cámara */
+    if (E.holdUntil && !holding() && !E.enrollFor) { E.holdUntil = 0; E.cam = null; showResult(IDLE); }
     if (E.enrollFor) { if (f) await enrollStep(f, faces.length); else if (E.capturing) say("Que ponga la cara dentro del óvalo, cerca de la cámara…"); }
-    else if (Date.now() < E.pausedUntil) say(`En pausa unos segundos mientras atendés a un socio. <button type="button" class="linkbtn" data-resume>Seguir reconociendo</button>`);
     else if (!f) { say(faces.length ? "Poné la cara dentro del óvalo, cerca de la cámara…" : "Esperando una cara frente a la cámara…"); E.count = 0; E.unknown = 0; camExpire(); }
     else if (f.embedding?.length) {
       const list = known();
@@ -198,14 +211,15 @@ async function loop() {
             /* mismo promedio que al registrarla (90 % lo guardado + 10 % la lectura de hoy) */
             S.api.saveFace(u.id, fr.emb.map((v, i) => v * 0.9 + f.embedding[i] * 0.1), { upd: new Date().toDateString(), since: fr.since || fr.at });
           }
-          say(`Reconocido: <b>${esc(u.name)}</b> (${Math.round(best * 100)} %)`);
+          say(`Reconocido: <b>${esc(u.name)}</b> (${Math.round(best * 100)} %)${order[1] ? ` · el que más se le parece después: ${esc(list[order[1][1]].name.split(" ")[0])} (${Math.round(second * 100)} %)` : ""}`);
         } else if (!u && E.unknown >= STABLE) {
           /* otra persona que no está registrada: el cartel cambia enseguida */
           const dudoso = best >= MATCH && !clear;
           const voice = Date.now() - E.lastUnknownVoice > 20000;
           camShow("?", `<div class="rc-card none">${icon("user", "lg")}<div class="rc-info"><span class="rc-name">${dudoso ? "No estoy seguro" : "No reconocido"}</span><b class="rc-head">Buscalo por DNI</b><small>${dudoso ? "Se parece a más de un socio registrado." : "No está registrado o no lo reconozco bien."}</small></div></div>`, voice ? "unknown" : "silent");
           if (voice) E.lastUnknownVoice = Date.now();
-          say(dudoso ? "No estoy seguro de quién es. Buscalo por DNI." : "No lo reconozco. Buscalo por DNI.");
+          const near = order[0] ? ` (el más parecido: ${esc(list[bi].name.split(" ")[0])}, ${Math.round(best * 100)} %; hace falta ${Math.round(MATCH * 100)} %)` : "";
+          say((dudoso ? "No estoy seguro de quién es. Buscalo por DNI." : "No lo reconozco. Buscalo por DNI.") + near);
         }
       }
     }
@@ -228,7 +242,7 @@ function askEnroll(u) {
 }
 function cancelEnroll(msg) {
   toScreen({ t: "idle" }); E.enrollFor = null; E.samples = []; E.capturing = false;
-  if (msg) { enrollPanel(msg); pause(); } else E.pausedUntil = 0;
+  if (msg) { enrollPanel(msg); hold(); } else E.holdUntil = 0;
   say("Esperando una cara frente a la cámara…");
 }
 async function countdown() {
@@ -262,8 +276,8 @@ async function enrollStep(f, n) {
   toScreen({ t: "enroll", big: "¡Listo!", small: "Tu rostro quedó registrado" }); setTimeout(() => toScreen({ t: "idle" }), 2500);
   showResult(resultCard(u, `<small class="rc-ok">${icon("checkc", "xs")} Rostro registrado. Para probar: que se aleje y vuelva a mirar a la cámara.</small>`));
   ui?.list();
-  pause();
-  say("Rostro registrado. El reconocimiento sigue en unos segundos (o tocá “Seguir reconociendo”).");
+  hold();
+  say("Rostro registrado. Ya lo reconoce: que se aleje y vuelva a mirar a la cámara.");
 }
 
 /* la cámara queda prendida hasta que recepción la apague: se recuerda en este equipo y, si se recarga la página,
@@ -284,9 +298,9 @@ export async function startCamera() {
     keepAwake();
     /* si la cámara se corta sola (se desenchufó, la tomó otro programa), se intenta prender de nuevo */
     E.stream.getVideoTracks()[0]?.addEventListener("ended", () => { E.stream = null; if (wanted()) setTimeout(startCamera, 2000); });
-    /* con servidor: cada minuto trae los rostros que registraron otros equipos */
+    /* con servidor: cada minuto revisa qué rostros cambiaron en otro equipo (los cambios hechos acá valen al instante) */
     clearInterval(E.sync);
-    if (S.MODE === "supabase") E.sync = setInterval(async () => { try { await S.remote().reloadFaces(); ui?.list(); } catch (err) { console.warn(err); } }, 60000);
+    if (S.MODE === "supabase") E.sync = setInterval(async () => { try { if (await S.remote().syncFaces()) ui?.list(); } catch (err) { console.warn(err); } }, 60000);
     loop();
   } catch (e) {
     console.warn(e); E.stream = null;
@@ -378,7 +392,6 @@ export function recepcionView() {
         const w = window.open(`${location.pathname}${location.search}#/pantalla`, "vientos-pantalla", "popup,width=1000,height=700");
         if (!w) toast("El navegador bloqueó la ventana: permití las ventanas emergentes para esta página.", "err");
       });
-      status?.addEventListener("click", (e) => { if (e.target.closest("[data-resume]")) { E.pausedUntil = 0; result.innerHTML = IDLE; say("Esperando una cara frente a la cámara…"); } });
       $("[data-faces]", host)?.addEventListener("click", (e) => {
         const b = e.target.closest("[data-unface]"); if (!b) return;
         const u = S.user(b.dataset.unface);
@@ -391,7 +404,7 @@ export function recepcionView() {
       /* búsqueda por DNI o nombre: siempre disponible (plan B). Mientras se usa, el reconocimiento queda en pausa */
       const q = $("[data-q]", host), found = $("[data-found]", host);
       q.addEventListener("input", () => {
-        pause(TYPING);
+        hold(TYPING);
         const t = fold(q.value.trim());
         if (t.length < 2) { found.innerHTML = ""; return; }
         const list = socios().filter((u) => fold(`${u.user} ${u.name}`).includes(t)).slice(0, 6);
@@ -403,9 +416,12 @@ export function recepcionView() {
         /* con servidor: datos frescos del socio (consentimiento, cuota, rostro) antes de mostrarlo */
         if (S.MODE === "supabase") { b.disabled = true; try { u = await S.remote().refreshMember(u.id) || u; } catch (err) { console.warn(err); } }
         const extra = faceOff() ? "" : S.faceConsent(u)
-          ? `<button class="btn ghost sm" type="button" data-enroll="${u.id}">${icon("user", "sm")} ${S.faceOf(u.id) ? "Volver a registrar su rostro" : "Registrar su rostro"}</button>`
-          : `<small class="muted">No aceptó el reconocimiento facial (lo puede activar desde su Perfil, en Privacidad).</small>`;
-        pause();
+          ? `<div class="rc-faceacts"><button class="btn ghost sm" type="button" data-enroll="${u.id}">${icon("user", "sm")} ${S.faceOf(u.id) ? "Volver a registrar su rostro" : "Registrar su rostro"}</button>
+             ${S.faceOf(u.id) ? `<button class="btn ghost sm" type="button" data-delface="${u.id}">${icon("trash", "sm")} Borrar su rostro</button>` : ""}</div>
+             <button class="linkbtn tiny" type="button" data-revoke="${u.id}">Retirar el reconocimiento facial</button>`
+          : `<label class="check rc-consent"><input type="checkbox" data-agree><span>El socio aceptó que se use su rostro para identificarlo al entrar (se lo preguntaste y firmó).</span></label>
+             <button class="btn ghost sm" type="button" data-enroll="${u.id}" data-needs-agree>${icon("user", "sm")} Registrar su rostro</button>`;
+        hold();
         show(u, entryHtml(u, asistOff()) + extra);
         q.value = ""; found.innerHTML = "";
       });
@@ -414,13 +430,30 @@ export function recepcionView() {
         if (inb) { const u = S.user(inb.dataset.in); S.api.checkIn(u.id, inb.dataset.via, me()?.id); ui?.today(); toast(`Entrada de ${u.name.split(" ")[0]} registrada`); show(u, entryHtml(u, asistOff())); return; }
         if (e.target.closest("[data-go]")) { if (!E.stream) await startCamera(); e.target.closest("[data-go]").disabled = true; countdown(); return; }
         if (e.target.closest("[data-cancel]")) { cancelEnroll(); result.innerHTML = IDLE; return; }
+        const df = e.target.closest("[data-delface]");
+        if (df) {
+          const u = S.user(df.dataset.delface);
+          if (!confirm(`¿Borrar el rostro registrado de ${u.name}? Después lo podés volver a registrar.`)) return;
+          S.api.deleteFace(u.id); toast("Rostro borrado"); ui?.list();
+          show(u, entryHtml(u, asistOff()) + `<button class="btn ghost sm" type="button" data-enroll="${u.id}">${icon("user", "sm")} Registrar su rostro</button>`); return;
+        }
+        const rv = e.target.closest("[data-revoke]");
+        if (rv) {
+          const u = S.user(rv.dataset.revoke);
+          if (!confirm(`¿Retirar el reconocimiento facial de ${u.name}? Se borra su rostro y entra con su DNI.`)) return;
+          S.api.staffFaceConsent(u.id, false, me()?.id); toast("Retirado: se borró su rostro"); ui?.list(); show(u, entryHtml(u, asistOff())); return;
+        }
         const b = e.target.closest("[data-enroll]"); if (!b) return;
+        if (b.hasAttribute("data-needs-agree")) {
+          if (!$("[data-agree]", result)?.checked) { toast("Primero preguntale si acepta y tildá la casilla.", "err"); return; }
+          S.api.staffFaceConsent(b.dataset.enroll, true, me()?.id);
+        }
         if (!E.stream) await startCamera();
         askEnroll(S.user(b.dataset.enroll));
       });
       /* al irse de esta pantalla la cámara NO se apaga: solo se desengancha lo que se muestra.
          Si había un registro de rostro a medio hacer o una pausa por la búsqueda, se cancela. */
-      return () => { ui = null; if (video) video.srcObject = null; if (E.enrollFor) cancelEnroll(); E.pausedUntil = 0; };
+      return () => { ui = null; if (video) video.srcObject = null; if (E.enrollFor) cancelEnroll(); E.holdUntil = 0; };
     },
   };
 }

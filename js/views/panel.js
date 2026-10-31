@@ -753,6 +753,7 @@ function plansSheet() {
   const row = (p) => `<div class="planrow" data-id="${esc(p.id)}">
       <label class="field"><span>Nombre del plan</span><input type="text" name="pn" value="${esc(p.name)}" placeholder="Ej: Musculación · pase libre"></label>
       <label class="field"><span>Precio por mes</span><span class="affix"><i>$</i><input type="number" name="pp" value="${p.price || ""}" min="0" step="100" inputmode="numeric" placeholder="0"></span></label>
+      <label class="field"><span>Días por semana</span><select name="pw">${[[0, "Libre"], ...[1, 2, 3, 4, 5, 6].map((n) => [n, plural(n, "vez", "veces")])].map(([v, t]) => `<option value="${v}" ${S.planPerWeek(p) === v ? "selected" : ""}>${t}</option>`).join("")}</select></label>
       <button type="button" class="icon-btn sm" data-del aria-label="Quitar plan">${icon("trash", "sm")}</button></div>`;
   sheet({
     title: "Planes y precios",
@@ -769,7 +770,7 @@ function plansSheet() {
       });
       $("form", b).addEventListener("submit", (e) => {
         e.preventDefault();
-        const plans = $$(".planrow", b).map((r) => ({ id: r.dataset.id, name: r.querySelector("[name=pn]").value.trim(), price: +r.querySelector("[name=pp]").value || 0, ...(sp !== "vientos" ? { space: sp } : {}) })).filter((p) => p.name);
+        const plans = $$(".planrow", b).map((r) => ({ id: r.dataset.id, name: r.querySelector("[name=pn]").value.trim(), price: +r.querySelector("[name=pp]").value || 0, perWeek: +r.querySelector("[name=pw]").value || 0, ...(sp !== "vientos" ? { space: sp } : {}) })).filter((p) => p.name);
         if (!plans.length) return toast("Tiene que haber al menos un plan.", "err");
         /* se guardan los de este espacio y se conservan los del otro */
         S.api.savePlans([...S.db.plans.filter((p) => S.planSpace(p) !== sp), ...plans]);

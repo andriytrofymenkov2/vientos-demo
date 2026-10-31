@@ -23,7 +23,7 @@ const faceText = `
     <li>No se guarda tu foto: se guarda una <b>huella numérica</b> de la cara, que no permite reconstruir la imagen.</li>
     <li>Se usa <b>solo</b> para identificarte en la entrada del gimnasio.</li>
     <li>Es <b>opcional</b>: si no aceptás, entrás igual con tu DNI.</li>
-    <li>Podés retirarlo cuando quieras desde tu Perfil, y la huella se borra en ese momento. También se borra si dejás el gimnasio.</li>
+    <li>Podés retirarlo cuando quieras pidiéndolo en recepción, y la huella se borra en ese momento. También se borra si dejás el gimnasio.</li>
   </ul>`;
 
 /* Primera vez (o cuando cambian los términos): aceptar los términos; el reconocimiento facial es aparte y opcional */
@@ -62,8 +62,8 @@ export function privacyCard(u) {
   return `<section class="card" data-privacy>
     <div class="card-h"><h2>${icon("shield", "sm")} Privacidad</h2></div>
     <p class="muted tiny">Aceptaste los términos el ${c.termsAt ? esc(fmtDate(c.termsAt, { year: true })) : "—"}. <button type="button" class="linkbtn" data-terms>Leer los términos</button></p>
-    <label class="toggle"><span><b>Reconocimiento facial al entrar</b><small>${c.face ? (S.faceOf(u.id) ? "Activado. Tu huella facial está registrada." : "Activado. Falta registrar tu cara en recepción.") : "Desactivado. Entrás con tu DNI."}</small></span>
-      <input type="checkbox" name="face" ${c.face ? "checked" : ""} role="switch"><i aria-hidden="true"></i></label>
+    <div class="kv-line"><b>Reconocimiento facial al entrar</b><small>${c.face ? (S.faceOf(u.id) ? "Activado: tu rostro está registrado." : "Aceptado: falta registrar tu rostro en recepción.") : "No lo usás: entrás con tu DNI."}</small>
+      <small class="muted">${c.face ? "Si querés retirarlo, pedilo en recepción y se borra en el momento." : "Si querés usarlo, pedilo en recepción."}</small></div>
   </section>`;
 }
 
@@ -71,14 +71,4 @@ export function mountPrivacy(host, u, { sheet, confirmDialog, refresh }) {
   const box = $("[data-privacy]", host);
   if (!box) return;
   $("[data-terms]", box).addEventListener("click", () => sheet({ title: "Términos y privacidad", html: `<div class="consent">${terms(S.gymOf(S.spaceOf(u)))}<h3>Reconocimiento facial</h3>${faceText}</div>` }));
-  $("[name=face]", box).addEventListener("change", async (e) => {
-    if (e.target.checked) {
-      if (!await confirmDialog({ title: "¿Activar el reconocimiento facial?", text: "El gimnasio va a poder reconocer tu cara en la entrada. Después pasá por recepción para registrarla. Lo podés desactivar cuando quieras.", ok: "Activar" })) { e.target.checked = false; return; }
-      S.api.setConsent(u.id, { face: true }); toast("Reconocimiento facial activado");
-    } else {
-      if (!await confirmDialog({ title: "¿Desactivar el reconocimiento facial?", text: "Se borra tu huella facial ahora. Vas a entrar con tu DNI.", ok: "Desactivar", danger: true })) { e.target.checked = true; return; }
-      S.api.setConsent(u.id, { face: false }); toast("Desactivado. Se borró tu huella facial");
-    }
-    refresh();
-  });
 }

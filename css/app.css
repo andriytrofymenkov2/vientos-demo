@@ -723,10 +723,10 @@ a.mrow:hover, button.mrow:hover { background: var(--card2); }
 .radio:has(input:checked) { border-color: var(--red); background: var(--red-soft); }
 
 /* Planes */
-.planrow { display: grid; grid-template-columns: 1fr 160px auto; gap: 10px; align-items: end; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.planrow { display: grid; grid-template-columns: 1fr 150px 120px auto; gap: 10px; align-items: end; padding: 12px 0; border-bottom: 1px solid var(--line); }
 .planrow .field { margin: 0; }
 .planrow .icon-btn { margin-bottom: 6px; }
-@media (max-width: 480px) { .planrow { grid-template-columns: 1fr auto; } .planrow .field:first-child { grid-column: 1 / -1; } }
+@media (max-width: 480px) { .planrow { grid-template-columns: 1fr 1fr auto; } .planrow .field:first-child { grid-column: 1 / -1; } }
 .sheet [data-add] { margin: 12px 0 16px; }
 .hours-ed { display: grid; gap: 6px; margin-bottom: 14px; }
 .hrow-ed { display: grid; grid-template-columns: 1fr auto 96px 96px; gap: 8px; align-items: center; }
@@ -1515,3 +1515,4 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .k-brand { position: absolute; top: 18px; left: 22px; font: 700 22px "Barlow Condensed", sans-serif; text-transform: uppercase; letter-spacing: .08em; opacity: .8; }
 .rc-screen { display: grid; gap: 4px; margin-top: 8px; }
 .rc-screen .btn { justify-self: start; }
+.rc-faceacts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }

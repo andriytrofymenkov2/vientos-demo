@@ -201,8 +201,9 @@ export const faceOf = (userId) => db.faces?.[userId] || null;
 export const checkinsOf = (sp = currentSpace()) => (db.checkins || []).filter((c) => spaceOf(user(c.userId)) === sp);
 export const checkedInToday = (userId) => (db.checkins || []).some((c) => c.userId === userId && dayKey(c.at) === dayKey());
 /* un socio puede venir más de una vez por día (gimnasio a la mañana, otra actividad a la tarde): cada visita es
-   una entrada. Para no contar dos veces la misma visita (la cámara lo sigue viendo), entre una y otra pasan 2 h */
-export const REENTRY = 2 * 3600000;
+   una entrada. Para no contar dos veces la misma visita (se queda charlando frente a la cámara, sale y vuelve
+   enseguida), entre una entrada y otra tienen que pasar 30 minutos */
+export const REENTRY = 30 * 60000;
 export const lastCheckin = (userId) => (db.checkins || []).reduce((m, c) => (c.userId === userId && (!m || c.at > m.at) ? c : m), null);
 /* cuenta cada socio una vez por día (para "vinieron hoy", "esta semana", etc.) */
 /* intentos de entrar que la cámara frenó (cuota vencida, días del plan usados): quedan anotados */

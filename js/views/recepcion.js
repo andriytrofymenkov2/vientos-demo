@@ -21,12 +21,14 @@ const SAMPLES = 5, SAME = 0.6;
 const DUP = 0.45;
 /* Óvalo guía en el centro de la imagen: solo cuenta una cara que esté adentro y cerca de la cámara
    (así no se activa con alguien que pasa por atrás o al costado). Coordenadas de 0 a 1 de la imagen. */
-const OVAL = { cx: 0.5, cy: 0.47, rx: 0.2, ry: 0.33, minW: 0.2 };
+/* la cara cuenta (y el óvalo se pone verde) solo si está centrada: el centro de la cara a poca distancia del centro
+   del óvalo, y ni muy lejos (cara chica) ni pegada a la cámara */
+const OVAL = { cx: 0.5, cy: 0.47, rx: 0.11, ry: 0.14, minW: 0.2, maxW: 0.7 };
 const inOval = (f) => {
   const [x, y, w, h] = f.boxRaw || [];
   if (w === undefined) return false;
   const dx = (x + w / 2 - OVAL.cx) / OVAL.rx, dy = (y + h / 2 - OVAL.cy) / OVAL.ry;
-  return dx * dx + dy * dy <= 1 && w >= OVAL.minW;
+  return dx * dx + dy * dy <= 1 && w >= OVAL.minW && w <= OVAL.maxW;
 };
 /* al elegir un socio de la búsqueda (o al terminar un registro), el cartel de recepción se queda este tiempo
    para no tapar lo que se está mirando (la cámara sigue reconociendo); mientras se escribe, solo unos segundos */
@@ -123,7 +125,7 @@ export function accessOf(u) {
 
 const hhmm = (ts) => new Date(ts).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 const todayIn = (u) => (S.db.checkins || []).find((c) => c.userId === u.id && new Date(c.at).toDateString() === new Date().toDateString());
-/* botón o aviso de la entrada de hoy (puede venir más de una vez: pasadas 2 h se puede registrar otra) */
+/* botón o aviso de la entrada de hoy (puede venir más de una vez: pasados 30 min se puede registrar otra) */
 function entryHtml(u, asistOff) {
   if (asistOff) return "";
   const hoy = (S.db.checkins || []).filter((c) => c.userId === u.id && new Date(c.at).toDateString() === new Date().toDateString()).sort((a, b) => a.at - b.at);
@@ -247,16 +249,19 @@ async function loop() {
     /* si hay más de una cara, la más grande (la que está más cerca de la cámara) */
     const faces = (res.face || []).slice().sort((a, b) => (b.box?.[2] || 0) * (b.box?.[3] || 0) - (a.box?.[2] || 0) * (a.box?.[3] || 0));
     const f = faces.filter(inOval)[0];
-    ui?.oval(!!f);
-    if (E.ovalOn !== !!f) { E.ovalOn = !!f; toScreen({ t: "oval", on: E.ovalOn }); }
+    /* verde mientras la cara está centrada; se apaga cuando se va (una lectura fallida suelta no lo hace parpadear) */
+    E.ovalMiss = f ? 0 : (E.ovalMiss || 0) + 1;
+    const lit = !!f || (E.ovalOn && E.ovalMiss < 3);
+    ui?.oval(lit);
+    if (E.ovalOn !== lit) { E.ovalOn = lit; toScreen({ t: "oval", on: lit }); }
     /* terminó de atender: el cartel de recepción vuelve a mostrar la cámara */
     if (E.holdUntil && !holding() && !E.enrollFor) { E.holdUntil = 0; E.cam = null; showResult(IDLE); }
     if (E.enrollFor) { if (f) await enrollStep(f, faces.length); else if (E.capturing) say("Que ponga la cara dentro del óvalo, cerca de la cámara…"); }
-    else if (!f) { say(faces.length ? "Poné la cara dentro del óvalo, cerca de la cámara…" : "Esperando una cara frente a la cámara…"); E.count = 0; E.unknown = 0; camExpire(); }
+    else if (!f) { say(faces.length ? "Poné la cara en el centro del óvalo, cerca de la cámara…" : "Esperando una cara frente a la cámara…"); E.count = 0; E.unknown = 0; camExpire(); }
     else if (f.embedding?.length) {
+      /* sin ningún rostro registrado también se le avisa a la persona que no la reconoce */
       const list = known();
-      if (!list.length) say("Todavía no hay rostros registrados. Registrá uno buscando al socio por DNI.");
-      else {
+      {
         /* parecido con cada rostro registrado: el mejor tiene que superar el mínimo y sacarle ventaja al segundo */
         const order = list.map((x, i) => [sim(f.embedding, S.faceOf(x.id).emb), i]).sort((a, b) => b[0] - a[0]);
         const [best = 0, bi = -1] = order[0] || [], second = order[1]?.[0] || 0;

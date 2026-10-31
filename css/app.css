@@ -1548,3 +1548,5 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .mrow.ent.pasaron { box-shadow: inset 3px 0 0 var(--warn); }
 .statrow .warn b { color: var(--warn); }
 .statrow .bad b { color: var(--bad); }
+#rc-sound { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 61; display: flex; gap: 8px; align-items: center; padding: 10px 16px; border-radius: 999px; background: var(--card); color: inherit; border: 1px solid var(--line); box-shadow: 0 8px 28px rgba(0, 0, 0, .3); cursor: pointer; font-weight: 600; animation: rcIn .25s ease-out; }
+@media (max-width: 767px) { #rc-sound { bottom: calc(82px + env(safe-area-inset-bottom)); } }

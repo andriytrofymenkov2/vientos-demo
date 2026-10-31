@@ -22,6 +22,8 @@ async function check(auto) {
   if (!current || !navigator.onLine) return;
   /* En la pantalla de instalación no se recarga ni se avisa: se cortaría la instalación */
   if (location.hash.startsWith("#/instalar")) return;
+  /* la pantalla de los socios tampoco: la ve la gente (se actualiza la próxima vez que se abre) */
+  if (location.hash.startsWith("#/pantalla")) return;
   /* en Recepción con la cámara prendida no se recarga sola: se avisa con el botón "Actualizar" */
   if (location.hash.startsWith("#/panel/recepcion") || location.hash.startsWith("#/pantalla")) auto = false;
   const v = await published();

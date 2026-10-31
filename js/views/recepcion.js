@@ -42,6 +42,18 @@ const SOUND_KEY = "vientos_recepcion_sonido";
 const soundOn = () => { try { return localStorage.getItem(SOUND_KEY) !== "0"; } catch { return true; } };
 let actx = null;
 const audio = () => { try { actx ||= new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume(); } catch { actx = null; } return actx; };
+/* El navegador no deja sonar nada hasta que alguien toca la página. Si la cámara se prendió sola (al abrir o
+   después de recargarse), se avisa con un cartelito y el primer toque en cualquier parte activa el sonido */
+const activated = () => navigator.userActivation ? navigator.userActivation.hasBeenActive : true;
+function soundGate() {
+  if (activated() || !soundOn() || document.getElementById("rc-sound")) return;
+  const b = document.createElement("button");
+  b.id = "rc-sound"; b.type = "button"; b.className = "no-print";
+  b.innerHTML = `${icon("sound", "sm")} Tocá acá para activar la voz de bienvenida`;
+  document.body.appendChild(b);
+  const unlock = () => { audio(); try { speechSynthesis.speak(new SpeechSynthesisUtterance(" ")); } catch { /* sin voz */ } b.remove(); removeEventListener("pointerdown", unlock, true); removeEventListener("keydown", unlock, true); };
+  addEventListener("pointerdown", unlock, true); addEventListener("keydown", unlock, true);
+}
 function tones(notes) {
   const a = audio(); if (!a) return;
   let t = a.currentTime + 0.02;
@@ -369,6 +381,7 @@ export async function startCamera() {
     E.video.srcObject = E.stream; await E.video.play();
     ui?.attach();
     say("Esperando una cara frente a la cámara…");
+    soundGate();
     /* muchos celulares hacen las cuentas de la placa de video con menos decimales: la huella sale menos precisa */
     let low = false;
     try { low = human.tf.getBackend() === "webgl" && !human.tf.env().getBool("WEBGL_RENDER_FLOAT32_CAPABLE"); } catch { /* sin datos */ }

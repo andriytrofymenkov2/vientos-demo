@@ -23,7 +23,7 @@ async function check(auto) {
   /* En la pantalla de instalación no se recarga ni se avisa: se cortaría la instalación */
   if (location.hash.startsWith("#/instalar")) return;
   /* en Recepción con la cámara prendida no se recarga sola: se avisa con el botón "Actualizar" */
-  if (location.hash.startsWith("#/panel/recepcion")) auto = false;
+  if (location.hash.startsWith("#/panel/recepcion") || location.hash.startsWith("#/pantalla")) auto = false;
   const v = await published();
   if (!v || v === current) return;
   if (auto === "boot") {

@@ -8,6 +8,7 @@ import { esc, fold, fmtDate, plural, $, $$ } from "../core/util.js";
 import * as S from "../core/store.js";
 import { avatar, toast, pageHead } from "../core/ui.js";
 import { me } from "../core/auth.js";
+import { SCREEN_CHANNEL } from "./pantalla.js";
 
 /* similitud mínima para decir "es tal socio" y cuántas lecturas seguidas iguales hacen falta */
 const MATCH = 0.55, STABLE = 2;
@@ -137,6 +138,7 @@ export function recepcionView() {
           <div class="rc-video"><video data-video playsinline muted></video><div class="rc-oval" data-oval aria-hidden="true"></div><div class="rc-overlay" data-status>Tocá “Prender cámara” para empezar.</div></div>
           <div class="row-btns"><button class="btn primary" type="button" data-start>${icon("play", "sm")} Prender cámara</button><button class="btn ghost" type="button" data-stop hidden>${icon("pause", "sm")} Apagar</button><button class="btn ghost" type="button" data-sound aria-pressed="${soundOn()}">${icon(soundOn() ? "sound" : "mute", "sm")} Sonido: ${soundOn() ? "sí" : "no"}</button></div>
           <label class="field rc-voice"><span>Voz</span><div class="rc-voice-row"><select data-voice></select><button class="btn ghost sm" type="button" data-try>${icon("sound", "sm")} Probar</button></div></label>
+          <div class="rc-screen"><button class="btn ghost sm" type="button" data-screen>${icon("ext", "sm")} Abrir pantalla para socios</button><small class="muted">Se abre en otra ventana: arrastrala al monitor que mira la gente y tocá “Pantalla completa”. Muestra solo la cámara y el saludo.</small></div>
           <details class="rc-list" data-list><summary data-enrolled-sum>Rostros registrados</summary><div data-faces></div></details>
           <p class="muted tiny">La cámara corre en esta computadora: no se guardan fotos ni videos. Solo reconoce a los socios que aceptaron el reconocimiento facial y tienen su rostro registrado.</p>`}
         </section>
@@ -160,8 +162,12 @@ export function recepcionView() {
       let cam = null, unknown = 0, lastUnknownVoice = 0, pausedUntil = 0;
       const pause = () => { pausedUntil = Date.now() + PAUSE; cam = null; };                     /* cam = { id, seen } de lo que está mostrando la cámara */
       /* muestra el cartel y suena una sola vez por persona (no en cada lectura) */
-      const camShow = (id, html, kind, name) => { if (cam?.id !== id) { result.innerHTML = html; announce(kind, name); } cam = { id, seen: Date.now() }; };
-      const camExpire = () => { if (cam && Date.now() - cam.seen > HOLD) { result.innerHTML = IDLE; cam = null; } };
+      /* canal con la pantalla de los socios (otra ventana en el monitor de la entrada) */
+      const screen = "BroadcastChannel" in window ? new BroadcastChannel(SCREEN_CHANNEL) : null;
+      const toScreen = (m) => { try { screen?.postMessage(m); } catch { /* sin pantalla */ } };
+      let ovalOn = null;
+      const camShow = (id, html, kind, name) => { if (cam?.id !== id) { result.innerHTML = html; announce(kind, name); toScreen({ t: "show", kind, name, gym: gymName() }); } cam = { id, seen: Date.now() }; };
+      const camExpire = () => { if (cam && Date.now() - cam.seen > HOLD) { result.innerHTML = IDLE; cam = null; toScreen({ t: "idle" }); } };
       /* lista de rostros registrados: se puede borrar uno que quedó mal (después se vuelve a registrar) */
       function refreshList() {
         const box = $("[data-faces]", host), sum = $("[data-enrolled-sum]", host), n = enrolled();
@@ -182,6 +188,7 @@ export function recepcionView() {
           const inside = faces.filter(inOval);
           const f = inside[0];
           $("[data-oval]", host)?.classList.toggle("on", !!f);
+          if (ovalOn !== !!f) { ovalOn = !!f; toScreen({ t: "oval", on: ovalOn }); }
           if (enrollFor) { if (f) await enrollStep(f, faces.length); else if (capturing) say("Que ponga la cara dentro del óvalo, cerca de la cámara…"); }
           else if (Date.now() < pausedUntil) say(`Reconocimiento en pausa mientras usás la búsqueda. <button type="button" class="linkbtn" data-resume>Seguir reconociendo</button>`);
           else if (!f) { say(faces.length ? "Poné la cara dentro del óvalo, cerca de la cámara…" : "Esperando una cara frente a la cámara…"); count = 0; unknown = 0; camExpire(); }
@@ -240,10 +247,12 @@ export function recepcionView() {
           <li>Que no haya nadie más en la imagen (tampoco quien atiende).</li><li>Buena luz de frente, sin gorra ni anteojos oscuros.</li></ol>
           <div class="row-btns"><button class="btn primary" type="button" data-go>${icon("play", "sm")} Empezar</button><button class="btn ghost" type="button" data-cancel>Cancelar</button></div>`);
         say(`Registro de <b>${esc(u.name)}</b>: que se ponga solo/a frente a la cámara y tocá “Empezar”.`);
+        toScreen({ t: "enroll", big: `Hola ${u.name.split(" ")[0]}`, small: "Ponete solo/a frente a la cámara, dentro del óvalo" });
       }
-      function cancelEnroll(msg) { enrollFor = null; samples = []; capturing = false; if (msg) { enrollPanel(msg); pause(); } else pausedUntil = 0; say("Esperando una cara frente a la cámara…"); }
+      function cancelEnroll(msg) {
+        toScreen({ t: "idle" }); enrollFor = null; samples = []; capturing = false; if (msg) { enrollPanel(msg); pause(); } else pausedUntil = 0; say("Esperando una cara frente a la cámara…"); }
       async function countdown() {
-        for (const n of [3, 2, 1]) { say(`Registrando a <b>${esc(enrollFor.name)}</b> en ${n}…`); await new Promise((r) => setTimeout(r, 700)); if (!enrollFor) return; }
+        for (const n of [3, 2, 1]) { say(`Registrando a <b>${esc(enrollFor.name)}</b> en ${n}…`); toScreen({ t: "enroll", big: String(n), small: "Mirá de frente a la cámara, sin moverte" }); await new Promise((r) => setTimeout(r, 700)); if (!enrollFor) return; }
         samples = []; capturing = true;
       }
       async function enrollStep(f, n) {
@@ -267,6 +276,7 @@ export function recepcionView() {
         S.api.saveFace(u.id, Array.from(emb));
         enrollFor = null; samples = [];
         toast(`Rostro de ${u.name.split(" ")[0]} registrado`);
+        toScreen({ t: "enroll", big: "¡Listo!", small: "Tu rostro quedó registrado" }); setTimeout(() => toScreen({ t: "idle" }), 2500);
         show(u, `<small class="rc-ok">${icon("checkc", "xs")} Rostro registrado. Para probar: que se aleje y vuelva a mirar a la cámara.</small>`);
         refreshList();
         pause();
@@ -331,6 +341,10 @@ export function recepcionView() {
       /* el navegador no deja sonar hasta el primer toque en la página: cualquier clic lo habilita */
       host.addEventListener("pointerdown", () => audio(), { once: true });
       $("[data-stop]", host)?.addEventListener("click", () => stop(true));
+      $("[data-screen]", host)?.addEventListener("click", () => {
+        const w = window.open(`${location.pathname}${location.search}#/pantalla`, "vientos-pantalla", "popup,width=1000,height=700");
+        if (!w) toast("El navegador bloqueó la ventana: permití las ventanas emergentes para esta página.", "err");
+      });
       status?.addEventListener("click", (e) => { if (e.target.closest("[data-resume]")) { pausedUntil = 0; result.innerHTML = IDLE; say("Esperando una cara frente a la cámara…"); } });
       refreshList();
       $("[data-faces]", host)?.addEventListener("click", (e) => {
@@ -378,7 +392,7 @@ export function recepcionView() {
         if (!stream) await start();
         askEnroll(S.user(b.dataset.enroll));
       });
-      return () => { clearInterval(syncT); document.removeEventListener("visibilitychange", onVisible); stop(false); };
+      return () => { screen?.close(); clearInterval(syncT); document.removeEventListener("visibilitychange", onVisible); stop(false); };
     },
   };
 }

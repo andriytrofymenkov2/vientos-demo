@@ -96,7 +96,7 @@ export function shell(layout, nav) {
   const r = root();
   if (layout !== shellLayout || layout === "app" || layout === "panel") {
     shellLayout = layout;
-    if (layout === "auth" || layout === "focus" || layout === "print") {
+    if (layout === "auth" || layout === "focus" || layout === "print" || layout === "kiosk") {
       r.className = "layout-" + layout;
       r.innerHTML = `<main id="view" class="view"></main>`;
     } else if (layout === "panel") {

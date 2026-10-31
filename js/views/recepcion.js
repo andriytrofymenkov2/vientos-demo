@@ -122,206 +122,241 @@ function entryHtml(u, asistOff) {
 }
 const resultCard = (u, extra = "") => { const a = accessOf(u); return `<div class="rc-card ${a.cls}">${avatar(u, "xl")}<div class="rc-info"><span class="rc-name">${esc(u.name)}</span><small>DNI ${esc(u.user || "—")}</small><b class="rc-head">${icon(a.cls === "bad" ? "x" : a.cls === "warn" ? "alert" : "checkc", "sm")} ${esc(a.head)}</b><small>${esc(a.sub)}</small>${extra}</div></div>`; };
 
+/* ---------------------------------------------------------------------------------------------------------
+   Motor de reconocimiento: vive fuera de la pantalla Recepción. Una vez prendida la cámara, sigue reconociendo,
+   saludando, registrando entradas y avisando a la pantalla de los socios aunque quien atiende se vaya a otra
+   parte del panel (cargar un socio, cobrar, ver el resumen). Solo se apaga con "Apagar".
+   La pantalla Recepción, cuando está abierta, se "engancha" (ui) para mostrar el video, el resultado y los botones.
+   --------------------------------------------------------------------------------------------------------- */
+const faceOff = () => S.MODE === "supabase" && !!S.db.off?.rostros;
+const asistOff = () => S.MODE === "supabase" && !!S.db.off?.asistencia;
+const todayCount = () => S.checkinsOf().filter((c) => new Date(c.at).toDateString() === new Date().toDateString()).length;
+const socios = () => S.activeMembers().filter((u) => S.inSpace(u) && u.status === "activo");
+const enrolled = () => socios().filter((u) => S.faceOf(u.id)).length;
+const known = () => socios().filter((u) => S.faceConsent(u) && S.faceOf(u.id));
+const IDLE = `<p class="muted">Acá aparece el socio reconocido o el que busques por DNI.</p>`;
+/* el cartel se borra 1,5 s después de que la persona sale del óvalo; si entra el siguiente, cambia enseguida */
+const HOLD = 1500;
+const CAM_KEY = "vientos_recepcion_camara";
+const wanted = () => { try { return localStorage.getItem(CAM_KEY) === "1"; } catch { return false; } };
+const want = (on) => { try { localStorage.setItem(CAM_KEY, on ? "1" : "0"); } catch { /* sin almacenamiento */ } };
+
+const E = {
+  stream: null, video: null, timer: 0, wake: null, sync: 0, starting: false,
+  last: null, count: 0, unknown: 0, cam: null, lastUnknownVoice: 0, pausedUntil: 0, ovalOn: null,
+  enrollFor: null, samples: [], capturing: false, status: "Tocá “Prender cámara” para empezar.",
+};
+/* lo que la pantalla Recepción muestra cuando está abierta (si no, no hace nada) */
+let ui = null;
+const say = (html) => { E.status = html; ui?.say(html); };
+const showResult = (html) => ui?.result(html);
+const screen = "BroadcastChannel" in window ? new BroadcastChannel(SCREEN_CHANNEL) : null;
+const toScreen = (m) => { try { screen?.postMessage(m); } catch { /* sin pantalla */ } };
+const sim = (a, b) => human.match.similarity(a, b);
+const pause = () => { E.pausedUntil = Date.now() + PAUSE; E.cam = null; };
+
+/* muestra el cartel y suena una sola vez por persona (no en cada lectura) */
+function camShow(id, html, kind, name) {
+  if (E.cam?.id !== id) { showResult(html); announce(kind, name); toScreen({ t: "show", kind, name, gym: gymName() }); }
+  E.cam = { id, seen: Date.now() };
+}
+function camExpire() { if (E.cam && Date.now() - E.cam.seen > HOLD) { showResult(IDLE); E.cam = null; toScreen({ t: "idle" }); } }
+
+async function loop() {
+  if (!E.stream) return;
+  try {
+    const res = await human.detect(E.video);
+    /* si hay más de una cara, la más grande (la que está más cerca de la cámara) */
+    const faces = (res.face || []).slice().sort((a, b) => (b.box?.[2] || 0) * (b.box?.[3] || 0) - (a.box?.[2] || 0) * (a.box?.[3] || 0));
+    const f = faces.filter(inOval)[0];
+    ui?.oval(!!f);
+    if (E.ovalOn !== !!f) { E.ovalOn = !!f; toScreen({ t: "oval", on: E.ovalOn }); }
+    if (E.enrollFor) { if (f) await enrollStep(f, faces.length); else if (E.capturing) say("Que ponga la cara dentro del óvalo, cerca de la cámara…"); }
+    else if (Date.now() < E.pausedUntil) say(`Reconocimiento en pausa mientras usás la búsqueda. <button type="button" class="linkbtn" data-resume>Seguir reconociendo</button>`);
+    else if (!f) { say(faces.length ? "Poné la cara dentro del óvalo, cerca de la cámara…" : "Esperando una cara frente a la cámara…"); E.count = 0; E.unknown = 0; camExpire(); }
+    else if (f.embedding?.length) {
+      const list = known();
+      if (!list.length) say("Todavía no hay rostros registrados. Registrá uno buscando al socio por DNI.");
+      else {
+        /* parecido con cada rostro registrado: el mejor tiene que superar el mínimo y sacarle ventaja al segundo */
+        const order = list.map((x, i) => [sim(f.embedding, S.faceOf(x.id).emb), i]).sort((a, b) => b[0] - a[0]);
+        const [best = 0, bi = -1] = order[0] || [], second = order[1]?.[0] || 0;
+        const clear = best - second >= MARGIN;
+        const u = best >= MATCH && clear ? list[bi] : null;
+        const fake = typeof f.real === "number" && f.real < 0.5;
+        E.count = u && u.id === E.last ? E.count + 1 : 1; E.last = u?.id || null;
+        E.unknown = u ? 0 : E.unknown + 1;
+        if (u && E.count >= STABLE) {
+          /* entra solo si puede pasar y no parece una foto; si no, recepción decide con el botón */
+          if (E.cam?.id !== u.id && !asistOff() && !fake && accessOf(u).cls !== "bad" && S.api.checkIn(u.id, "cara", me()?.id)) ui?.today();
+          camShow(u.id, resultCard(u, (fake ? `<small class="rc-warn">${icon("alert", "xs")} Ojo: podría ser una foto o una pantalla.</small>` : "") + entryHtml(u, asistOff())), fake ? "unknown" : accessOf(u).cls, u.name);
+          /* la huella acompaña los cambios de la cara (barba, pelo, anteojos): si lo reconoce con mucha
+             seguridad y no es una foto, se ajusta un poco, como mucho una vez por día */
+          const fr = S.faceOf(u.id);
+          if (!fake && best >= 0.75 && best - second >= 0.15 && fr && fr.upd !== new Date().toDateString()) {
+            /* mismo promedio que al registrarla (90 % lo guardado + 10 % la lectura de hoy) */
+            S.api.saveFace(u.id, fr.emb.map((v, i) => v * 0.9 + f.embedding[i] * 0.1), { upd: new Date().toDateString(), since: fr.since || fr.at });
+          }
+          say(`Reconocido: <b>${esc(u.name)}</b> (${Math.round(best * 100)} %)`);
+        } else if (!u && E.unknown >= STABLE) {
+          /* otra persona que no está registrada: el cartel cambia enseguida */
+          const dudoso = best >= MATCH && !clear;
+          const voice = Date.now() - E.lastUnknownVoice > 20000;
+          camShow("?", `<div class="rc-card none">${icon("user", "lg")}<div class="rc-info"><span class="rc-name">${dudoso ? "No estoy seguro" : "No reconocido"}</span><b class="rc-head">Buscalo por DNI</b><small>${dudoso ? "Se parece a más de un socio registrado." : "No está registrado o no lo reconozco bien."}</small></div></div>`, voice ? "unknown" : "silent");
+          if (voice) E.lastUnknownVoice = Date.now();
+          say(dudoso ? "No estoy seguro de quién es. Buscalo por DNI." : "No lo reconozco. Buscalo por DNI.");
+        }
+      }
+    }
+  } catch (e) { console.warn(e); }
+  E.timer = setTimeout(loop, 250);
+}
+
+/* Registrar el rostro, guiado: se pausa el reconocimiento, la persona se pone SOLA frente a la cámara,
+   recepción toca "Empezar", cuenta 3-2-1 y toma 5 lecturas. No guarda si hay dos caras, si las lecturas
+   no son de la misma persona o si esa cara ya está registrada como otro socio. */
+const enrollPanel = (html) => showResult(`<div class="rc-enroll">${html}</div>`);
+function askEnroll(u) {
+  E.enrollFor = u; E.samples = []; E.capturing = false; E.cam = null;
+  enrollPanel(`<b class="rc-name">Registrar el rostro de ${esc(u.name)}</b>
+    <ol><li>Que <b>${esc(u.name.split(" ")[0])}</b> se ponga <b>solo/a</b> frente a la cámara, a medio metro, mirando de frente.</li>
+    <li>Que no haya nadie más en la imagen (tampoco quien atiende).</li><li>Buena luz de frente, sin gorra ni anteojos oscuros.</li></ol>
+    <div class="row-btns"><button class="btn primary" type="button" data-go>${icon("play", "sm")} Empezar</button><button class="btn ghost" type="button" data-cancel>Cancelar</button></div>`);
+  say(`Registro de <b>${esc(u.name)}</b>: que se ponga solo/a frente a la cámara y tocá “Empezar”.`);
+  toScreen({ t: "enroll", big: `Hola ${u.name.split(" ")[0]}`, small: "Ponete solo/a frente a la cámara, dentro del óvalo" });
+}
+function cancelEnroll(msg) {
+  toScreen({ t: "idle" }); E.enrollFor = null; E.samples = []; E.capturing = false;
+  if (msg) { enrollPanel(msg); pause(); } else E.pausedUntil = 0;
+  say("Esperando una cara frente a la cámara…");
+}
+async function countdown() {
+  for (const n of [3, 2, 1]) {
+    if (!E.enrollFor) return;
+    say(`Registrando a <b>${esc(E.enrollFor.name)}</b> en ${n}…`); toScreen({ t: "enroll", big: String(n), small: "Mirá de frente a la cámara, sin moverte" });
+    await new Promise((r) => setTimeout(r, 700));
+  }
+  E.samples = []; E.capturing = true;
+}
+async function enrollStep(f, n) {
+  if (!E.capturing) return;                                   /* esperando que toquen "Empezar" */
+  if (n > 1) { say("Hay más de una persona en la imagen: que quede solo/a el socio."); E.samples = []; return; }
+  if (!f.embedding?.length || (f.score ?? 1) < 0.7) { say("Mirá de frente a la cámara, con buena luz…"); return; }
+  if (E.samples.length && sim(E.samples[0], f.embedding) < SAME) { say("Se movió o cambió la persona: empiezo de nuevo."); E.samples = []; return; }
+  E.samples.push(f.embedding);
+  say(`Registrando el rostro de <b>${esc(E.enrollFor.name)}</b>… ${E.samples.length} de ${SAMPLES}`);
+  if (E.samples.length < SAMPLES) return;
+  E.capturing = false;
+  const emb = E.samples[0].map((_, i) => E.samples.reduce((a, x) => a + x[i], 0) / E.samples.length);
+  /* ¿esa cara ya es de otro socio? (por ejemplo, quedó quien atiende frente a la cámara) */
+  const dup = known().filter((x) => x.id !== E.enrollFor.id).map((x) => [sim(emb, S.faceOf(x.id).emb), x]).sort((a, b) => b[0] - a[0])[0];
+  if (dup && dup[0] >= MATCH) {
+    const who = dup[1], first = E.enrollFor.name.split(" ")[0];
+    return cancelEnroll(`<div class="rc-card bad"><div class="rc-info"><span class="rc-name">No se registró</span><b class="rc-head">${icon("alert", "sm")} Esa cara ya es de ${esc(who.name)}</b><small>Parece que frente a la cámara estaba ${esc(who.name.split(" ")[0])} y no ${esc(first)}. Probá de nuevo con ${esc(first)} solo/a frente a la cámara.</small></div></div>`);
+  }
+  const u = E.enrollFor;
+  S.api.saveFace(u.id, Array.from(emb));
+  E.enrollFor = null; E.samples = [];
+  toast(`Rostro de ${u.name.split(" ")[0]} registrado`);
+  toScreen({ t: "enroll", big: "¡Listo!", small: "Tu rostro quedó registrado" }); setTimeout(() => toScreen({ t: "idle" }), 2500);
+  showResult(resultCard(u, `<small class="rc-ok">${icon("checkc", "xs")} Rostro registrado. Para probar: que se aleje y vuelva a mirar a la cámara.</small>`));
+  ui?.list();
+  pause();
+  say("Rostro registrado. El reconocimiento sigue en unos segundos (o tocá “Seguir reconociendo”).");
+}
+
+/* la cámara queda prendida hasta que recepción la apague: se recuerda en este equipo y, si se recarga la página,
+   vuelve a prenderse sola (sin importar en qué parte del panel esté). La pantalla no se apaga mientras tanto. */
+const keepAwake = async () => { try { E.wake = await navigator.wakeLock?.request("screen"); } catch { E.wake = null; } };
+export async function startCamera() {
+  if (E.stream || E.starting || faceOff()) return;
+  E.starting = true; want(true); ui?.buttons();
+  say("Cargando el reconocimiento facial… (la primera vez tarda unos segundos)");
+  try {
+    await loadHuman();
+    if (S.MODE === "supabase") { try { await S.remote().reloadFaces(); ui?.list(); } catch (err) { console.warn(err); } }
+    E.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+    if (!E.video) { E.video = document.createElement("video"); E.video.muted = true; E.video.playsInline = true; }
+    E.video.srcObject = E.stream; await E.video.play();
+    ui?.attach();
+    say("Esperando una cara frente a la cámara…");
+    keepAwake();
+    /* si la cámara se corta sola (se desenchufó, la tomó otro programa), se intenta prender de nuevo */
+    E.stream.getVideoTracks()[0]?.addEventListener("ended", () => { E.stream = null; if (wanted()) setTimeout(startCamera, 2000); });
+    /* con servidor: cada minuto trae los rostros que registraron otros equipos */
+    clearInterval(E.sync);
+    if (S.MODE === "supabase") E.sync = setInterval(async () => { try { await S.remote().reloadFaces(); ui?.list(); } catch (err) { console.warn(err); } }, 60000);
+    loop();
+  } catch (e) {
+    console.warn(e); E.stream = null;
+    say(e?.name === "NotAllowedError" ? "No hay permiso para usar la cámara. Permitilo en el navegador (ícono de la cámara, arriba)." : "No se pudo prender la cámara. Revisá que esté conectada.");
+  } finally { E.starting = false; ui?.buttons(); }
+}
+export function stopCamera() {
+  want(false);
+  clearTimeout(E.timer); clearInterval(E.sync);
+  try { E.wake?.release(); } catch { /* nada */ } E.wake = null;
+  E.stream?.getTracks().forEach((t) => t.stop()); E.stream = null;
+  if (E.video) E.video.srcObject = null;
+  E.enrollFor = null; E.capturing = false; E.cam = null;
+  toScreen({ t: "idle" }); ui?.attach(); ui?.buttons();
+  say("Cámara apagada.");
+}
+export const cameraOn = () => !!E.stream;
+/* al abrir la app (en cualquier pantalla del panel): si la cámara había quedado prendida en este equipo, se prende */
+export function resumeCamera() { if (wanted() && !E.stream) startCamera(); }
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && wanted()) { if (!E.stream) startCamera(); else keepAwake(); } });
+
 export function recepcionView() {
-  const faceOff = S.MODE === "supabase" && S.db.off?.rostros;
-  const asistOff = S.MODE === "supabase" && S.db.off?.asistencia;
-  const todayCount = () => S.checkinsOf().filter((c) => new Date(c.at).toDateString() === new Date().toDateString()).length;
-  const socios = () => S.activeMembers().filter((u) => S.inSpace(u) && u.status === "activo");
-  const enrolled = () => socios().filter((u) => S.faceOf(u.id)).length;
   return {
     layout: "panel", nav: "recepcion", title: "Recepción",
     html: `${pageHead({ title: "Recepción", kicker: "Entrada del gimnasio" })}
       <div class="rc-grid">
         <section class="card rc-cam">
           <div class="card-h"><h2>${icon("eye", "sm")} Reconocimiento facial</h2><span class="muted" data-enrolled>${plural(enrolled(), "rostro registrado", "rostros registrados")}</span></div>
-          ${faceOff ? `<p class="muted">El reconocimiento facial todavía no está activado en el servidor. Mientras tanto, buscá al socio por DNI.</p>` : `
-          <div class="rc-video"><video data-video playsinline muted></video><div class="rc-oval" data-oval aria-hidden="true"></div><div class="rc-overlay" data-status>Tocá “Prender cámara” para empezar.</div></div>
+          ${faceOff() ? `<p class="muted">El reconocimiento facial todavía no está activado en el servidor. Mientras tanto, buscá al socio por DNI.</p>` : `
+          <div class="rc-video"><video data-video playsinline muted></video><div class="rc-oval" data-oval aria-hidden="true"></div><div class="rc-overlay" data-status>${E.status}</div></div>
           <div class="row-btns"><button class="btn primary" type="button" data-start>${icon("play", "sm")} Prender cámara</button><button class="btn ghost" type="button" data-stop hidden>${icon("pause", "sm")} Apagar</button><button class="btn ghost" type="button" data-sound aria-pressed="${soundOn()}">${icon(soundOn() ? "sound" : "mute", "sm")} Sonido: ${soundOn() ? "sí" : "no"}</button></div>
+          <p class="muted tiny">Una vez prendida, la cámara sigue reconociendo aunque vayas a otra parte del panel. Se apaga solo con “Apagar”.</p>
           <label class="field rc-voice"><span>Voz</span><div class="rc-voice-row"><select data-voice></select><button class="btn ghost sm" type="button" data-try>${icon("sound", "sm")} Probar</button></div></label>
           <div class="rc-screen"><button class="btn ghost sm" type="button" data-screen>${icon("ext", "sm")} Abrir pantalla para socios</button><small class="muted">Se abre en otra ventana: arrastrala al monitor que mira la gente y tocá “Pantalla completa”. Muestra solo la cámara y el saludo.</small></div>
           <details class="rc-list" data-list><summary data-enrolled-sum>Rostros registrados</summary><div data-faces></div></details>
           <p class="muted tiny">La cámara corre en esta computadora: no se guardan fotos ni videos. Solo reconoce a los socios que aceptaron el reconocimiento facial y tienen su rostro registrado.</p>`}
         </section>
         <section class="card">
-          <div class="card-h"><h2>${icon("search", "sm")} Resultado</h2>${asistOff ? "" : `<span class="pill" data-today>Hoy entraron ${todayCount()}</span>`}</div>
-          <div data-result><p class="muted">Acá aparece el socio reconocido o el que busques por DNI.</p></div>
+          <div class="card-h"><h2>${icon("search", "sm")} Resultado</h2>${asistOff() ? "" : `<span class="pill" data-today>Hoy entraron ${todayCount()}</span>`}</div>
+          <div data-result>${IDLE}</div>
           <label class="search rc-search">${icon("search", "sm")}<input type="search" data-q placeholder="Buscar por DNI o nombre" aria-label="Buscar socio" autocomplete="off"></label>
           <div data-found></div>
         </section>
       </div>`,
     mount(host) {
       const video = $("[data-video]", host), status = $("[data-status]", host), result = $("[data-result]", host);
-      let stream = null, timer = 0, last = null, count = 0, enrollFor = null;
-      const say = (t) => { if (status) status.innerHTML = t; };
-      const known = () => socios().filter((u) => S.faceConsent(u) && S.faceOf(u.id));
       const show = (u, extra) => { result.innerHTML = resultCard(u, extra); };
-      /* lo que muestra la cámara se borra solo 1,5 s después de que la persona sale de cuadro; si entra el siguiente
-         de la fila, el cartel y la voz cambian enseguida a esa persona */
-      const IDLE = `<p class="muted">Acá aparece el socio reconocido o el que busques por DNI.</p>`;
-      const HOLD = 1500;
-      let cam = null, unknown = 0, lastUnknownVoice = 0, pausedUntil = 0;
-      const pause = () => { pausedUntil = Date.now() + PAUSE; cam = null; };                     /* cam = { id, seen } de lo que está mostrando la cámara */
-      /* muestra el cartel y suena una sola vez por persona (no en cada lectura) */
-      /* canal con la pantalla de los socios (otra ventana en el monitor de la entrada) */
-      const screen = "BroadcastChannel" in window ? new BroadcastChannel(SCREEN_CHANNEL) : null;
-      const toScreen = (m) => { try { screen?.postMessage(m); } catch { /* sin pantalla */ } };
-      let ovalOn = null;
-      const camShow = (id, html, kind, name) => { if (cam?.id !== id) { result.innerHTML = html; announce(kind, name); toScreen({ t: "show", kind, name, gym: gymName() }); } cam = { id, seen: Date.now() }; };
-      const camExpire = () => { if (cam && Date.now() - cam.seen > HOLD) { result.innerHTML = IDLE; cam = null; toScreen({ t: "idle" }); } };
+      /* se engancha al motor: desde ahora lo que pase en la cámara se ve en esta pantalla */
+      ui = {
+        say: (html) => { if (status) status.innerHTML = html; },
+        result: (html) => { result.innerHTML = html; },
+        oval: (on) => $("[data-oval]", host)?.classList.toggle("on", on),
+        today: () => { const t = $("[data-today]", host); if (t) t.textContent = `Hoy entraron ${todayCount()}`; },
+        attach: () => { if (video) { video.srcObject = E.stream || null; if (E.stream) video.play().catch(() => {}); } },
+        buttons: () => { const on = !!E.stream || E.starting; const st = $("[data-start]", host), sp = $("[data-stop]", host); if (st) { st.hidden = on; st.disabled = E.starting; } if (sp) sp.hidden = !on; },
+        list: refreshList,
+      };
+      ui.attach(); ui.buttons();
       /* lista de rostros registrados: se puede borrar uno que quedó mal (después se vuelve a registrar) */
       function refreshList() {
         const box = $("[data-faces]", host), sum = $("[data-enrolled-sum]", host), n = enrolled();
-        $("[data-enrolled]", host) && ($("[data-enrolled]", host).textContent = plural(n, "rostro registrado", "rostros registrados"));
+        const head = $("[data-enrolled]", host); if (head) head.textContent = plural(n, "rostro registrado", "rostros registrados");
         if (sum) sum.textContent = `Ver los rostros registrados (${n})`;
         if (!box) return;
         const list = socios().filter((u) => S.faceOf(u.id)).sort((a, b) => a.name.localeCompare(b.name, "es"));
         box.innerHTML = list.map((u) => `<div class="mrow">${avatar(u, "sm")}<span><b>${esc(u.name)}</b><small>Registrado el ${esc(fmtDate(S.faceOf(u.id).since || S.faceOf(u.id).at))}</small></span><button class="btn ghost sm" type="button" data-unface="${u.id}">${icon("trash", "sm")} Borrar</button></div>`).join("") || `<p class="muted tiny">Todavía no hay rostros registrados.</p>`;
       }
-      const updateToday = () => { const t = $("[data-today]", host); if (t) t.textContent = `Hoy entraron ${todayCount()}`; };
+      refreshList();
 
-      async function loop() {
-        if (!stream) return;
-        try {
-          const res = await human.detect(video);
-          /* si hay más de una cara, la más grande (la que está más cerca de la cámara) */
-          const faces = (res.face || []).slice().sort((a, b) => (b.box?.[2] || 0) * (b.box?.[3] || 0) - (a.box?.[2] || 0) * (a.box?.[3] || 0));
-          const inside = faces.filter(inOval);
-          const f = inside[0];
-          $("[data-oval]", host)?.classList.toggle("on", !!f);
-          if (ovalOn !== !!f) { ovalOn = !!f; toScreen({ t: "oval", on: ovalOn }); }
-          if (enrollFor) { if (f) await enrollStep(f, faces.length); else if (capturing) say("Que ponga la cara dentro del óvalo, cerca de la cámara…"); }
-          else if (Date.now() < pausedUntil) say(`Reconocimiento en pausa mientras usás la búsqueda. <button type="button" class="linkbtn" data-resume>Seguir reconociendo</button>`);
-          else if (!f) { say(faces.length ? "Poné la cara dentro del óvalo, cerca de la cámara…" : "Esperando una cara frente a la cámara…"); count = 0; unknown = 0; camExpire(); }
-          else if (f.embedding?.length) {
-            const list = known();
-            if (!list.length) say("Todavía no hay rostros registrados. Registrá uno buscando al socio por DNI.");
-            else {
-              /* parecido con cada rostro registrado: el mejor tiene que superar el mínimo y sacarle ventaja al segundo */
-              const sims = list.map((x) => human.match.similarity(f.embedding, S.faceOf(x.id).emb));
-              const order = sims.map((v, i) => [v, i]).sort((a, b) => b[0] - a[0]);
-              const [best = 0, bi = -1] = order[0] || [], second = order[1]?.[0] || 0;
-              const m = { similarity: best, index: bi };
-              const clear = best - second >= MARGIN;
-              const u = best >= MATCH && clear ? list[bi] : null;
-              const fake = typeof f.real === "number" && f.real < 0.5;
-              count = u && u.id === last ? count + 1 : 1; last = u?.id || null;
-              unknown = u ? 0 : unknown + 1;
-              if (u && count >= STABLE) {
-                /* entra solo si puede pasar y no parece una foto; si no, recepción decide con el botón */
-                if (cam?.id !== u.id && !asistOff && !fake && accessOf(u).cls !== "bad" && S.api.checkIn(u.id, "cara", me()?.id)) updateToday();
-                const acc = accessOf(u);
-                camShow(u.id, resultCard(u, (fake ? `<small class="rc-warn">${icon("alert", "xs")} Ojo: podría ser una foto o una pantalla.</small>` : "") + entryHtml(u, asistOff)), fake ? "unknown" : acc.cls, u.name);
-                /* la huella acompaña los cambios de la cara (barba, pelo, anteojos): si lo reconoce con mucha
-                   seguridad y no es una foto, se ajusta un poco, como mucho una vez por día */
-                const fr = S.faceOf(u.id);
-                if (!fake && m.similarity >= 0.75 && best - second >= 0.15 && fr && fr.upd !== new Date().toDateString()) {
-                  /* mismo promedio que al registrarla (90 % lo guardado + 10 % la lectura de hoy) */
-                  const emb = fr.emb.map((v, i) => v * 0.9 + f.embedding[i] * 0.1);
-                  S.api.saveFace(u.id, emb, { upd: new Date().toDateString(), since: fr.since || fr.at });
-                }
-                say(`Reconocido: <b>${esc(u.name)}</b> (${Math.round(m.similarity * 100)} %)`);
-              }
-              else if (!u && unknown >= STABLE) {
-                /* otra persona que no está registrada: el cartel cambia enseguida */
-                const dudoso = best >= MATCH && !clear;
-                camShow("?", `<div class="rc-card none">${icon("user", "lg")}<div class="rc-info"><span class="rc-name">${dudoso ? "No estoy seguro" : "No reconocido"}</span><b class="rc-head">Buscalo por DNI</b><small>${dudoso ? "Se parece a más de un socio registrado." : "No está registrado o no lo reconozco bien."}</small></div></div>`, Date.now() - lastUnknownVoice > 20000 ? "unknown" : "silent");
-                if (Date.now() - lastUnknownVoice > 20000) lastUnknownVoice = Date.now();
-                say(dudoso ? "No estoy seguro de quién es. Buscalo por DNI." : "No lo reconozco. Buscalo por DNI.");
-              }
-            }
-          }
-        } catch (e) { console.warn(e); }
-        timer = setTimeout(loop, 250);
-      }
-
-      /* Registrar el rostro, guiado: se pausa el reconocimiento, la persona se pone SOLA frente a la cámara,
-         recepción toca "Empezar", cuenta 3-2-1 y toma 5 lecturas. No guarda si hay dos caras, si las lecturas
-         no son de la misma persona o si esa cara ya está registrada como otro socio. */
-      let samples = [], capturing = false;
-      const sim = (a, b) => human.match.similarity(a, b);
-      function enrollPanel(html) { result.innerHTML = `<div class="rc-enroll">${html}</div>`; }
-      function askEnroll(u) {
-        enrollFor = u; samples = []; capturing = false; cam = null;
-        enrollPanel(`<b class="rc-name">Registrar el rostro de ${esc(u.name)}</b>
-          <ol><li>Que <b>${esc(u.name.split(" ")[0])}</b> se ponga <b>solo/a</b> frente a la cámara, a medio metro, mirando de frente.</li>
-          <li>Que no haya nadie más en la imagen (tampoco quien atiende).</li><li>Buena luz de frente, sin gorra ni anteojos oscuros.</li></ol>
-          <div class="row-btns"><button class="btn primary" type="button" data-go>${icon("play", "sm")} Empezar</button><button class="btn ghost" type="button" data-cancel>Cancelar</button></div>`);
-        say(`Registro de <b>${esc(u.name)}</b>: que se ponga solo/a frente a la cámara y tocá “Empezar”.`);
-        toScreen({ t: "enroll", big: `Hola ${u.name.split(" ")[0]}`, small: "Ponete solo/a frente a la cámara, dentro del óvalo" });
-      }
-      function cancelEnroll(msg) {
-        toScreen({ t: "idle" }); enrollFor = null; samples = []; capturing = false; if (msg) { enrollPanel(msg); pause(); } else pausedUntil = 0; say("Esperando una cara frente a la cámara…"); }
-      async function countdown() {
-        for (const n of [3, 2, 1]) { say(`Registrando a <b>${esc(enrollFor.name)}</b> en ${n}…`); toScreen({ t: "enroll", big: String(n), small: "Mirá de frente a la cámara, sin moverte" }); await new Promise((r) => setTimeout(r, 700)); if (!enrollFor) return; }
-        samples = []; capturing = true;
-      }
-      async function enrollStep(f, n) {
-        if (!capturing) return;                                   /* esperando que toquen "Empezar" */
-        if (n > 1) { say("Hay más de una persona en la imagen: que quede solo/a el socio."); samples = []; return; }
-        if (!f.embedding?.length || (f.score ?? 1) < 0.7) { say("Mirá de frente a la cámara, con buena luz…"); return; }
-        if (samples.length && sim(samples[0], f.embedding) < SAME) { say("Se movió o cambió la persona: empiezo de nuevo."); samples = []; return; }
-        samples.push(f.embedding);
-        say(`Registrando el rostro de <b>${esc(enrollFor.name)}</b>… ${samples.length} de ${SAMPLES}`);
-        if (samples.length < SAMPLES) return;
-        capturing = false;
-        const emb = samples[0].map((_, i) => samples.reduce((a, x) => a + x[i], 0) / samples.length);
-        /* ¿esa cara ya es de otro socio? (por ejemplo, quedó quien atiende frente a la cámara) */
-        const otros = known().filter((x) => x.id !== enrollFor.id);
-        const dup = otros.map((x) => [sim(emb, S.faceOf(x.id).emb), x]).sort((a, b) => b[0] - a[0])[0];
-        if (dup && dup[0] >= MATCH) {
-          const who = dup[1];
-          return cancelEnroll(`<div class="rc-card bad"><div class="rc-info"><span class="rc-name">No se registró</span><b class="rc-head">${icon("alert", "sm")} Esa cara ya es de ${esc(who.name)}</b><small>Parece que frente a la cámara estaba ${esc(who.name.split(" ")[0])} y no ${esc(enrollFor.name.split(" ")[0])}. Probá de nuevo con ${esc(enrollFor.name.split(" ")[0])} solo/a frente a la cámara.</small></div></div>`);
-        }
-        const u = enrollFor;
-        S.api.saveFace(u.id, Array.from(emb));
-        enrollFor = null; samples = [];
-        toast(`Rostro de ${u.name.split(" ")[0]} registrado`);
-        toScreen({ t: "enroll", big: "¡Listo!", small: "Tu rostro quedó registrado" }); setTimeout(() => toScreen({ t: "idle" }), 2500);
-        show(u, `<small class="rc-ok">${icon("checkc", "xs")} Rostro registrado. Para probar: que se aleje y vuelva a mirar a la cámara.</small>`);
-        refreshList();
-        pause();
-        say("Rostro registrado. El reconocimiento sigue en unos segundos (o tocá “Seguir reconociendo”).");
-      }
-
-      /* la cámara queda prendida hasta que recepción la apague: se recuerda en este equipo y,
-         si se cambia de pantalla o se recarga, vuelve a prenderse sola. La pantalla no se apaga mientras tanto. */
-      const KEY = "vientos_recepcion_camara";
-      const wanted = () => { try { return localStorage.getItem(KEY) === "1"; } catch { return false; } };
-      const want = (on) => { try { localStorage.setItem(KEY, on ? "1" : "0"); } catch { /* sin almacenamiento */ } };
-      let wake = null;
-      const keepAwake = async () => { try { wake = await navigator.wakeLock?.request("screen"); } catch { wake = null; } };
-      async function start() {
-        if (stream) return;
-        want(true);
-        $("[data-start]", host).disabled = true;
-        say("Cargando el reconocimiento facial… (la primera vez tarda unos segundos)");
-        try {
-          await loadHuman();
-          if (S.MODE === "supabase") { try { await S.remote().reloadFaces(); refreshList(); } catch (err) { console.warn(err); } }
-          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
-          video.srcObject = stream; await video.play();
-          $("[data-start]", host).hidden = true; $("[data-stop]", host).hidden = false;
-          say("Esperando una cara frente a la cámara…");
-          keepAwake();
-          /* si la cámara se corta sola (se desenchufó, la tomó otro programa), se intenta prender de nuevo */
-          stream.getVideoTracks()[0]?.addEventListener("ended", () => { stream = null; if (wanted()) setTimeout(start, 2000); });
-          loop();
-        } catch (e) {
-          console.warn(e);
-          say(e?.name === "NotAllowedError" ? "No hay permiso para usar la cámara. Permitilo en el navegador (ícono de la cámara, arriba)." : "No se pudo prender la cámara. Revisá que esté conectada.");
-          $("[data-start]", host).disabled = false;
-        }
-      }
-      function stop(byUser) {
-        if (byUser === true) want(false);
-        clearTimeout(timer);
-        try { wake?.release(); } catch { /* nada */ } wake = null;
-        stream?.getTracks().forEach((t) => t.stop()); stream = null;
-        if (video) video.srcObject = null;
-        $("[data-start]", host).hidden = false; $("[data-start]", host).disabled = false; $("[data-stop]", host).hidden = true;
-        say("Cámara apagada.");
-      }
-      $("[data-start]", host)?.addEventListener("click", () => { audio(); start(); });
+      $("[data-start]", host)?.addEventListener("click", () => { audio(); startCamera(); });
+      $("[data-stop]", host)?.addEventListener("click", () => stopCamera());
       /* lista de voces (el navegador las carga un instante después) */
       const sel = $("[data-voice]", host);
       const fillVoices = () => {
@@ -338,29 +373,21 @@ export function recepcionView() {
         e.currentTarget.innerHTML = `${icon(on ? "sound" : "mute", "sm")} Sonido: ${on ? "sí" : "no"}`; e.currentTarget.setAttribute("aria-pressed", on);
         if (on) { audio(); tones([[784, 0.18], [1047, 0.3]]); }
       });
-      /* el navegador no deja sonar hasta el primer toque en la página: cualquier clic lo habilita */
-      host.addEventListener("pointerdown", () => audio(), { once: true });
-      $("[data-stop]", host)?.addEventListener("click", () => stop(true));
       $("[data-screen]", host)?.addEventListener("click", () => {
         const w = window.open(`${location.pathname}${location.search}#/pantalla`, "vientos-pantalla", "popup,width=1000,height=700");
         if (!w) toast("El navegador bloqueó la ventana: permití las ventanas emergentes para esta página.", "err");
       });
-      status?.addEventListener("click", (e) => { if (e.target.closest("[data-resume]")) { pausedUntil = 0; result.innerHTML = IDLE; say("Esperando una cara frente a la cámara…"); } });
-      refreshList();
+      status?.addEventListener("click", (e) => { if (e.target.closest("[data-resume]")) { E.pausedUntil = 0; result.innerHTML = IDLE; say("Esperando una cara frente a la cámara…"); } });
       $("[data-faces]", host)?.addEventListener("click", (e) => {
         const b = e.target.closest("[data-unface]"); if (!b) return;
         const u = S.user(b.dataset.unface);
         if (!confirm(`¿Borrar el rostro registrado de ${u.name}? Después se lo puede volver a registrar.`)) return;
         S.api.deleteFace(u.id); toast("Rostro borrado"); refreshList();
       });
-      /* con servidor: cada minuto trae los rostros que registraron otros equipos */
-      const syncT = S.MODE === "supabase" && !faceOff ? setInterval(async () => { try { await S.remote().reloadFaces(); refreshList(); } catch (err) { console.warn(err); } }, 60000) : 0;
-      /* si la había dejado prendida, se prende sola al volver a esta pantalla */
-      if (!faceOff && wanted()) start();
-      const onVisible = () => { if (document.visibilityState === "visible" && wanted()) { if (!stream) start(); else keepAwake(); } };
-      document.addEventListener("visibilitychange", onVisible);
+      /* si la había dejado prendida (y se recargó la página), se prende sola */
+      resumeCamera();
 
-      /* búsqueda por DNI o nombre: siempre disponible (plan B) */
+      /* búsqueda por DNI o nombre: siempre disponible (plan B). Mientras se usa, el reconocimiento queda en pausa */
       const q = $("[data-q]", host), found = $("[data-found]", host);
       q.addEventListener("focus", pause);
       q.addEventListener("input", () => {
@@ -375,24 +402,25 @@ export function recepcionView() {
         let u = S.user(b.dataset.pick);
         /* con servidor: datos frescos del socio (consentimiento, cuota, rostro) antes de mostrarlo */
         if (S.MODE === "supabase") { b.disabled = true; try { u = await S.remote().refreshMember(u.id) || u; } catch (err) { console.warn(err); } }
-        const canFace = !faceOff && S.faceConsent(u);
-        const extra = faceOff ? "" : canFace
+        const extra = faceOff() ? "" : S.faceConsent(u)
           ? `<button class="btn ghost sm" type="button" data-enroll="${u.id}">${icon("user", "sm")} ${S.faceOf(u.id) ? "Volver a registrar su rostro" : "Registrar su rostro"}</button>`
           : `<small class="muted">No aceptó el reconocimiento facial (lo puede activar desde su Perfil, en Privacidad).</small>`;
         pause();
-        show(u, entryHtml(u, asistOff) + extra);
+        show(u, entryHtml(u, asistOff()) + extra);
         q.value = ""; found.innerHTML = "";
       });
       result.addEventListener("click", async (e) => {
         const inb = e.target.closest("[data-in]");
-        if (inb) { const u = S.user(inb.dataset.in); S.api.checkIn(u.id, inb.dataset.via, me()?.id); updateToday(); toast(`Entrada de ${u.name.split(" ")[0]} registrada`); show(u, entryHtml(u, asistOff)); return; }
-        if (e.target.closest("[data-go]")) { if (!stream) await start(); e.target.closest("[data-go]").disabled = true; countdown(); return; }
+        if (inb) { const u = S.user(inb.dataset.in); S.api.checkIn(u.id, inb.dataset.via, me()?.id); ui?.today(); toast(`Entrada de ${u.name.split(" ")[0]} registrada`); show(u, entryHtml(u, asistOff())); return; }
+        if (e.target.closest("[data-go]")) { if (!E.stream) await startCamera(); e.target.closest("[data-go]").disabled = true; countdown(); return; }
         if (e.target.closest("[data-cancel]")) { cancelEnroll(); result.innerHTML = IDLE; return; }
         const b = e.target.closest("[data-enroll]"); if (!b) return;
-        if (!stream) await start();
+        if (!E.stream) await startCamera();
         askEnroll(S.user(b.dataset.enroll));
       });
-      return () => { screen?.close(); clearInterval(syncT); document.removeEventListener("visibilitychange", onVisible); stop(false); };
+      /* al irse de esta pantalla la cámara NO se apaga: solo se desengancha lo que se muestra.
+         Si había un registro de rostro a medio hacer o una pausa por la búsqueda, se cancela. */
+      return () => { ui = null; if (video) video.srcObject = null; if (E.enrollFor) cancelEnroll(); E.pausedUntil = 0; };
     },
   };
 }

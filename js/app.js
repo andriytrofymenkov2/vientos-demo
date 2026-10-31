@@ -3,7 +3,7 @@ import * as S from "./core/store.js";
 import { cajaView } from "./views/caja.js";
 import { opinionView, opinionesView } from "./views/opinion.js";
 import { consentView } from "./views/privacy.js";
-import { recepcionView } from "./views/recepcion.js";
+import { recepcionView, resumeCamera } from "./views/recepcion.js";
 import { pantallaView } from "./views/pantalla.js";
 import { restore, me, refreshMe, logout } from "./core/auth.js";
 import { route, start, setShell, refresh, go } from "./core/router.js";
@@ -112,6 +112,8 @@ async function boot() {
   } catch { /* sin almacenamiento */ }
   start();
   if (me()) resumeRest();
+  /* compu de recepción: si la cámara había quedado prendida, sigue reconociendo en cualquier parte del panel */
+  if (me() && me().role !== "socio") resumeCamera();
   document.getElementById("boot")?.remove();
   watchUpdates(new URL(import.meta.url).searchParams.get("v"));
 

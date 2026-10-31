@@ -10,14 +10,15 @@ import { avatar, toast, pageHead } from "../core/ui.js";
 import { me } from "../core/auth.js";
 import { SCREEN_CHANNEL } from "./pantalla.js";
 
-/* similitud mínima para decir "es tal socio" y cuántas lecturas seguidas iguales hacen falta */
-const MATCH = 0.65, STABLE = 3;
+/* similitud mínima (coseno de InsightFace) para decir "es tal socio" y cuántas lecturas seguidas iguales hacen falta.
+   Valor inicial conservador: se ajusta con las pruebas reales (la misma persona suele dar 0,6–0,85; dos parientes, bastante menos) */
+const MATCH = 0.6, STABLE = 3;
 /* si el segundo socio más parecido está a menos de esta distancia, no se elige a ninguno (evita confundir) */
 const MARGIN = 0.1;
 /* registrar: cuántas lecturas, qué tan parecidas entre sí y qué tan distinta a las ya registradas */
-const SAMPLES = 5, SAME = 0.7;
-/* al registrar, si la cara se parece al 60 % a otro socio ya registrado, no se guarda (más estricto que para entrar) */
-const DUP = 0.6;
+const SAMPLES = 5, SAME = 0.6;
+/* al registrar, si la cara se parece al 45 % a otro socio ya registrado, no se guarda (más estricto que para entrar) */
+const DUP = 0.45;
 /* Óvalo guía en el centro de la imagen: solo cuenta una cara que esté adentro y cerca de la cámara
    (así no se activa con alguien que pasa por atrás o al costado). Coordenadas de 0 a 1 de la imagen. */
 const OVAL = { cx: 0.5, cy: 0.47, rx: 0.2, ry: 0.33, minW: 0.2 };
@@ -91,8 +92,9 @@ async function loadHuman() {
     modelBasePath: new URL("../../vendor/human/models/", import.meta.url).href,
     backend: "webgl", debug: false, cacheSensitivity: 0, warmup: "none",
     filter: { enabled: true, equalization: false },
-    face: { enabled: true, detector: { rotation: false, maxDetected: 2, minConfidence: 0.5 }, mesh: { enabled: true }, iris: { enabled: false },
-      description: { enabled: true }, emotion: { enabled: false }, antispoof: { enabled: true }, liveness: { enabled: true } },
+    face: { enabled: true, detector: { rotation: true, maxDetected: 2, minConfidence: 0.5 }, mesh: { enabled: true }, iris: { enabled: false },
+      /* huella de la cara con InsightFace (ArcFace): distingue mucho mejor a parientes que el modelo de fábrica */
+      description: { enabled: false }, insightface: { enabled: true, modelPath: "insightface-mobilenet-swish.json" }, emotion: { enabled: false }, antispoof: { enabled: true }, liveness: { enabled: true } },
     body: { enabled: false }, hand: { enabled: false }, object: { enabled: false }, gesture: { enabled: false }, segmentation: { enabled: false },
   });
   await human.load();
@@ -143,8 +145,11 @@ const faceOff = () => S.MODE === "supabase" && !!S.db.off?.rostros;
 const asistOff = () => S.MODE === "supabase" && !!S.db.off?.asistencia;
 const todayCount = () => new Set(S.checkinsOf().filter((c) => new Date(c.at).toDateString() === new Date().toDateString()).map((c) => c.userId)).size;
 const socios = () => S.activeMembers().filter((u) => S.inSpace(u) && u.status === "activo");
-const enrolled = () => socios().filter((u) => S.faceOf(u.id)).length;
-const known = () => socios().filter((u) => S.faceConsent(u) && S.faceOf(u.id));
+/* las caras registradas con el modelo anterior hay que registrarlas de nuevo */
+const FACE_MODEL = "arc1";
+const faceOk = (u) => S.faceOf(u.id)?.model === FACE_MODEL;
+const enrolled = () => socios().filter(faceOk).length;
+const known = () => socios().filter((u) => S.faceConsent(u) && faceOk(u));
 const IDLE = `<p class="muted">Acá aparece el socio reconocido o el que busques por DNI.</p>`;
 /* el cartel se borra 1,5 s después de que la persona sale del óvalo; si entra el siguiente, cambia enseguida */
 const HOLD = 1500;
@@ -163,7 +168,13 @@ const say = (html) => { E.status = html; ui?.say(html); };
 const showResult = (html) => ui?.result(html);
 const screen = "BroadcastChannel" in window ? new BroadcastChannel(SCREEN_CHANNEL) : null;
 const toScreen = (m) => { try { screen?.postMessage(m); } catch { /* sin pantalla */ } };
-const sim = (a, b) => human.match.similarity(a, b);
+/* parecido entre dos huellas: coseno (1 = idénticas). Las huellas del modelo anterior no se comparan */
+const sim = (a, b) => {
+  if (!a || !b || a.length !== b.length) return 0;
+  let ab = 0, aa = 0, bb = 0;
+  for (let i = 0; i < a.length; i++) { ab += a[i] * b[i]; aa += a[i] * a[i]; bb += b[i] * b[i]; }
+  return aa && bb ? ab / Math.sqrt(aa * bb) : 0;
+};
 /* mientras recepción atiende a alguien, el cartel de recepción no se pisa; la cámara sigue reconociendo,
    registrando entradas y saludando en la pantalla de los socios (no se frena nunca) */
 const hold = (ms = PAUSE) => { E.holdUntil = Date.now() + ms; };
@@ -213,9 +224,9 @@ async function loop() {
           /* la huella acompaña los cambios de la cara (barba, pelo, anteojos): si lo reconoce con mucha
              seguridad y no es una foto, se ajusta un poco, como mucho una vez por día */
           const fr = S.faceOf(u.id);
-          if (!fake && best >= 0.75 && best - second >= 0.15 && fr && fr.upd !== new Date().toDateString()) {
+          if (!fake && best >= 0.7 && best - second >= 0.25 && fr && fr.upd !== new Date().toDateString()) {
             /* mismo promedio que al registrarla (90 % lo guardado + 10 % la lectura de hoy) */
-            S.api.saveFace(u.id, fr.emb.map((v, i) => v * 0.9 + f.embedding[i] * 0.1), { upd: new Date().toDateString(), since: fr.since || fr.at });
+            S.api.saveFace(u.id, fr.emb.map((v, i) => v * 0.9 + f.embedding[i] * 0.1), { upd: new Date().toDateString(), since: fr.since || fr.at, model: FACE_MODEL });
           }
           say(`Reconocido: <b>${esc(u.name)}</b> (${Math.round(best * 100)} %)`);
         } else if (!u && E.unknown >= STABLE) {
@@ -275,7 +286,7 @@ async function enrollStep(f, n) {
     return cancelEnroll(`<div class="rc-card bad"><div class="rc-info"><span class="rc-name">No se registró</span><b class="rc-head">${icon("alert", "sm")} Esa cara ya es de ${esc(who.name)}</b><small>Parece que frente a la cámara estaba ${esc(who.name.split(" ")[0])} y no ${esc(first)}. Probá de nuevo con ${esc(first)} solo/a frente a la cámara.</small></div></div>`);
   }
   const u = E.enrollFor;
-  S.api.saveFace(u.id, Array.from(emb));
+  S.api.saveFace(u.id, Array.from(emb), { model: FACE_MODEL });
   E.enrollFor = null; E.samples = [];
   toast(`Rostro de ${u.name.split(" ")[0]} registrado`);
   toScreen({ t: "enroll", big: "¡Listo!", small: "Tu rostro quedó registrado" }); setTimeout(() => toScreen({ t: "idle" }), 2500);
@@ -300,6 +311,10 @@ export async function startCamera() {
     E.video.srcObject = E.stream; await E.video.play();
     ui?.attach();
     say("Esperando una cara frente a la cámara…");
+    /* muchos celulares hacen las cuentas de la placa de video con menos decimales: la huella sale menos precisa */
+    let low = false;
+    try { low = human.tf.getBackend() === "webgl" && !human.tf.env().getBool("WEBGL_RENDER_FLOAT32_CAPABLE"); } catch { /* sin datos */ }
+    if (low) toast("Este equipo reconoce caras con menos precisión. Para la recepción usá una computadora con cámara web.", "err");
     keepAwake();
     /* si la cámara se corta sola (se desenchufó, la tomó otro programa), se intenta prender de nuevo */
     E.stream.getVideoTracks()[0]?.addEventListener("ended", () => { E.stream = null; if (wanted()) setTimeout(startCamera, 2000); });
@@ -371,7 +386,7 @@ export function recepcionView() {
         if (sum) sum.textContent = `Ver los rostros registrados (${n})`;
         if (!box) return;
         const list = socios().filter((u) => S.faceOf(u.id)).sort((a, b) => a.name.localeCompare(b.name, "es"));
-        box.innerHTML = list.map((u) => `<div class="mrow">${avatar(u, "sm")}<span><b>${esc(u.name)}</b><small>Registrado el ${esc(fmtDate(S.faceOf(u.id).since || S.faceOf(u.id).at))}</small></span><button class="btn ghost sm" type="button" data-unface="${u.id}">${icon("trash", "sm")} Borrar</button></div>`).join("") || `<p class="muted tiny">Todavía no hay rostros registrados.</p>`;
+        box.innerHTML = list.map((u) => `<div class="mrow">${avatar(u, "sm")}<span><b>${esc(u.name)}</b><small>${faceOk(u) ? `Registrado el ${esc(fmtDate(S.faceOf(u.id).since || S.faceOf(u.id).at))}` : "Registro anterior: hay que registrarlo de nuevo"}</small></span><button class="btn ghost sm" type="button" data-unface="${u.id}">${icon("trash", "sm")} Borrar</button></div>`).join("") || `<p class="muted tiny">Todavía no hay rostros registrados.</p>`;
       }
       refreshList();
 

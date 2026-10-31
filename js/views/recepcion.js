@@ -25,8 +25,9 @@ const inOval = (f) => {
   const dx = (x + w / 2 - OVAL.cx) / OVAL.rx, dy = (y + h / 2 - OVAL.cy) / OVAL.ry;
   return dx * dx + dy * dy <= 1 && w >= OVAL.minW;
 };
-/* tras usar la búsqueda o registrar, el reconocimiento queda en pausa este tiempo (o hasta "Seguir reconociendo") */
-const PAUSE = 30000;
+/* al elegir un socio de la búsqueda (o al terminar un registro), el reconocimiento espera este tiempo
+   para no tapar lo que se está mirando (o hasta "Seguir reconociendo"); mientras se escribe, solo unos segundos */
+const PAUSE = 15000, TYPING = 4000;
 let human = null;
 
 /* Sonido y voz al reconocer: un "ding-dong" que sube si puede pasar, un tono neutro si no lo reconoce y dos
@@ -153,7 +154,7 @@ const showResult = (html) => ui?.result(html);
 const screen = "BroadcastChannel" in window ? new BroadcastChannel(SCREEN_CHANNEL) : null;
 const toScreen = (m) => { try { screen?.postMessage(m); } catch { /* sin pantalla */ } };
 const sim = (a, b) => human.match.similarity(a, b);
-const pause = () => { E.pausedUntil = Date.now() + PAUSE; E.cam = null; };
+const pause = (ms = PAUSE) => { E.pausedUntil = Date.now() + ms; E.cam = null; };
 
 /* muestra el cartel y suena una sola vez por persona (no en cada lectura) */
 function camShow(id, html, kind, name) {
@@ -172,7 +173,7 @@ async function loop() {
     ui?.oval(!!f);
     if (E.ovalOn !== !!f) { E.ovalOn = !!f; toScreen({ t: "oval", on: E.ovalOn }); }
     if (E.enrollFor) { if (f) await enrollStep(f, faces.length); else if (E.capturing) say("Que ponga la cara dentro del óvalo, cerca de la cámara…"); }
-    else if (Date.now() < E.pausedUntil) say(`Reconocimiento en pausa mientras usás la búsqueda. <button type="button" class="linkbtn" data-resume>Seguir reconociendo</button>`);
+    else if (Date.now() < E.pausedUntil) say(`En pausa unos segundos mientras atendés a un socio. <button type="button" class="linkbtn" data-resume>Seguir reconociendo</button>`);
     else if (!f) { say(faces.length ? "Poné la cara dentro del óvalo, cerca de la cámara…" : "Esperando una cara frente a la cámara…"); E.count = 0; E.unknown = 0; camExpire(); }
     else if (f.embedding?.length) {
       const list = known();
@@ -389,9 +390,8 @@ export function recepcionView() {
 
       /* búsqueda por DNI o nombre: siempre disponible (plan B). Mientras se usa, el reconocimiento queda en pausa */
       const q = $("[data-q]", host), found = $("[data-found]", host);
-      q.addEventListener("focus", pause);
       q.addEventListener("input", () => {
-        pause();
+        pause(TYPING);
         const t = fold(q.value.trim());
         if (t.length < 2) { found.innerHTML = ""; return; }
         const list = socios().filter((u) => fold(`${u.user} ${u.name}`).includes(t)).slice(0, 6);

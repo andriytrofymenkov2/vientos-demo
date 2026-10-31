@@ -163,6 +163,9 @@ export function panelHome() {
           const lastOf = {}; all.forEach((c) => { if (!lastOf[c.userId] || c.at > lastOf[c.userId]) lastOf[c.userId] = c.at; });
           const away = live.filter((m) => lastOf[m.id] && lastOf[m.id] < t0 - 14 * DAY).sort((x, y) => lastOf[x.id] - lastOf[y.id]);
           const DAYS = ["D", "L", "M", "M", "J", "V", "S"];
+          /* control: los que la cámara frenó y los que recepción dejó pasar igual (últimos 30 días) */
+          const frenados = S.attemptsOf().filter((a) => a.at >= since30);
+          const pasaron = last30.filter((c) => c.via === "manual").sort((a, b) => b.at - a.at);
           const semana = S.personDays(all.filter((c) => c.at >= weekStartTs()));
           const prom7 = S.personDays(all.filter((c) => c.at >= t0 - 6 * DAY)) / 7;
           const fuera = last30.filter((c) => { const h = new Date(c.at).getHours(); return h < 6; }).length;
@@ -174,7 +177,11 @@ export function panelHome() {
             <div><h3 class="sub">Últimos 14 días</h3><div class="att-days">${days14.map((x) => `<span title="${new Date(x.a).toLocaleDateString("es-AR")}: ${x.n}"><em>${x.n || ""}</em><i style="height:${Math.max(x.n ? 6 : 0, (x.n / maxD) * 100)}%"></i><small>${DAYS[new Date(x.a).getDay()]}</small></span>`).join("")}</div></div>
             <div><h3 class="sub">Horarios con más gente (30 días)</h3>${hbars(bandRows, Math.max(1, last30.length))}</div>
           </div>
-          ${away.length ? `<h3 class="sub">Al día, pero hace más de 14 días que no vienen (${away.length})</h3>${away.slice(0, 5).map((m) => mrow(m, `Última vez: ${fmtDate(lastOf[m.id])}`)).join("")}${away.length > 5 ? `<p class="muted tiny">Y ${away.length - 5} más. Están pagando pero no vienen: conviene escribirles.</p>` : ""}` : ""}`
+          ${frenados.length || pasaron.length ? `<h3 class="sub">Control de la entrada (30 días)</h3>
+          <p class="muted tiny">${plural(frenados.length, "vez", "veces")} la cámara no dejó pasar a alguien (cuota vencida o días del plan usados) · ${plural(pasaron.length, "vez", "veces")} recepción dejó pasar igual.</p>
+          ${pasaron.slice(0, 5).map((c) => { const m = S.user(c.userId); return m ? mrow(m, `Pasó igual el ${fmtDate(c.at)} a las ${new Date(c.at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}${c.override ? ` · ${c.override}` : ""}`) : ""; }).join("")}
+          ${pasaron.length > 5 ? `<a class="btn ghost sm" href="#/panel/socios?f=pasaron">Ver los ${pasaron.length}</a>` : ""}` : ""}
+          ${away.length ? `<h3 class="sub">Al día, pero hace más de 14 días que no vienen (${away.length})</h3>${away.slice(0, 5).map((m) => mrow(m, `Última vez: ${fmtDate(lastOf[m.id])}`)).join("")}${away.length > 5 ? `<p class="muted tiny">Están pagando pero no vienen: conviene escribirles.</p><a class="btn ghost sm" href="#/panel/socios?f=novienen">Ver los ${away.length}</a>` : ""}` : ""}`
           : `<p class="muted">Todavía no hay entradas registradas. Se empiezan a contar desde la pantalla de Recepción.</p>`}</section>`; })()}
         ${admin && !S.db.off?.opiniones ? (() => { const r = ratingSummary(), fb = S.feedbackOf().filter((x) => x.kind !== "puntaje" && x.status !== "resuelto");
           return `<section class="card"><div class="card-h"><h2>${icon("chat", "sm")} Opiniones de los socios</h2><a class="muted" href="#/panel/opiniones">Ver todo</a></div>
@@ -246,6 +253,14 @@ export function membersView(params, query) {
   if (f === "vencida" || f === "baja") list = list.filter((m) => S.standing(m).key === f);
   if (f === "aldia") list = list.filter((m) => S.standing(m).key === "ok");
   if (f === "sincuota") list = list.filter((m) => S.standing(m).key === "none");
+  /* desde el resumen: al día pero hace más de 14 días que no vienen / los que recepción dejó pasar sin poder (30 días) */
+  const extraTitle = { novienen: "Al día, pero hace más de 14 días que no vienen", pasaron: "Pasaron igual sin poder (últimos 30 días)" }[f] || "";
+  if (f === "novienen") {
+    const last = {}; S.checkinsOf().forEach((c) => { if (!last[c.userId] || c.at > last[c.userId]) last[c.userId] = c.at; });
+    const lim = new Date().setHours(0, 0, 0, 0) - 14 * DAY;
+    list = list.filter((m) => ["ok", "soon"].includes(S.standing(m).key) && last[m.id] && last[m.id] < lim);
+  }
+  if (f === "pasaron") { const since = Date.now() - 30 * DAY, ids = new Set(S.checkinsOf().filter((c) => c.via === "manual" && c.at >= since).map((c) => c.userId)); list = list.filter((m) => ids.has(m.id)); }
   if (q) list = list.filter((m) => fold(m.name + " " + m.email + " " + m.phone).includes(fold(q)));
   list.sort((a, b) => a.name.localeCompare(b.name, "es"));
   const pend = S.pending().filter((m) => S.inSpace(m)).length;
@@ -255,7 +270,7 @@ export function membersView(params, query) {
     html: `${pageHead({ title: "Socios", actions: `${isAdmin() ? `<button class="btn ghost sm" type="button" data-xlsx>${icon("download", "sm")} Descargar Excel</button>` : ""}<button class="btn primary sm" type="button" data-act="new">${icon("userplus", "sm")} Nuevo socio</button>` })}
       <div class="filters"><label class="search">${icon("search", "sm")}<input type="search" data-q value="${esc(q)}" placeholder="Buscar por nombre, email o teléfono" aria-label="Buscar socio"></label></div>
       <div class="chips-scroll">${FILTERS.filter(([k]) => (k !== "mios" || me().role === "profe") && (k !== "pend" || S.db.gym.selfSignup || pend)).map(([k, l]) => `<a class="chip ${k === f ? "on" : ""}" href="#/panel/socios${k ? "?f=" + k : ""}">${l}${k === "pend" && pend ? ` <b>${pend}</b>` : ""}</a>`).join("")}</div>
-      <p class="muted tiny">${plural(list.length, "socio", "socios")}</p>
+      <p class="muted tiny">${extraTitle ? `<b>${extraTitle}</b> · ` : ""}${plural(list.length, "socio", "socios")}</p>
       <div class="mlist">${list.map((m) => {
         if (m.status === "pendiente") return `<button type="button" class="mrow" data-approve="${m.id}">${avatar(m, "sm")}<span><b>${esc(m.name)}</b><small>Se registró ${esc(relDay(m.joined))} · espera aprobación</small></span><span class="pill red">Revisar</span></button>`;
         const r = S.activeRoutine(m.id), l = lastLog(m.id), c = S.user(m.coachId);

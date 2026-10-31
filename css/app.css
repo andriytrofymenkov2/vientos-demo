@@ -1524,3 +1524,16 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .rc-screen { display: grid; gap: 4px; margin-top: 8px; }
 .rc-screen .btn { justify-self: start; }
 .rc-faceacts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.k-msg em { font-style: normal; font-size: clamp(15px, 2.1vh, 24px); padding: .5vh 16px; border-radius: 999px; background: rgba(0, 0, 0, .22); color: #fff; }
+/* Recepción: quisieron entrar sin poder */
+.rc-tried { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.rc-tried summary { cursor: pointer; font-size: 14.5px; color: var(--muted); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+/* aviso discreto en cualquier pantalla del panel */
+#rc-alerts { position: fixed; right: 16px; bottom: 16px; z-index: 60; display: grid; gap: 8px; width: min(420px, calc(100vw - 32px)); }
+.rc-alert { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; align-items: center; padding: 10px 12px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--bad); box-shadow: 0 8px 28px rgba(0, 0, 0, .25); animation: rcIn .25s ease-out; }
+.rc-alert > span:nth-child(2) { display: grid; min-width: 0; }
+.rc-alert small { color: var(--muted); }
+.rc-alert-acts { grid-column: 1 / -1; display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
+@keyframes rcIn { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (max-width: 767px) { #rc-alerts { bottom: calc(76px + env(safe-area-inset-bottom)); } }

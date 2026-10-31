@@ -165,7 +165,10 @@ async function loadAll(uid) {
   D.movements = (movements || []).map(toMove);
   D.feedback = (feedback || []).map(toFb);
   D.faces = Object.fromEntries((faces || []).map((r) => [r.user_id, r.data]));
-  D.checkins = (checkins || []).map((r) => ({ ...r.data, id: r.id, userId: r.user_id, at: ms(r.at) }));
+  /* en la misma tabla: entradas y los intentos que la cámara frenó (data.blocked) */
+  const rows = (checkins || []).map((r) => ({ ...r.data, id: r.id, userId: r.user_id, at: ms(r.at) }));
+  D.checkins = rows.filter((c) => !c.blocked);
+  D.attempts = rows.filter((c) => c.blocked);
   D.off = off;
   D.me = uid;
   return D;
@@ -346,7 +349,10 @@ export const remoteAdapter = {
     /* su entrada de hoy, si la registró otra computadora */
     const d0 = new Date(); d0.setHours(0, 0, 0, 0);
     const c = await sb.from("checkins").select("*").eq("user_id", id).gte("at", iso(d0.getTime()));
-    if (!c.error) c.data.forEach((r) => { if (!S.db.checkins.some((x) => x.id === r.id)) S.db.checkins.push({ ...r.data, id: r.id, userId: r.user_id, at: ms(r.at) }); });
+    if (!c.error) c.data.forEach((r) => {
+      const list = r.data?.blocked ? (S.db.attempts ||= []) : S.db.checkins;
+      if (!list.some((x) => x.id === r.id)) list.push({ ...r.data, id: r.id, userId: r.user_id, at: ms(r.at) });
+    });
     return S.user(id);
   },
   async reload() {

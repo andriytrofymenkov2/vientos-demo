@@ -6,7 +6,7 @@
 import { icon } from "../core/icons.js";
 import { esc, fold, fmtDate, plural, $, $$ } from "../core/util.js";
 import * as S from "../core/store.js";
-import { avatar, toast, pageHead } from "../core/ui.js";
+import { avatar, toast, pageHead, limitList } from "../core/ui.js";
 import { me } from "../core/auth.js";
 import { SCREEN_CHANNEL } from "./pantalla.js";
 
@@ -101,21 +101,24 @@ async function loadHuman() {
   return human;
 }
 
+/* la ventana del monitor de socios no reconoce: solo muestra */
+const isScreen = () => location.hash.startsWith("#/pantalla");
+
 /* ¿Puede pasar? Según la cuota y los días de tolerancia del gimnasio (por defecto 7) */
 export function accessOf(u) {
   const grace = S.gymOf(S.spaceOf(u)).accessGraceDays ?? 7;
   const st = S.feeStatus(u), p = S.plan(u.fee?.planId);
-  if (u.status !== "activo") return { cls: "bad", head: "No es socio activo", sub: "Su cuenta está dada de baja o sin aprobar." };
+  if (u.status !== "activo") return { cls: "bad", why: "baja", head: "No es socio activo", sub: "Su cuenta está dada de baja o sin aprobar." };
   if (st.state === "none") return { cls: "warn", head: "Sin cuota cargada", sub: "Pedile que pase por recepción a regularizar." };
   /* plan con días por semana: si ya los usó todos esta semana, recepción decide (hoy ya entró: sigue pudiendo) */
   const perWeek = S.planPerWeek(p), used = S.weekEntries(u);
   if (perWeek && used >= perWeek && !todayIn(u) && (st.state === "ok" || st.state === "soon" || -st.days <= grace))
-    return { cls: "bad", head: "Ya usó sus días de esta semana", sub: `Su plan es de ${plural(perWeek, "vez", "veces")} por semana y ya entró ${plural(used, "vez", "veces")} desde el lunes${p ? ` · ${p.name}` : ""}.` };
+    return { cls: "bad", why: "semana", head: "Ya usó sus días de esta semana", sub: `Su plan es de ${plural(perWeek, "vez", "veces")} por semana y ya entró ${plural(used, "vez", "veces")} desde el lunes${p ? ` · ${p.name}` : ""}.` };
   if (st.state === "ok") return { cls: "ok", head: "Puede pasar", sub: `Cuota al día · vence el ${fmtDate(u.fee.dueAt)} (en ${plural(st.days, "día", "días")})${p ? ` · ${p.name}` : ""}` };
   if (st.state === "soon") return { cls: "ok", head: "Puede pasar", sub: `Su cuota ${st.days === 0 ? "vence hoy" : `vence en ${plural(st.days, "día", "días")}`}: recordale pagar` };
   const over = Math.max(0, -st.days);
   if (over <= grace) return { cls: "warn", head: "Puede pasar, pero debe la cuota", sub: `${u.fee.unpaid ? "No pagó el alta" : `Venció hace ${plural(over, "día", "días")}`}. Tiene tolerancia hasta ${plural(grace - over, "día más", "días más")}.` };
-  return { cls: "bad", head: "No puede pasar", sub: `${u.fee.unpaid ? "No pagó el alta" : `Cuota vencida hace ${plural(over, "día", "días")}`}. Tiene que pagar para entrar.` };
+  return { cls: "bad", why: "cuota", head: "No puede pasar", sub: `${u.fee.unpaid ? "No pagó el alta" : `Cuota vencida hace ${plural(over, "día", "días")}`}. Tiene que pagar para entrar.` };
 }
 
 const hhmm = (ts) => new Date(ts).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
@@ -129,9 +132,54 @@ function entryHtml(u, asistOff) {
     return Date.now() - hoy[hoy.length - 1].at < S.REENTRY ? txt
       : `${txt}<button class="btn primary sm" type="button" data-in="${u.id}" data-via="dni">${icon("check", "sm")} Registrar otra entrada</button>`;
   }
-  return accessOf(u).cls === "bad"
-    ? `<button class="btn ghost sm" type="button" data-in="${u.id}" data-via="manual">${icon("check", "sm")} Dejar pasar igual</button>`
-    : `<button class="btn primary sm" type="button" data-in="${u.id}" data-via="dni">${icon("check", "sm")} Registrar entrada</button>`;
+  const a = accessOf(u), pay = payBtn(u, a);
+  return a.cls === "bad"
+    ? `<div class="rc-faceacts">${pay}<button class="btn ghost sm" type="button" data-in="${u.id}" data-via="manual">${icon("check", "sm")} Dejar pasar igual</button></div>`
+    : `<div class="rc-faceacts"><button class="btn primary sm" type="button" data-in="${u.id}" data-via="dni">${icon("check", "sm")} Registrar entrada</button>${pay}</div>`;
+}
+/* "Cobrar" ahí mismo cuando el problema es la cuota (vencida, con aviso de deuda o sin cargar) */
+function payBtn(u, a = accessOf(u)) {
+  const st = S.feeStatus(u);
+  return a.why === "cuota" || (a.cls === "warn" && st.state !== "ok") ? `<button class="btn ${a.cls === "bad" ? "primary" : "ghost"} sm" type="button" data-pay="${u.id}">${icon("card", "sm")} Cobrar</button>` : "";
+}
+const WHY = { cuota: "cuota vencida", semana: "ya usó sus días de la semana", baja: "no es socio activo" };
+/* recordatorio para la pantalla de los socios: solo si vence pronto (nunca "vencida": eso lo ve solo recepción) */
+function dueNote(u) {
+  const st = S.feeStatus(u);
+  if (st.state !== "soon" || !u.fee?.dueAt) return "";
+  if (st.days === 0) return "Tu cuota vence hoy";
+  const d = new Date(u.fee.dueAt);
+  return `Tu cuota vence el ${d.toLocaleDateString("es-AR", { weekday: "long" })} ${d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}`;
+}
+/* ¿después del intento entró ese mismo día? (pagó y pasó, o lo dejaron pasar) */
+function resolvedAt(a) {
+  const day = new Date(a.at).toDateString();
+  return (S.db.checkins || []).find((c) => c.userId === a.userId && c.at >= a.at && new Date(c.at).toDateString() === day) || null;
+}
+/* registro manual: si recepción lo deja pasar sin poder, queda anotado el motivo */
+function manualIn(u, via) {
+  const a = accessOf(u);
+  return S.api.checkIn(u.id, via, me()?.id, via === "manual" ? { override: WHY[a.why] || a.head } : {});
+}
+/* Aviso discreto en cualquier pantalla del panel cuando la cámara frena a alguien y recepción no está mirando
+   la pantalla de Recepción. No se va solo: se resuelve (Cobrar / Dejar pasar) o se cierra. */
+function alertBar(u, a) {
+  if (location.hash.startsWith("#/panel/recepcion") || isScreen()) return;
+  let box = document.getElementById("rc-alerts");
+  if (!box) {
+    box = document.createElement("div"); box.id = "rc-alerts"; box.setAttribute("role", "status"); document.body.appendChild(box);
+    box.addEventListener("click", async (e) => {
+      const it = e.target.closest(".rc-alert"); if (!it) return;
+      const m = S.user(it.dataset.u);
+      if (e.target.closest("[data-x]")) { it.remove(); return; }
+      if (e.target.closest("[data-apay]")) { const { paySheet } = await import("./panel.js"); paySheet(m, () => it.remove()); return; }
+      if (e.target.closest("[data-apass]")) { manualIn(m, "manual"); toast(`Entrada de ${m.name.split(" ")[0]} registrada`); it.remove(); }
+    });
+  }
+  box.querySelector(`[data-u="${u.id}"]`)?.remove();
+  box.insertAdjacentHTML("afterbegin", `<div class="rc-alert" data-u="${u.id}">${avatar(u, "sm")}<span><b>${esc(u.name)}</b><small>Quiso entrar a las ${hhmm(Date.now())} · ${esc(WHY[a.why] || a.head)}</small></span>
+    <span class="rc-alert-acts">${a.why === "cuota" ? `<button class="btn primary sm" type="button" data-apay>Cobrar</button>` : ""}<button class="btn ghost sm" type="button" data-apass>Dejar pasar</button><button class="icon-btn sm" type="button" data-x aria-label="Cerrar aviso">${icon("x", "sm")}</button></span></div>`);
+  while (box.children.length > 3) box.lastElementChild.remove();
 }
 const resultCard = (u, extra = "") => { const a = accessOf(u); return `<div class="rc-card ${a.cls}">${avatar(u, "xl")}<div class="rc-info"><span class="rc-name">${esc(u.name)}</span><small>DNI ${esc(u.user || "—")}</small><b class="rc-head">${icon(a.cls === "bad" ? "x" : a.cls === "warn" ? "alert" : "checkc", "sm")} ${esc(a.head)}</b><small>${esc(a.sub)}</small>${extra}</div></div>`; };
 
@@ -181,12 +229,12 @@ const hold = (ms = PAUSE) => { E.holdUntil = Date.now() + ms; };
 const holding = () => Date.now() < E.holdUntil;
 
 /* muestra el cartel y suena una sola vez por persona (no en cada lectura) */
-function camShow(id, html, kind, name) {
+function camShow(id, html, kind, name, note = "") {
   if (E.cam?.id !== id) {
     if (!holding()) showResult(html);
     /* si recepción está atendiendo a alguien que no tiene rostro, no le dice "no te reconozco" */
     announce(holding() && id === "?" ? "silent" : kind, name);
-    toScreen({ t: "show", kind, name, gym: gymName() });
+    toScreen({ t: "show", kind, name, gym: gymName(), note });
   }
   E.cam = { id, seen: Date.now() };
 }
@@ -219,8 +267,13 @@ async function loop() {
         E.unknown = u ? 0 : E.unknown + 1;
         if (u && E.count >= STABLE) {
           /* entra solo si puede pasar y no parece una foto; si no, recepción decide con el botón */
-          if (E.cam?.id !== u.id && !asistOff() && !fake && accessOf(u).cls !== "bad" && S.api.checkIn(u.id, "cara", me()?.id)) ui?.today();
-          camShow(u.id, resultCard(u, (fake ? `<small class="rc-warn">${icon("alert", "xs")} Ojo: podría ser una foto o una pantalla.</small>` : "") + entryHtml(u, asistOff())), fake ? "unknown" : accessOf(u).cls, u.name);
+          const acc = accessOf(u);
+          if (E.cam?.id !== u.id && !asistOff() && !fake) {
+            if (acc.cls !== "bad") { if (S.api.checkIn(u.id, "cara", me()?.id)) ui?.today(); }
+            /* no podía pasar: queda anotado y, si recepción está en otra pantalla, le aparece un aviso */
+            else if (S.api.logAttempt(u.id, acc.why, me()?.id)) { ui?.today(); alertBar(u, acc); }
+          }
+          camShow(u.id, resultCard(u, (fake ? `<small class="rc-warn">${icon("alert", "xs")} Ojo: podría ser una foto o una pantalla.</small>` : "") + entryHtml(u, asistOff())), fake ? "unknown" : acc.cls, u.name, fake ? "" : dueNote(u));
           /* la huella acompaña los cambios de la cara (barba, pelo, anteojos): si lo reconoce con mucha
              seguridad y no es una foto, se ajusta un poco, como mucho una vez por día */
           const fr = S.faceOf(u.id);
@@ -339,8 +392,8 @@ export function stopCamera() {
 }
 export const cameraOn = () => !!E.stream;
 /* al abrir la app (en cualquier pantalla del panel): si la cámara había quedado prendida en este equipo, se prende */
-export function resumeCamera() { if (wanted() && !E.stream) startCamera(); }
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && wanted()) { if (!E.stream) startCamera(); else keepAwake(); } });
+export function resumeCamera() { if (wanted() && !E.stream && !isScreen()) startCamera(); }
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && wanted() && !isScreen()) { if (!E.stream) startCamera(); else keepAwake(); } });
 
 export function recepcionView() {
   return {
@@ -363,6 +416,7 @@ export function recepcionView() {
           <div data-result>${IDLE}</div>
           <label class="search rc-search">${icon("search", "sm")}<input type="search" data-q placeholder="Buscar por DNI o nombre" aria-label="Buscar socio" autocomplete="off"></label>
           <div data-found></div>
+          ${asistOff() ? "" : `<details class="rc-tried" data-tried-box hidden><summary data-tried-sum></summary><div data-tried></div></details>`}
         </section>
       </div>`,
     mount(host) {
@@ -373,12 +427,26 @@ export function recepcionView() {
         say: (html) => { if (status) status.innerHTML = html; },
         result: (html) => { result.innerHTML = html; },
         oval: (on) => $("[data-oval]", host)?.classList.toggle("on", on),
-        today: () => { const t = $("[data-today]", host); if (t) t.textContent = `Hoy entraron ${todayCount()}`; },
+        today: () => { const t = $("[data-today]", host); if (t) t.textContent = `Hoy entraron ${todayCount()}`; triedList(); },
         attach: () => { if (video) { video.srcObject = E.stream || null; if (E.stream) video.play().catch(() => {}); } },
         buttons: () => { const on = !!E.stream || E.starting; const st = $("[data-start]", host), sp = $("[data-stop]", host); if (st) { st.hidden = on; st.disabled = E.starting; } if (sp) sp.hidden = !on; },
         list: refreshList,
       };
       ui.attach(); ui.buttons();
+      /* quisieron entrar hoy sin poder: si después pagó o pasó, figura como resuelto */
+      function triedList() {
+        const box = $("[data-tried]", host), sum = $("[data-tried-sum]", host), wrap = $("[data-tried-box]", host);
+        if (!box) return;
+        const today = new Date().toDateString();
+        const list = S.attemptsOf().filter((a) => new Date(a.at).toDateString() === today).sort((a, b) => b.at - a.at);
+        const pend = list.filter((a) => !resolvedAt(a)).length;
+        wrap.hidden = !list.length;
+        sum.innerHTML = `Quisieron entrar sin poder hoy: <b>${list.length}</b>${pend ? ` <span class="pill bad">${pend} sin resolver</span>` : ""}`;
+        box.innerHTML = list.map((a) => { const u = S.user(a.userId), r = resolvedAt(a);
+          return `<button type="button" class="mrow" data-pick="${a.userId}">${avatar(u, "sm")}<span><b>${esc(u?.name || "Socio")}</b><small>${hhmm(a.at)} · ${esc(WHY[a.reason] || "no podía pasar")}${r ? ` · después entró a las ${hhmm(r.at)}${r.via === "manual" ? " (lo dejaron pasar)" : ""}` : ""}</small></span>${r ? icon("checkc", "sm") : icon("right", "sm")}</button>`; }).join("");
+        limitList(box, { size: 8 }).apply(true);
+      }
+      triedList();
       /* lista de rostros registrados: se puede borrar uno que quedó mal (después se vuelve a registrar) */
       function refreshList() {
         const box = $("[data-faces]", host), sum = $("[data-enrolled-sum]", host), n = enrolled();
@@ -387,6 +455,7 @@ export function recepcionView() {
         if (!box) return;
         const list = socios().filter((u) => S.faceOf(u.id)).sort((a, b) => a.name.localeCompare(b.name, "es"));
         box.innerHTML = list.map((u) => `<div class="mrow">${avatar(u, "sm")}<span><b>${esc(u.name)}</b><small>${faceOk(u) ? `Registrado el ${esc(fmtDate(S.faceOf(u.id).since || S.faceOf(u.id).at))}` : "Registro anterior: hay que registrarlo de nuevo"}</small></span><button class="btn ghost sm" type="button" data-unface="${u.id}">${icon("trash", "sm")} Borrar</button></div>`).join("") || `<p class="muted tiny">Todavía no hay rostros registrados.</p>`;
+        limitList(box, { size: 20 }).apply(true);
       }
       refreshList();
 
@@ -447,7 +516,9 @@ export function recepcionView() {
       });
       result.addEventListener("click", async (e) => {
         const inb = e.target.closest("[data-in]");
-        if (inb) { const u = S.user(inb.dataset.in); S.api.checkIn(u.id, inb.dataset.via, me()?.id); ui?.today(); toast(`Entrada de ${u.name.split(" ")[0]} registrada`); show(u, entryHtml(u, asistOff())); return; }
+        const pb = e.target.closest("[data-pay]");
+        if (pb) { const u = S.user(pb.dataset.pay); const { paySheet } = await import("./panel.js"); paySheet(u, () => show(S.user(u.id), entryHtml(S.user(u.id), asistOff()))); return; }
+        if (inb) { const u = S.user(inb.dataset.in); manualIn(u, inb.dataset.via); ui?.today(); toast(`Entrada de ${u.name.split(" ")[0]} registrada`); show(u, entryHtml(u, asistOff())); return; }
         if (e.target.closest("[data-go]")) { if (!E.stream) await startCamera(); e.target.closest("[data-go]").disabled = true; countdown(); return; }
         if (e.target.closest("[data-cancel]")) { cancelEnroll(); result.innerHTML = IDLE; return; }
         const df = e.target.closest("[data-delface]");

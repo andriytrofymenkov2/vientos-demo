@@ -50,6 +50,9 @@ export async function downloadMaster() {
   const keys = [...new Set([...hist.map((h) => mkey(h.start)), ...pays.map((p) => mkey(p.at)), ...moves.map((m) => mkey(m.at)), cur])].filter((k) => k <= cur).sort();
   const inM = (list, k) => list.filter((x) => mkey(x.at) === k);
   const checks = S.checkinsOf(sp).slice().sort((a, b) => a.at - b.at);
+  /* registro completo de la entrada: entradas + intentos que la cámara frenó */
+  const WHY = { cuota: "cuota vencida", semana: "ya usó sus días de la semana", baja: "no es socio activo" };
+  const asist = [...checks, ...S.attemptsOf(sp)].sort((a, b) => a.at - b.at);
   const months = keys.map((k) => ({ k, vis: inM(checks, k).length, act: hBy[k]?.active ?? 0, alt: hBy[k]?.nuevos ?? 0, fue: hBy[k]?.left ?? 0, c: sum(inM(pays, k)), o: sum(inM(ingresos, k)), g: sum(inM(gastos, k)) }));
 
   /* ---------- hoy */
@@ -94,7 +97,7 @@ export async function downloadMaster() {
     { cells: [T("Socios", "labelb"), T(`La base completa (${socios.length} personas): DNI, apellido, nombre, plan, estado de la cuota, último pago, profe y contacto.`, "hint", 9)] },
     { cells: [T("Cobros", "labelb"), T(`Cada cuota cobrada (${pays.length}). Para ver un solo mes, filtrá la columna "Mes".`, "hint", 9)] },
     { cells: [T("Movimientos", "labelb"), T(`Cada gasto y cada ingreso que no es cuota (${moves.length}). También se filtra por "Mes".`, "hint", 9)] },
-    { cells: [T("Asistencia", "labelb"), T(`Cada entrada registrada en recepción (${checks.length}): fecha, hora y socio. "Visitas" en la tabla de arriba es la cantidad de entradas de cada mes.`, "hint", 9)] },
+    { cells: [T("Asistencia", "labelb"), T(`Cada entrada registrada en recepción (${checks.length}), quién pasó igual sin poder y los intentos que la cámara frenó: fecha, hora y socio. "Visitas" en la tabla de arriba es la cantidad de entradas de cada mes.`, "hint", 9)] },
   ];
 
   /* ---------- Ingresos y gastos: conceptos en filas, meses en columnas */
@@ -202,12 +205,12 @@ export async function downloadMaster() {
         { header: "Mes", key: "mes", type: "month", width: 16 }, { header: "Fecha", key: "at", type: "date", width: 13 },
         { header: "Hora", key: "hora", type: "text", width: 9 }, { header: "DNI", key: "dni", type: "text", width: 13 },
         { header: "Apellido", key: "ape", type: "text", width: 18 }, { header: "Nombre", key: "nom", type: "text", width: 20 },
-        { header: "Cómo entró", key: "via", type: "text", width: 16 },
+        { header: "Qué pasó", key: "via", type: "text", width: 40 },
       ],
-      rows: checks.slice().reverse().map((c) => { const u = S.user(c.userId);
+      rows: asist.slice().reverse().map((c) => { const u = S.user(c.userId);
         return { mes: mstart(mkey(c.at)), at: c.at, hora: new Date(c.at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }), dni: u?.user || "", ...splitName(u?.name || "Socio eliminado"),
-          via: c.via === "cara" ? "Reconocimiento facial" : c.via === "manual" ? "Recepción lo dejó pasar" : "Búsqueda por DNI" }; }),
-      total: (c, L, n) => c.key === "mes" ? TOT : c.key === "ape" ? { f: `SUBTOTAL(102,B2:B${n + 1})&" entradas"`, v: `${n} entradas` } : "",
+          via: c.blocked ? `No pudo entrar: ${WHY[c.reason] || "no podía pasar"}` : c.via === "cara" ? "Entró · reconocimiento facial" : c.via === "manual" ? `Pasó igual (lo dejó pasar recepción)${c.override ? ` · ${c.override}` : ""}` : "Entró · búsqueda por DNI" }; }),
+      total: (c, L, n) => c.key === "mes" ? TOT : c.key === "ape" ? { f: `SUBTOTAL(102,B2:B${n + 1})&" registros"`, v: `${n} registros` } : "",
     },
   ], { logo });
   const d = new Date(now);

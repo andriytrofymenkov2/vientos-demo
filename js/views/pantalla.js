@@ -27,7 +27,8 @@ export function pantallaView() {
       const video = $("[data-video]", host), msg = $("[data-msg]", host), oval = $("[data-oval]", host);
       let stream = null, wake = null, idleT = 0;
       const IDLE = ["idle", "Por favor, mirá a la cámara", "", true];
-      const setMsg = (cls, big, small = "", tips = false) => { msg.className = `k-msg ${cls}`; msg.innerHTML = `<b>${esc(big)}</b>${small ? `<span>${esc(small)}</span>` : ""}${tips ? TIPS : ""}`; };
+      /* note: recordatorio chico debajo del saludo (por ejemplo, que la cuota vence pronto) */
+      const setMsg = (cls, big, small = "", tips = false, note = "") => { msg.className = `k-msg ${cls}`; msg.innerHTML = `<b>${esc(big)}</b>${small ? `<span>${esc(small)}</span>` : ""}${note ? `<em>${esc(note)}</em>` : ""}${tips ? TIPS : ""}`; };
       const keepAwake = async () => { try { wake = await navigator.wakeLock?.request("screen"); } catch { wake = null; } };
       async function start() {
         if (stream) return;
@@ -52,8 +53,8 @@ export function pantallaView() {
         else if (d.t === "idle") setMsg(...IDLE);
         else if (d.t === "show") {
           const first = String(d.name || "").split(" ")[0];
-          if (d.kind === "ok") setMsg("ok", `¡Hola ${first}!`, `Bienvenido a ${d.gym || g.name}`);
-          else if (d.kind === "warn") setMsg("ok", `¡Hola ${first}!`, "Cuando puedas, acercate a recepción");
+          if (d.kind === "ok") setMsg("ok", `¡Hola ${first}!`, `Bienvenido a ${d.gym || g.name}`, false, d.note);
+          else if (d.kind === "warn") setMsg("ok", `¡Hola ${first}!`, "Cuando puedas, acercate a recepción", false, d.note);
           else if (d.kind === "bad") setMsg("warn", `Hola ${first}`, "Antes de entrar, acercate a recepción");
           else setMsg("none", "No te reconozco", "Por favor, sacate la gorra y los anteojos y volvé a mirar. Si no, acercate a recepción.");
           idleT = setTimeout(() => setMsg(...IDLE), 6000);        /* por si Recepción se cierra */

@@ -56,6 +56,7 @@ export async function init() {
   db.feedback ||= [];
   db.faces ||= {};
   db.checkins ||= [];
+  db.attempts ||= [];
   /* demo guardada antes de los consentimientos: los socios de ejemplo ya los aceptaron (Lucía, también la cara) */
   db.users.forEach((u) => { if (u.role === "socio" && !u.prefs?.consent) u.prefs = { ...u.prefs, consent: { terms: TERMS_VERSION, termsAt: Date.now(), face: u.user === "lucia" || /@demo\.vientos$/.test(u.email || "") && u.user !== "ana", ...(u.user === "lucia" ? { faceAt: Date.now() } : {}) } }; });
   return db;
@@ -204,6 +205,8 @@ export const checkedInToday = (userId) => (db.checkins || []).some((c) => c.user
 export const REENTRY = 2 * 3600000;
 export const lastCheckin = (userId) => (db.checkins || []).reduce((m, c) => (c.userId === userId && (!m || c.at > m.at) ? c : m), null);
 /* cuenta cada socio una vez por día (para "vinieron hoy", "esta semana", etc.) */
+/* intentos de entrar que la cámara frenó (cuota vencida, días del plan usados): quedan anotados */
+export const attemptsOf = (sp = currentSpace()) => (db.attempts || []).filter((a) => spaceOf(user(a.userId)) === sp);
 export const personDays = (list) => new Set(list.map((c) => c.userId + "|" + dayKey(c.at))).size;
 /* Opiniones: rubros que califica cada socio del 1 al 10 */
 export const RATE_CATS = [["limpieza", "Limpieza"], ["atencion", "Atención"], ["profes", "Profes"], ["maquinas", "Máquinas"], ["instalaciones", "Instalaciones"], ["comodidad", "Comodidad"], ["clases", "Clases y dinámicas"]];
@@ -864,13 +867,22 @@ export const api = {
     if (!on && faceOf(userId)) api.deleteFace(userId);
   },
   /* registra la entrada del socio (una sola vez por día); devuelve la entrada o null si ya había entrado hoy */
-  checkIn(userId, via, by) {
+  checkIn(userId, via, by, extra = {}) {
     const last = lastCheckin(userId);
     if (last && Date.now() - last.at < REENTRY) return null;
     const at = Date.now();
-    const c = { id: uid("c"), userId, at, day: dayKey(at), via, by };
+    const c = { id: uid("c"), userId, at, day: dayKey(at), via, by, ...extra };
     (db.checkins ||= []).push(c); save(); push("saveCheckin", c);
     return c;
+  },
+  /* la cámara reconoció a alguien que no podía pasar: se anota una vez por visita (no en cada lectura) */
+  logAttempt(userId, reason, by) {
+    const at = Date.now();
+    const prev = (db.attempts || []).filter((a) => a.userId === userId).reduce((m, a) => (a.at > m ? a.at : m), 0);
+    if (at - prev < REENTRY) return null;
+    const a = { id: uid("c"), userId, at, day: dayKey(at), blocked: true, reason, by };
+    (db.attempts ||= []).push(a); save(); push("saveCheckin", a);
+    return a;
   },
   saveFace(userId, emb, extra = {}) { (db.faces ||= {})[userId] = { emb, at: Date.now(), ...extra }; save(); push("saveFace", userId, db.faces[userId]); },
   deleteFace(userId) { if (db.faces) delete db.faces[userId]; save(); push("deleteFace", userId); },

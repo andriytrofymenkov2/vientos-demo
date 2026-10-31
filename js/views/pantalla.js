@@ -56,10 +56,12 @@ export function pantallaView() {
           if (d.kind === "ok") setMsg("ok", `¡Hola ${first}!`, `Bienvenido a ${d.gym || g.name}`, false, d.note);
           else if (d.kind === "warn") setMsg("ok", `¡Hola ${first}!`, "Cuando puedas, acercate a recepción", false, d.note);
           else if (d.kind === "bad") setMsg("warn", `Hola ${first}`, "Antes de entrar, acercate a recepción");
-          else setMsg("none", "No te reconozco", "Por favor, sacate la gorra, los anteojos y los auriculares y volvé a mirar. Si no, acercate a recepción.");
+          else setMsg("none", "No reconocido", "Por favor, contactate con administración", false, "Si tenés gorra, anteojos o auriculares, sacátelos y volvé a mirar");
           idleT = setTimeout(() => setMsg(...IDLE), 6000);        /* por si Recepción se cierra */
         } else if (d.t === "enroll") setMsg("enroll", d.big || "Registrando tu rostro", d.small || "Mirá de frente a la cámara");
       });
+      /* recién abierta: le pregunta a Recepción qué mostrar ahora (si hay alguien frente a la cámara) */
+      ch?.postMessage({ t: "hello" });
       return () => { ch?.close(); document.removeEventListener("visibilitychange", onVisible); clearTimeout(idleT); try { wake?.release(); } catch { /* nada */ } stream?.getTracks().forEach((t) => t.stop()); };
     },
   };

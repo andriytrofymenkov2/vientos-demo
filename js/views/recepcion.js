@@ -96,7 +96,7 @@ function announce(kind, name) {
   if (kind === "ok") { tones([[784, 0.22], [1047, 0.38]]); setTimeout(() => speak(`¡Hola ${first}, bienvenido a ${gymName()}!`), 450); }
   else if (kind === "warn") { tones([[784, 0.22], [1047, 0.38]]); setTimeout(() => speak(`¡Hola ${first}, bienvenido a ${gymName()}! Cuando puedas, acercate a recepción.`), 450); }
   else if (kind === "bad") { tones([[659, 0.25], [494, 0.4]]); setTimeout(() => speak(`Hola ${first}, antes de entrar acercate a recepción, por favor.`), 500); }
-  else if (kind === "unknown") { tones([[587, 0.35]]); setTimeout(() => speak("No te reconozco. Acercate a recepción, por favor."), 400); }
+  else if (kind === "unknown") { tones([[587, 0.35]]); setTimeout(() => speak("No te reconozco. Por favor, contactate con administración."), 400); }
 }
 
 async function loadHuman() {
@@ -229,7 +229,14 @@ let ui = null;
 const say = (html) => { E.status = html; ui?.say(html); };
 const showResult = (html) => ui?.result(html);
 const screen = "BroadcastChannel" in window ? new BroadcastChannel(SCREEN_CHANNEL) : null;
-const toScreen = (m) => { try { screen?.postMessage(m); } catch { /* sin pantalla */ } };
+const send = (m) => { try { screen?.postMessage(m); } catch { /* sin pantalla */ } };
+/* lo último que se le mostró a la pantalla de los socios: se repite mientras la persona sigue frente a la cámara
+   (si no, a los pocos segundos volvería a "Mirá a la cámara") y se le manda a una pantalla recién abierta */
+const toScreen = (m) => { if (m.t !== "oval") { E.scr = m; E.scrAt = Date.now(); } send(m); };
+screen?.addEventListener("message", ({ data: d }) => {
+  if (d?.t !== "hello" || !E.stream) return;           /* solo responde la compu que tiene la cámara prendida */
+  send({ t: "oval", on: !!E.ovalOn }); send(E.scr || { t: "idle" });
+});
 /* parecido entre dos huellas: coseno (1 = idénticas). Las huellas del modelo anterior no se comparan */
 const sim = (a, b) => {
   if (!a || !b || a.length !== b.length) return 0;
@@ -266,6 +273,8 @@ async function loop() {
     const lit = !!f || (E.ovalOn && E.ovalMiss < 3);
     ui?.oval(lit);
     if (E.ovalOn !== lit) { E.ovalOn = lit; toScreen({ t: "oval", on: lit }); }
+    /* la persona sigue ahí: se le vuelve a mandar el cartel a la pantalla de los socios */
+    if (E.scr && E.scr.t !== "idle" && Date.now() - E.scrAt > 2000) { E.scrAt = Date.now(); send(E.scr); }
     /* terminó de atender: el cartel de recepción vuelve a mostrar la cámara */
     if (E.holdUntil && !holding() && !E.enrollFor) { E.holdUntil = 0; E.cam = null; showResult(IDLE); }
     if (E.enrollFor) { if (f) await enrollStep(f, faces.length); else if (E.capturing) say("Que ponga la cara dentro del óvalo, cerca de la cámara…"); }

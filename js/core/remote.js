@@ -493,8 +493,10 @@ export const remoteAdapter = {
   async saveFeedback(f) { must(await sb.from("feedback").upsert({ id: f.id, user_id: f.userId, at: iso(f.at), kind: f.kind, data: strip(f, "id", "userId", "at", "kind") })); },
   async saveCheckin(c) {
     const r = await sb.from("checkins").insert({ id: c.id, user_id: c.userId, at: iso(c.at), data: strip(c, "id", "userId", "at") });
-    /* base sin actualizar (11_varias_entradas_por_dia.sql): todavía admite una entrada por día; no es un error */
-    if (r.error && r.error.code === "23505") return;
+    /* la base todavía tiene la regla vieja de "una entrada por día" (falta 11_varias_entradas_por_dia.sql):
+       la segunda entrada del día NO se guarda. Se avisa en vez de perderla en silencio */
+    if (r.error && r.error.code === "23505" && /checkins_un_dia/.test(r.error.message || "")) throw new Error("No se guardó la segunda entrada del día: falta correr en Supabase el archivo 11_varias_entradas_por_dia.sql.");
+    if (r.error && r.error.code === "23505") return;   /* ya estaba (se reenvió la misma entrada) */
     must(r);
   },
   async saveFace(uid, f) { must(await sb.from("faces").upsert({ user_id: uid, data: f, updated_at: iso() })); },

@@ -33,6 +33,9 @@ const inOval = (f) => {
 /* al elegir un socio de la búsqueda (o al terminar un registro), el cartel de recepción se queda este tiempo
    para no tapar lo que se está mirando (la cámara sigue reconociendo); mientras se escribe, solo unos segundos */
 const PAUSE = 15000, TYPING = 4000;
+/* "segundo disparo": si no la reconoce enseguida, sigue probando unos 2 segundos (la persona se acomoda)
+   mostrando "Un momento…", y recién ahí dice "No reconocido" */
+const UNKNOWN_AFTER = 2000;
 let human = null;
 
 /* Sonido y voz al reconocer: un "ding-dong" que sube si puede pasar, un tono neutro si no lo reconoce y dos
@@ -278,7 +281,11 @@ async function loop() {
     /* terminó de atender: el cartel de recepción vuelve a mostrar la cámara */
     if (E.holdUntil && !holding() && !E.enrollFor) { E.holdUntil = 0; E.cam = null; showResult(IDLE); }
     if (E.enrollFor) { if (f) await enrollStep(f, faces.length); else if (E.capturing) say("Que ponga la cara dentro del óvalo, cerca de la cámara…"); }
-    else if (!f) { say(faces.length ? "Poné la cara en el centro del óvalo, cerca de la cámara…" : "Esperando una cara frente a la cámara…"); E.count = 0; E.unknown = 0; camExpire(); }
+    else if (!f) {
+      say(faces.length ? "Poné la cara en el centro del óvalo, cerca de la cámara…" : "Esperando una cara frente a la cámara…"); E.count = 0; E.unknown = 0;
+      if (E.scanning && !E.cam) { E.scanning = false; toScreen({ t: "idle" }); }
+      camExpire();
+    }
     else if (f.embedding?.length) {
       /* sin ningún rostro registrado también se le avisa a la persona que no la reconoce */
       const list = known();
@@ -291,6 +298,8 @@ async function loop() {
         const fake = typeof f.real === "number" && f.real < 0.5;
         E.count = u && u.id === E.last ? E.count + 1 : 1; E.last = u?.id || null;
         E.unknown = u ? 0 : E.unknown + 1;
+        if (E.unknown === 1) E.unknownSince = Date.now();
+        if (u) E.scanning = false;
         if (u && E.count >= STABLE) {
           /* entra solo si puede pasar y no parece una foto; si no, recepción decide con el botón */
           const acc = accessOf(u);
@@ -308,8 +317,12 @@ async function loop() {
             S.api.saveFace(u.id, fr.emb.map((v, i) => v * 0.9 + f.embedding[i] * 0.1), { upd: new Date().toDateString(), since: fr.since || fr.at, model: FACE_MODEL });
           }
           say(`Reconocido: <b>${esc(u.name)}</b> (${Math.round(best * 100)} %)`);
+        } else if (!u && E.unknown >= STABLE && E.cam?.id !== "?" && Date.now() - (E.unknownSince || 0) < UNKNOWN_AFTER) {
+          /* todavía no la reconoce: se le pide que se acomode y se sigue probando */
+          if (!E.scanning) { E.scanning = true; toScreen({ t: "scan" }); }
+          say("Mirando… que se acomode de frente a la cámara.");
         } else if (!u && E.unknown >= STABLE) {
-          /* otra persona que no está registrada: el cartel cambia enseguida */
+          /* otra persona que no está registrada (o no se dejó reconocer en 2 segundos) */
           const dudoso = best >= MATCH && !clear;
           const voice = Date.now() - E.lastUnknownVoice > 20000;
           camShow("?", `<div class="rc-card none">${icon("user", "lg")}<div class="rc-info"><span class="rc-name">${dudoso ? "No estoy seguro" : "No reconocido"}</span><b class="rc-head">Buscalo por DNI</b><small>${dudoso ? "Se parece a más de un socio registrado." : "No está registrado o no lo reconozco bien."}</small></div></div>`, voice ? "unknown" : "silent");

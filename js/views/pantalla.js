@@ -51,6 +51,7 @@ export function pantallaView() {
         clearTimeout(idleT);
         if (d.t === "oval") oval.classList.toggle("on", !!d.on);
         else if (d.t === "idle") setMsg(...IDLE);
+        else if (d.t === "scan") setMsg("idle", "Un momento…", "Mirá de frente a la cámara, sin moverte");
         else if (d.t === "show") {
           const first = String(d.name || "").split(" ")[0];
           if (d.kind === "ok") setMsg("ok", `¡Hola ${first}!`, `Bienvenido a ${d.gym || g.name}`, false, d.note);

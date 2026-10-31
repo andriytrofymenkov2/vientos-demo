@@ -23,7 +23,7 @@ const DUP = 0.45;
    (así no se activa con alguien que pasa por atrás o al costado). Coordenadas de 0 a 1 de la imagen. */
 /* la cara cuenta (y el óvalo se pone verde) solo si está centrada: el centro de la cara a poca distancia del centro
    del óvalo, y ni muy lejos (cara chica) ni pegada a la cámara */
-const OVAL = { cx: 0.5, cy: 0.47, rx: 0.11, ry: 0.14, minW: 0.2, maxW: 0.7 };
+const OVAL = { cx: 0.5, cy: 0.47, rx: 0.14, ry: 0.17, minW: 0.2, maxW: 0.8 };
 const inOval = (f) => {
   const [x, y, w, h] = f.boxRaw || [];
   if (w === undefined) return false;

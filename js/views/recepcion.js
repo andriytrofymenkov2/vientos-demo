@@ -11,11 +11,13 @@ import { me } from "../core/auth.js";
 import { SCREEN_CHANNEL } from "./pantalla.js";
 
 /* similitud mínima para decir "es tal socio" y cuántas lecturas seguidas iguales hacen falta */
-const MATCH = 0.6, STABLE = 3;
+const MATCH = 0.65, STABLE = 3;
 /* si el segundo socio más parecido está a menos de esta distancia, no se elige a ninguno (evita confundir) */
-const MARGIN = 0.06;
+const MARGIN = 0.1;
 /* registrar: cuántas lecturas, qué tan parecidas entre sí y qué tan distinta a las ya registradas */
 const SAMPLES = 5, SAME = 0.7;
+/* al registrar, si la cara se parece al 60 % a otro socio ya registrado, no se guarda (más estricto que para entrar) */
+const DUP = 0.6;
 /* Óvalo guía en el centro de la imagen: solo cuenta una cara que esté adentro y cerca de la cámara
    (así no se activa con alguien que pasa por atrás o al costado). Coordenadas de 0 a 1 de la imagen. */
 const OVAL = { cx: 0.5, cy: 0.47, rx: 0.2, ry: 0.33, minW: 0.2 };
@@ -25,8 +27,8 @@ const inOval = (f) => {
   const dx = (x + w / 2 - OVAL.cx) / OVAL.rx, dy = (y + h / 2 - OVAL.cy) / OVAL.ry;
   return dx * dx + dy * dy <= 1 && w >= OVAL.minW;
 };
-/* al elegir un socio de la búsqueda (o al terminar un registro), el reconocimiento espera este tiempo
-   para no tapar lo que se está mirando (o hasta "Seguir reconociendo"); mientras se escribe, solo unos segundos */
+/* al elegir un socio de la búsqueda (o al terminar un registro), el cartel de recepción se queda este tiempo
+   para no tapar lo que se está mirando (la cámara sigue reconociendo); mientras se escribe, solo unos segundos */
 const PAUSE = 15000, TYPING = 4000;
 let human = null;
 
@@ -264,7 +266,7 @@ async function enrollStep(f, n) {
   const emb = E.samples[0].map((_, i) => E.samples.reduce((a, x) => a + x[i], 0) / E.samples.length);
   /* ¿esa cara ya es de otro socio? (por ejemplo, quedó quien atiende frente a la cámara) */
   const dup = known().filter((x) => x.id !== E.enrollFor.id).map((x) => [sim(emb, S.faceOf(x.id).emb), x]).sort((a, b) => b[0] - a[0])[0];
-  if (dup && dup[0] >= MATCH) {
+  if (dup && dup[0] >= DUP) {
     const who = dup[1], first = E.enrollFor.name.split(" ")[0];
     return cancelEnroll(`<div class="rc-card bad"><div class="rc-info"><span class="rc-name">No se registró</span><b class="rc-head">${icon("alert", "sm")} Esa cara ya es de ${esc(who.name)}</b><small>Parece que frente a la cámara estaba ${esc(who.name.split(" ")[0])} y no ${esc(first)}. Probá de nuevo con ${esc(first)} solo/a frente a la cámara.</small></div></div>`);
   }

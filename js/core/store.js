@@ -575,7 +575,7 @@ export const api = {
 
   async createCoach({ name, email, phone, pass, role, space = "vientos" }) {
     if (findLogin(email)) throw new Error("Ya hay una cuenta con ese email o usuario.");
-    const prefs = { theme: "dark", sound: true, ...(space === "fitz" ? { space: "fitz" } : {}) };
+    const prefs = { theme: "dark", sound: true, tempPass: true, ...(space === "fitz" ? { space: "fitz" } : {}) };
     if (R) {
       const u = await R.createAccount({ name, email, username: email, phone, pass, role: role === "admin" ? "admin" : "profe", prefs });
       db.users.push(u); save();

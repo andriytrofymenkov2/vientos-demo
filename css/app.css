@@ -1551,3 +1551,4 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 #rc-sound { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 61; display: flex; gap: 8px; align-items: center; padding: 10px 16px; border-radius: 999px; background: var(--card); color: inherit; border: 1px solid var(--line); box-shadow: 0 8px 28px rgba(0, 0, 0, .3); cursor: pointer; font-weight: 600; animation: rcIn .25s ease-out; }
 @media (max-width: 767px) { #rc-sound { bottom: calc(82px + env(safe-area-inset-bottom)); } }
 @media (min-aspect-ratio: 4/3) { .k-tips { flex-wrap: nowrap; } .k-tips i { white-space: nowrap; font-size: clamp(14px, 1.9vh, 22px); padding: .7vh 14px; } }
+.team-acts { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }

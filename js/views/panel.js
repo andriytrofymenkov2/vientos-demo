@@ -1105,7 +1105,7 @@ export function gymView() {
         <section class="card">
           <div class="card-h"><h2>${icon("users", "sm")} Equipo</h2></div>
           <div class="row-btns team-add"><button class="btn primary sm" type="button" data-act="admin">${icon("shield", "sm")} Sumar administrador</button><button class="btn ghost sm" type="button" data-act="coach">${icon("userplus", "sm")} Sumar profe</button></div>
-          ${team.sort((a, b) => (a.role === "admin" ? 0 : 1) - (b.role === "admin" ? 0 : 1)).map((c) => `<div class="mrow">${avatar(c, "sm")}<span><b>${esc(c.name)}${c.id === me().id ? " (vos)" : ""}</b><small>${c.role === "admin" ? "Administrador · acceso total" : `Profe · ${plural(S.membersOf(c.id).length, "socio", "socios")}`}</small></span>${c.id === me().id ? "" : `<button class="btn ghost sm" type="button" data-unstaff="${c.id}">${icon("trash", "sm")} Quitar</button>`}</div>`).join("")}
+          ${team.sort((a, b) => (a.role === "admin" ? 0 : 1) - (b.role === "admin" ? 0 : 1)).map((c) => `<div class="mrow">${avatar(c, "sm")}<span><b>${esc(c.name)}${c.id === me().id ? " (vos)" : ""}</b><small>${c.role === "admin" ? "Administrador · acceso total" : `Profe · ${plural(S.membersOf(c.id).length, "socio", "socios")}`}</small></span>${c.id === me().id ? "" : `<span class="team-acts"><button class="btn ghost sm" type="button" data-repass="${c.id}">${icon("lock", "sm")} Contraseña nueva</button><button class="btn ghost sm" type="button" data-unstaff="${c.id}">${icon("trash", "sm")} Quitar</button></span>`}</div>`).join("")}
           ${exTeam.length ? `<details class="rc-list"><summary>Dados de baja (${exTeam.length})</summary>${exTeam.map((c) => `<div class="mrow">${avatar(c, "sm")}<span><b>${esc(c.name)}</b><small>${c.role === "admin" ? "Administrador" : "Profe"} · ya no puede ingresar</small></span><button class="btn ghost sm" type="button" data-restaff="${c.id}">Volver a sumar</button></div>`).join("")}</details>` : ""}
         </section>
         ${S.MODE === "demo" ? `<section class="card"><div class="card-h"><h2>${icon("info", "sm")} Demostración</h2></div>
@@ -1136,6 +1136,13 @@ export function gymView() {
           const c = S.user(un.dataset.unstaff), n = S.membersOf(c.id).length;
           const ok = await confirmDialog({ title: `¿Quitar a ${c.name} del equipo?`, text: `No va a poder ingresar más a la app. Lo que hizo (rutinas, cobros, entradas) queda guardado.${n ? ` Sus ${plural(n, "socio", "socios")} quedan sin profe asignado.` : ""} Si te equivocaste, lo podés volver a sumar.`, ok: "Quitar", danger: true });
           if (ok) { S.api.removeStaff(c.id); toast(`${c.name} ya no está en el equipo`); refresh(); }
+        }
+        const rp = e.target.closest("[data-repass]");
+        if (rp) {
+          const c = S.user(rp.dataset.repass);
+          if (!await confirmDialog({ title: `¿Generar una contraseña nueva para ${c.name}?`, text: "La anterior deja de funcionar. La nueva se muestra una sola vez: anotala o mandásela.", ok: "Generar" })) return;
+          const pass = genPass();
+          try { await S.api.resetPassword(c.id, pass); S.api.updateUser(c.id, { prefs: { ...c.prefs, tempPass: true } }); credentialsSheet(c, pass, "Contraseña nueva"); } catch (err) { toast(err.message, "err"); }
         }
         const rs = e.target.closest("[data-restaff]");
         if (rs) { const c = S.user(rs.dataset.restaff); S.api.restoreStaff(c.id); toast(`${c.name} volvió al equipo`); refresh(); }

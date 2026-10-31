@@ -12,7 +12,7 @@ import { SCREEN_CHANNEL } from "./pantalla.js";
 
 /* similitud mínima (coseno de InsightFace) para decir "es tal socio" y cuántas lecturas seguidas iguales hacen falta.
    Valor inicial conservador: se ajusta con las pruebas reales (la misma persona suele dar 0,6–0,85; dos parientes, bastante menos) */
-const MATCH = 0.6, STABLE = 3;
+const MATCH = 0.6, STABLE = 2;
 /* si el segundo socio más parecido está a menos de esta distancia, no se elige a ninguno (evita confundir) */
 const MARGIN = 0.1;
 /* registrar: cuántas lecturas, qué tan parecidas entre sí y qué tan distinta a las ya registradas */
@@ -217,7 +217,8 @@ const enrolled = () => socios().filter(faceOk).length;
 const known = () => socios().filter((u) => S.faceConsent(u) && faceOk(u));
 const IDLE = `<p class="muted">Acá aparece el socio reconocido o el que busques por DNI.</p>`;
 /* el cartel se borra 1,5 s después de que la persona sale del óvalo; si entra el siguiente, cambia enseguida */
-const HOLD = 1500;
+/* cuánto queda el cartel cuando la persona ya se fue (corto: que pase el siguiente) */
+const HOLD = 700;
 const CAM_KEY = "vientos_recepcion_camara";
 const wanted = () => { try { return localStorage.getItem(CAM_KEY) === "1"; } catch { return false; } };
 const want = (on) => { try { localStorage.setItem(CAM_KEY, on ? "1" : "0"); } catch { /* sin almacenamiento */ } };
@@ -267,7 +268,9 @@ function camExpire() { if (E.cam && Date.now() - E.cam.seen > HOLD) { if (!holdi
 async function loop() {
   if (!E.stream) return;
   try {
+    const t = performance.now();
     const res = await human.detect(E.video);
+    E.ms = Math.round(performance.now() - t);
     /* si hay más de una cara, la más grande (la que está más cerca de la cámara) */
     const faces = (res.face || []).slice().sort((a, b) => (b.box?.[2] || 0) * (b.box?.[3] || 0) - (a.box?.[2] || 0) * (a.box?.[3] || 0));
     const f = faces.filter(inOval)[0];
@@ -294,6 +297,7 @@ async function loop() {
         const order = list.map((x, i) => [sim(f.embedding, S.faceOf(x.id).emb), i]).sort((a, b) => b[0] - a[0]);
         const [best = 0, bi = -1] = order[0] || [], second = order[1]?.[0] || 0;
         const clear = best - second >= MARGIN;
+        E.dbg = { best: Math.round(best * 100), second: Math.round(second * 100), who: list[bi]?.name || "", n: list.length };
         const u = best >= MATCH && clear ? list[bi] : null;
         const fake = typeof f.real === "number" && f.real < 0.5;
         E.count = u && u.id === E.last ? E.count + 1 : 1; E.last = u?.id || null;
@@ -332,7 +336,8 @@ async function loop() {
       }
     }
   } catch (e) { console.warn(e); }
-  E.timer = setTimeout(loop, 250);
+  /* la próxima lectura enseguida (la detección misma ya lleva su tiempo); un respiro mínimo para no trabar la página */
+  E.timer = setTimeout(loop, 30);
 }
 
 /* Registrar el rostro, guiado: se pausa el reconocimiento, la persona se pone SOLA frente a la cámara,
@@ -431,6 +436,9 @@ export function stopCamera() {
   say("Cámara apagada.");
 }
 export const cameraOn = () => !!E.stream;
+/* cuánto tarda cada lectura (para medir) */
+export const engineMs = () => E.ms || 0;
+export const engineDebug = () => E.dbg || null;
 /* al abrir la app (en cualquier pantalla del panel): si la cámara había quedado prendida en este equipo, se prende */
 export function resumeCamera() { if (wanted() && !E.stream && !isScreen()) startCamera(); }
 document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && wanted() && !isScreen()) { if (!E.stream) startCamera(); else keepAwake(); } });

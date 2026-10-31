@@ -211,15 +211,14 @@ async function loop() {
             /* mismo promedio que al registrarla (90 % lo guardado + 10 % la lectura de hoy) */
             S.api.saveFace(u.id, fr.emb.map((v, i) => v * 0.9 + f.embedding[i] * 0.1), { upd: new Date().toDateString(), since: fr.since || fr.at });
           }
-          say(`Reconocido: <b>${esc(u.name)}</b> (${Math.round(best * 100)} %)${order[1] ? ` · el que más se le parece después: ${esc(list[order[1][1]].name.split(" ")[0])} (${Math.round(second * 100)} %)` : ""}`);
+          say(`Reconocido: <b>${esc(u.name)}</b> (${Math.round(best * 100)} %)`);
         } else if (!u && E.unknown >= STABLE) {
           /* otra persona que no está registrada: el cartel cambia enseguida */
           const dudoso = best >= MATCH && !clear;
           const voice = Date.now() - E.lastUnknownVoice > 20000;
           camShow("?", `<div class="rc-card none">${icon("user", "lg")}<div class="rc-info"><span class="rc-name">${dudoso ? "No estoy seguro" : "No reconocido"}</span><b class="rc-head">Buscalo por DNI</b><small>${dudoso ? "Se parece a más de un socio registrado." : "No está registrado o no lo reconozco bien."}</small></div></div>`, voice ? "unknown" : "silent");
           if (voice) E.lastUnknownVoice = Date.now();
-          const near = order[0] ? ` (el más parecido: ${esc(list[bi].name.split(" ")[0])}, ${Math.round(best * 100)} %; hace falta ${Math.round(MATCH * 100)} %)` : "";
-          say((dudoso ? "No estoy seguro de quién es. Buscalo por DNI." : "No lo reconozco. Buscalo por DNI.") + near);
+          say(dudoso ? "No estoy seguro de quién es. Buscalo por DNI." : "No lo reconozco. Buscalo por DNI.");
         }
       }
     }

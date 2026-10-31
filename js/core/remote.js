@@ -443,7 +443,7 @@ export const remoteAdapter = {
   async saveFeedback(f) { must(await sb.from("feedback").upsert({ id: f.id, user_id: f.userId, at: iso(f.at), kind: f.kind, data: strip(f, "id", "userId", "at", "kind") })); },
   async saveCheckin(c) {
     const r = await sb.from("checkins").insert({ id: c.id, user_id: c.userId, at: iso(c.at), data: strip(c, "id", "userId", "at") });
-    /* ya había una entrada de ese socio ese día (la registró otra computadora): no es un error */
+    /* base sin actualizar (11_varias_entradas_por_dia.sql): todavía admite una entrada por día; no es un error */
     if (r.error && r.error.code === "23505") return;
     must(r);
   },

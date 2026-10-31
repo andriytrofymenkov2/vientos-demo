@@ -154,21 +154,21 @@ export function panelHome() {
           /* Asistencia: entradas registradas en Recepción (no las rutinas que marca el socio) */
           const all = S.checkinsOf(), d0 = new Date(); d0.setHours(0, 0, 0, 0);
           const t0 = d0.getTime(), since30 = t0 - 29 * DAY;
-          const hoy = all.filter((c) => c.at >= t0).length;
+          const hoy = S.personDays(all.filter((c) => c.at >= t0));
           const last30 = all.filter((c) => c.at >= since30);
-          const days14 = Array.from({ length: 14 }, (_, i) => { const a = t0 - (13 - i) * DAY; return { a, n: all.filter((c) => c.at >= a && c.at < a + DAY).length }; });
+          const days14 = Array.from({ length: 14 }, (_, i) => { const a = t0 - (13 - i) * DAY; return { a, n: S.personDays(all.filter((c) => c.at >= a && c.at < a + DAY)) }; });
           const maxD = Math.max(1, ...days14.map((x) => x.n));
           const BANDS = [["6 a 9", 6, 9], ["9 a 12", 9, 12], ["12 a 15", 12, 15], ["15 a 18", 15, 18], ["18 a 21", 18, 21], ["21 a 24", 21, 24]];
           const bands = BANDS.map(([label, h1, h2]) => ({ label, n: last30.filter((c) => { const h = new Date(c.at).getHours(); return h >= h1 && h < h2; }).length }));
           const lastOf = {}; all.forEach((c) => { if (!lastOf[c.userId] || c.at > lastOf[c.userId]) lastOf[c.userId] = c.at; });
           const away = live.filter((m) => lastOf[m.id] && lastOf[m.id] < t0 - 14 * DAY).sort((x, y) => lastOf[x.id] - lastOf[y.id]);
           const DAYS = ["D", "L", "M", "M", "J", "V", "S"];
-          const semana = all.filter((c) => c.at >= weekStartTs()).length;
-          const prom7 = all.filter((c) => c.at >= t0 - 6 * DAY).length / 7;
+          const semana = S.personDays(all.filter((c) => c.at >= weekStartTs()));
+          const prom7 = S.personDays(all.filter((c) => c.at >= t0 - 6 * DAY)) / 7;
           const fuera = last30.filter((c) => { const h = new Date(c.at).getHours(); return h < 6; }).length;
           const bandRows = [...(fuera ? [{ label: "0 a 6", n: fuera }] : []), ...bands];
           return `<section class="card wide att"><div class="card-h"><h2>${icon("calendar", "sm")} Asistencia</h2><a class="muted" href="#/panel/recepcion">Ir a Recepción</a></div>
-          <p class="muted tiny">Entradas registradas en Recepción (por la cara o por DNI). Cada socio cuenta una vez por día.</p>
+          <p class="muted tiny">Entradas registradas en Recepción (por la cara o por DNI). Cada socio cuenta una vez por día; en los horarios cuenta cada entrada.</p>
           ${all.length ? `<div class="statrow"><div><b>${hoy}</b><small>vinieron hoy</small></div><div><b>${semana}</b><small>esta semana</small></div><div><b>${prom7.toLocaleString("es-AR", { maximumFractionDigits: 1 })}</b><small>por día (últimos 7 días)</small></div></div>
           <div class="att-grid">
             <div><h3 class="sub">Últimos 14 días</h3><div class="att-days">${days14.map((x) => `<span title="${new Date(x.a).toLocaleDateString("es-AR")}: ${x.n}"><em>${x.n || ""}</em><i style="height:${Math.max(x.n ? 6 : 0, (x.n / maxD) * 100)}%"></i><small>${DAYS[new Date(x.a).getDay()]}</small></span>`).join("")}</div></div>

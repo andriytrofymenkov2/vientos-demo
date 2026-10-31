@@ -199,6 +199,12 @@ export const faceOf = (userId) => db.faces?.[userId] || null;
 /* Asistencia: entradas registradas en recepción (por la cara, por DNI o "dejar pasar igual"), una por socio por día */
 export const checkinsOf = (sp = currentSpace()) => (db.checkins || []).filter((c) => spaceOf(user(c.userId)) === sp);
 export const checkedInToday = (userId) => (db.checkins || []).some((c) => c.userId === userId && dayKey(c.at) === dayKey());
+/* un socio puede venir más de una vez por día (gimnasio a la mañana, otra actividad a la tarde): cada visita es
+   una entrada. Para no contar dos veces la misma visita (la cámara lo sigue viendo), entre una y otra pasan 2 h */
+export const REENTRY = 2 * 3600000;
+export const lastCheckin = (userId) => (db.checkins || []).reduce((m, c) => (c.userId === userId && (!m || c.at > m.at) ? c : m), null);
+/* cuenta cada socio una vez por día (para "vinieron hoy", "esta semana", etc.) */
+export const personDays = (list) => new Set(list.map((c) => c.userId + "|" + dayKey(c.at))).size;
 /* Opiniones: rubros que califica cada socio del 1 al 10 */
 export const RATE_CATS = [["limpieza", "Limpieza"], ["atencion", "Atención"], ["profes", "Profes"], ["maquinas", "Máquinas"], ["instalaciones", "Instalaciones"], ["comodidad", "Comodidad"], ["clases", "Clases y dinámicas"]];
 export const feedbackOf = (sp = currentSpace()) => (db.feedback || []).filter((f) => (f.space === "fitz" ? "fitz" : "vientos") === sp);
@@ -302,7 +308,8 @@ export function planPerWeek(p) {
 export function weekEntries(u, now = new Date()) {
   const start = new Date(now); start.setHours(0, 0, 0, 0); start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
   const today = new Date(now).toDateString();
-  return (db.checkins || []).filter((c) => c.userId === u.id && c.at >= +start && new Date(c.at).toDateString() !== today).length;
+  /* días distintos que vino (si vino dos veces el mismo día, cuenta un día del plan) */
+  return new Set((db.checkins || []).filter((c) => c.userId === u.id && c.at >= +start && new Date(c.at).toDateString() !== today).map((c) => new Date(c.at).toDateString())).size;
 }
 
 /* Convenios con empresas: descuento en porcentaje o monto fijo por mes */
@@ -858,7 +865,8 @@ export const api = {
   },
   /* registra la entrada del socio (una sola vez por día); devuelve la entrada o null si ya había entrado hoy */
   checkIn(userId, via, by) {
-    if (checkedInToday(userId)) return null;
+    const last = lastCheckin(userId);
+    if (last && Date.now() - last.at < REENTRY) return null;
     const at = Date.now();
     const c = { id: uid("c"), userId, at, day: dayKey(at), via, by };
     (db.checkins ||= []).push(c); save(); push("saveCheckin", c);

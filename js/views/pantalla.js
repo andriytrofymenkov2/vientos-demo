@@ -20,13 +20,13 @@ export function pantallaView() {
       <div class="k-video"><video data-video playsinline muted autoplay></video><div class="k-oval" data-oval></div></div>
       <div class="k-shade top"></div><div class="k-shade bottom"></div>
       <img class="k-logo" src="${logo}" alt="${esc(g.name)}">
-      <div class="k-msg idle" data-msg><b>Mirá a la cámara</b>${TIPS}</div>
+      <div class="k-msg idle" data-msg><b>Por favor, mirá a la cámara</b>${TIPS}</div>
       <button class="k-full" type="button" data-full>${icon("ext", "sm")} Pantalla completa</button>
     </div>`,
     mount(host) {
       const video = $("[data-video]", host), msg = $("[data-msg]", host), oval = $("[data-oval]", host);
       let stream = null, wake = null, idleT = 0;
-      const IDLE = ["idle", "Mirá a la cámara", "", true];
+      const IDLE = ["idle", "Por favor, mirá a la cámara", "", true];
       const setMsg = (cls, big, small = "", tips = false) => { msg.className = `k-msg ${cls}`; msg.innerHTML = `<b>${esc(big)}</b>${small ? `<span>${esc(small)}</span>` : ""}${tips ? TIPS : ""}`; };
       const keepAwake = async () => { try { wake = await navigator.wakeLock?.request("screen"); } catch { wake = null; } };
       async function start() {
@@ -55,7 +55,7 @@ export function pantallaView() {
           if (d.kind === "ok") setMsg("ok", `¡Hola ${first}!`, `Bienvenido a ${d.gym || g.name}`);
           else if (d.kind === "warn") setMsg("ok", `¡Hola ${first}!`, "Cuando puedas, acercate a recepción");
           else if (d.kind === "bad") setMsg("warn", `Hola ${first}`, "Antes de entrar, acercate a recepción");
-          else setMsg("none", "No te reconozco", "Sacate la gorra y los anteojos y volvé a mirar. Si no, acercate a recepción.");
+          else setMsg("none", "No te reconozco", "Por favor, sacate la gorra y los anteojos y volvé a mirar. Si no, acercate a recepción.");
           idleT = setTimeout(() => setMsg(...IDLE), 6000);        /* por si Recepción se cierra */
         } else if (d.t === "enroll") setMsg("enroll", d.big || "Registrando tu rostro", d.small || "Mirá de frente a la cámara");
       });

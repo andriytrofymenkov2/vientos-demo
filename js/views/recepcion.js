@@ -118,11 +118,15 @@ export function accessOf(u) {
 
 const hhmm = (ts) => new Date(ts).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 const todayIn = (u) => (S.db.checkins || []).find((c) => c.userId === u.id && new Date(c.at).toDateString() === new Date().toDateString());
-/* botón o aviso de la entrada de hoy */
+/* botón o aviso de la entrada de hoy (puede venir más de una vez: pasadas 2 h se puede registrar otra) */
 function entryHtml(u, asistOff) {
   if (asistOff) return "";
-  const c = todayIn(u);
-  if (c) return `<small class="rc-ok">${icon("checkc", "xs")} Entró hoy a las ${hhmm(c.at)}</small>`;
+  const hoy = (S.db.checkins || []).filter((c) => c.userId === u.id && new Date(c.at).toDateString() === new Date().toDateString()).sort((a, b) => a.at - b.at);
+  if (hoy.length) {
+    const txt = `<small class="rc-ok">${icon("checkc", "xs")} Entró hoy a las ${hoy.map((c) => hhmm(c.at)).join(" y a las ")}</small>`;
+    return Date.now() - hoy[hoy.length - 1].at < S.REENTRY ? txt
+      : `${txt}<button class="btn primary sm" type="button" data-in="${u.id}" data-via="dni">${icon("check", "sm")} Registrar otra entrada</button>`;
+  }
   return accessOf(u).cls === "bad"
     ? `<button class="btn ghost sm" type="button" data-in="${u.id}" data-via="manual">${icon("check", "sm")} Dejar pasar igual</button>`
     : `<button class="btn primary sm" type="button" data-in="${u.id}" data-via="dni">${icon("check", "sm")} Registrar entrada</button>`;
@@ -137,7 +141,7 @@ const resultCard = (u, extra = "") => { const a = accessOf(u); return `<div clas
    --------------------------------------------------------------------------------------------------------- */
 const faceOff = () => S.MODE === "supabase" && !!S.db.off?.rostros;
 const asistOff = () => S.MODE === "supabase" && !!S.db.off?.asistencia;
-const todayCount = () => S.checkinsOf().filter((c) => new Date(c.at).toDateString() === new Date().toDateString()).length;
+const todayCount = () => new Set(S.checkinsOf().filter((c) => new Date(c.at).toDateString() === new Date().toDateString()).map((c) => c.userId)).size;
 const socios = () => S.activeMembers().filter((u) => S.inSpace(u) && u.status === "activo");
 const enrolled = () => socios().filter((u) => S.faceOf(u.id)).length;
 const known = () => socios().filter((u) => S.faceConsent(u) && S.faceOf(u.id));

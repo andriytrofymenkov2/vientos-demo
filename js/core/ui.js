@@ -28,6 +28,7 @@ const PANEL = [
   { id: "resumen", href: "#/panel", icon: "chart", label: "Resumen", tab: true },
   { id: "socios", href: "#/panel/socios", icon: "users", label: "Socios", tab: true },
   { id: "recepcion", href: "#/panel/recepcion", icon: "eye", label: "Recepción" },
+  { id: "entradas", href: "#/panel/entradas", icon: "calendar", label: "Entradas", off: "asistencia" },
   { id: "plantillas", href: "#/panel/plantillas", icon: "layers", label: "Plantillas", tab: true },
   { id: "ejercicios", href: "#/panel/ejercicios", icon: "dumbbell", label: "Ejercicios", tab: true },
   { id: "cuotas", href: "#/panel/cuotas", icon: "card", label: "Cuotas" },
@@ -68,7 +69,7 @@ if (typeof document !== "undefined") {
 function panelSide() {
   const u = me();
   /* caja y opiniones se esconden si su tabla todavía no se creó en el servidor (S.db.off) */
-  const items = PANEL.filter((n) => (!n.admin || isAdmin()) && !S.db?.off?.[n.id]);
+  const items = PANEL.filter((n) => (!n.admin || isAdmin()) && !S.db?.off?.[n.off || n.id]);
   const pend = S.pending().filter((m) => S.inSpace(m)).length;
   return `<aside class="side" aria-label="Panel">
     ${brand("#/panel", S.currentSpace())}

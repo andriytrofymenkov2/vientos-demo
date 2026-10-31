@@ -95,6 +95,15 @@ async function allRows(table, { orderBy = "id", desc = false, tie = null } = {})
   return { data: rows, error: null };
 }
 /* todas las filas desde una fecha, de a 1.000 */
+/* entradas que se traen al abrir el panel: alcanza para el resumen (30 días), la semana del plan y "no vienen";
+   lo anterior se pide cuando hace falta (un día viejo, el historial de un socio, el Excel) */
+const CHECKIN_DAYS = 45;
+const toCheck = (r) => ({ ...r.data, id: r.id, userId: r.user_id, at: ms(r.at) });
+/* suma entradas e intentos traídos aparte sin repetir los que ya estaban */
+function mergeChecks(rows) {
+  const ids = new Set([...(S.db.checkins || []), ...(S.db.attempts || [])].map((x) => x.id));
+  rows.forEach((r) => { if (ids.has(r.id)) return; const c = toCheck(r); ((c.blocked ? (S.db.attempts ||= []) : (S.db.checkins ||= []))).push(c); ids.add(r.id); });
+}
 async function allRowsSince(table, since) {
   const rows = [];
   for (let from = 0; from < 200000; from += 1000) {
@@ -136,7 +145,7 @@ async function loadAll(uid) {
     /* huellas faciales: solo el personal (recepción). Si la tabla no existe, no hay reconocimiento */
     (staff ? allRows("faces", { orderBy: "user_id" }) : Promise.resolve({ data: [], error: null })).then((r) => (r.error ? { data: [], error: null, off: true } : r)),
     /* asistencia de los últimos 13 meses (el personal); si la tabla no existe, no se registra */
-    (staff ? allRowsSince("checkins", iso(Date.now() - 400 * 86400000)) : Promise.resolve({ data: [], error: null })).then((r) => (r.error ? { data: [], error: null, off: true } : r)),
+    (staff ? allRowsSince("checkins", iso(Date.now() - CHECKIN_DAYS * 86400000)) : Promise.resolve({ data: [], error: null })).then((r) => (r.error ? { data: [], error: null, off: true } : r)),
   ]);
   /* tablas que se suman después (caja, opiniones): si todavía no se crearon en el servidor, esas secciones no se muestran */
   const off = { caja: !!raw[9].off, opiniones: !!raw[10].off, rostros: !!raw[11].off, asistencia: !!raw[12].off };
@@ -166,9 +175,10 @@ async function loadAll(uid) {
   D.feedback = (feedback || []).map(toFb);
   D.faces = Object.fromEntries((faces || []).map((r) => [r.user_id, r.data]));
   /* en la misma tabla: entradas y los intentos que la cámara frenó (data.blocked) */
-  const rows = (checkins || []).map((r) => ({ ...r.data, id: r.id, userId: r.user_id, at: ms(r.at) }));
+  const rows = (checkins || []).map(toCheck);
   D.checkins = rows.filter((c) => !c.blocked);
   D.attempts = rows.filter((c) => c.blocked);
+  D.checkinsFrom = Date.now() - CHECKIN_DAYS * 86400000;   /* desde cuándo están cargadas */
   D.off = off;
   D.me = uid;
   return D;
@@ -340,6 +350,40 @@ export const remoteAdapter = {
   async reloadFaces() {
     const res = await allRows("faces", { orderBy: "user_id" });
     if (!res.error) { S.db.faces = Object.fromEntries(res.data.map((x) => [x.user_id, x.data])); this._facesAt = Object.fromEntries(res.data.map((x) => [x.user_id, x.updated_at])); }
+  },
+  /* entradas anteriores a lo cargado, hasta `from` (para el Excel) */
+  async ensureCheckinsSince(from) {
+    if (!S.db.checkinsFrom || from >= S.db.checkinsFrom) return;
+    const rows = [];
+    for (let i = 0; i < 400000; i += 1000) {
+      const { data, error } = await sb.from("checkins").select("*").gte("at", iso(from)).lt("at", iso(S.db.checkinsFrom)).order("at").order("id").range(i, i + 999);
+      if (error) throw error;
+      rows.push(...data);
+      if (data.length < 1000) break;
+    }
+    mergeChecks(rows); S.db.checkinsFrom = from;
+  },
+  /* las entradas de un día viejo (pantalla Entradas) */
+  async checkinsOfDay(t0) {
+    if (!S.db.checkinsFrom || t0 >= S.db.checkinsFrom) return;
+    (this._days ||= new Set());
+    if (this._days.has(t0)) return;
+    const rows = [];
+    for (let i = 0; i < 20000; i += 1000) {
+      const { data, error } = await sb.from("checkins").select("*").gte("at", iso(t0)).lt("at", iso(t0 + 86400000)).order("at").range(i, i + 999);
+      if (error) throw error;
+      rows.push(...data);
+      if (data.length < 1000) break;
+    }
+    mergeChecks(rows); this._days.add(t0);
+  },
+  /* todo el historial de entradas de un socio (su ficha) */
+  async checkinsOfMember(id) {
+    (this._members ||= new Set());
+    if (this._members.has(id) || !S.db.checkinsFrom) return;
+    const { data, error } = await sb.from("checkins").select("*").eq("user_id", id).lt("at", iso(S.db.checkinsFrom)).order("at", { ascending: false }).limit(2000);
+    if (error) throw error;
+    mergeChecks(data); this._members.add(id);
   },
   async refreshMember(id) {
     const p = must(await sb.from("profiles").select("*").eq("id", id).maybeSingle());

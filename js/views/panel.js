@@ -10,6 +10,7 @@ import { downloadMaster } from "./exportar.js";
 import { ratingSummary } from "./opinion.js";
 import { routineView } from "./routine.js";
 import { qrSvg, installUrl } from "./install.js";
+import { memberEntriesCard } from "./entradas.js";
 
 /* Socios sin email: se les crea uno interno que no se muestra */
 const realEmail = (e) => (/@sin-email\.vientos\.app$/.test(e || "") ? "" : e || "");
@@ -161,7 +162,8 @@ export function panelHome() {
           const BANDS = [["6 a 9", 6, 9], ["9 a 12", 9, 12], ["12 a 15", 12, 15], ["15 a 18", 15, 18], ["18 a 21", 18, 21], ["21 a 24", 21, 24]];
           const bands = BANDS.map(([label, h1, h2]) => ({ label, n: last30.filter((c) => { const h = new Date(c.at).getHours(); return h >= h1 && h < h2; }).length }));
           const lastOf = {}; all.forEach((c) => { if (!lastOf[c.userId] || c.at > lastOf[c.userId]) lastOf[c.userId] = c.at; });
-          const away = live.filter((m) => lastOf[m.id] && lastOf[m.id] < t0 - 14 * DAY).sort((x, y) => lastOf[x.id] - lastOf[y.id]);
+          const loadedFrom = S.db.checkinsFrom || all.reduce((m, c) => Math.min(m, c.at), t0);
+          const away = live.filter((m) => (lastOf[m.id] ? lastOf[m.id] < t0 - 14 * DAY : m.joined < loadedFrom)).sort((x, y) => (lastOf[x.id] || 0) - (lastOf[y.id] || 0));
           const DAYS = ["D", "L", "M", "M", "J", "V", "S"];
           /* control: los que la cámara frenó y los que recepción dejó pasar igual (últimos 30 días) */
           const frenados = S.attemptsOf().filter((a) => a.at >= since30);
@@ -170,7 +172,7 @@ export function panelHome() {
           const prom7 = S.personDays(all.filter((c) => c.at >= t0 - 6 * DAY)) / 7;
           const fuera = last30.filter((c) => { const h = new Date(c.at).getHours(); return h < 6; }).length;
           const bandRows = [...(fuera ? [{ label: "0 a 6", n: fuera }] : []), ...bands];
-          return `<section class="card wide att"><div class="card-h"><h2>${icon("calendar", "sm")} Asistencia</h2><a class="muted" href="#/panel/recepcion">Ir a Recepción</a></div>
+          return `<section class="card wide att"><div class="card-h"><h2>${icon("calendar", "sm")} Asistencia</h2><a class="muted" href="#/panel/entradas">Ver todas las entradas</a></div>
           <p class="muted tiny">Entradas registradas en Recepción (por la cara o por DNI). Cada socio cuenta una vez por día; en los horarios cuenta cada entrada.</p>
           ${all.length ? `<div class="statrow"><div><b>${hoy}</b><small>vinieron hoy</small></div><div><b>${semana}</b><small>esta semana</small></div><div><b>${prom7.toLocaleString("es-AR", { maximumFractionDigits: 1 })}</b><small>por día (últimos 7 días)</small></div></div>
           <div class="att-grid">
@@ -181,7 +183,7 @@ export function panelHome() {
           <p class="muted tiny">${plural(frenados.length, "vez", "veces")} la cámara no dejó pasar a alguien (cuota vencida o días del plan usados) · ${plural(pasaron.length, "vez", "veces")} recepción dejó pasar igual.</p>
           ${pasaron.slice(0, 5).map((c) => { const m = S.user(c.userId); return m ? mrow(m, `Pasó igual el ${fmtDate(c.at)} a las ${new Date(c.at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}${c.override ? ` · ${c.override}` : ""}`) : ""; }).join("")}
           ${pasaron.length > 5 ? `<a class="btn ghost sm" href="#/panel/socios?f=pasaron">Ver los ${pasaron.length}</a>` : ""}` : ""}
-          ${away.length ? `<h3 class="sub">Al día, pero hace más de 14 días que no vienen (${away.length})</h3>${away.slice(0, 5).map((m) => mrow(m, `Última vez: ${fmtDate(lastOf[m.id])}`)).join("")}${away.length > 5 ? `<p class="muted tiny">Están pagando pero no vienen: conviene escribirles.</p><a class="btn ghost sm" href="#/panel/socios?f=novienen">Ver los ${away.length}</a>` : ""}` : ""}`
+          ${away.length ? `<h3 class="sub">Al día, pero hace más de 14 días que no vienen (${away.length})</h3>${away.slice(0, 5).map((m) => mrow(m, lastOf[m.id] ? `Última vez: ${fmtDate(lastOf[m.id])}` : "No tiene entradas recientes")).join("")}${away.length > 5 ? `<p class="muted tiny">Están pagando pero no vienen: conviene escribirles.</p><a class="btn ghost sm" href="#/panel/socios?f=novienen">Ver los ${away.length}</a>` : ""}` : ""}`
           : `<p class="muted">Todavía no hay entradas registradas. Se empiezan a contar desde la pantalla de Recepción.</p>`}</section>`; })()}
         ${admin && !S.db.off?.opiniones ? (() => { const r = ratingSummary(), fb = S.feedbackOf().filter((x) => x.kind !== "puntaje" && x.status !== "resuelto");
           return `<section class="card"><div class="card-h"><h2>${icon("chat", "sm")} Opiniones de los socios</h2><a class="muted" href="#/panel/opiniones">Ver todo</a></div>
@@ -258,7 +260,8 @@ export function membersView(params, query) {
   if (f === "novienen") {
     const last = {}; S.checkinsOf().forEach((c) => { if (!last[c.userId] || c.at > last[c.userId]) last[c.userId] = c.at; });
     const lim = new Date().setHours(0, 0, 0, 0) - 14 * DAY;
-    list = list.filter((m) => ["ok", "soon"].includes(S.standing(m).key) && last[m.id] && last[m.id] < lim);
+    const loadedFrom = S.db.checkinsFrom || Object.values(last).reduce((a, b) => Math.min(a, b), lim);
+    list = list.filter((m) => ["ok", "soon"].includes(S.standing(m).key) && (last[m.id] ? last[m.id] < lim : m.joined < loadedFrom));
   }
   if (f === "pasaron") { const since = Date.now() - 30 * DAY, ids = new Set(S.checkinsOf().filter((c) => c.via === "manual" && c.at >= since).map((c) => c.userId)); list = list.filter((m) => ids.has(m.id)); }
   if (q) list = list.filter((m) => fold(m.name + " " + m.email + " " + m.phone).includes(fold(q)));
@@ -488,6 +491,7 @@ export async function memberView(params) {
           <div class="permonth">${[2, 1, 0].map((k) => { const a = new Date(m0.getFullYear(), m0.getMonth() - k, 1), b = new Date(a.getFullYear(), a.getMonth() + 1, 1); const n = logs.filter((l) => l.at >= a.getTime() && l.at < b.getTime()).length; return `<div class="${k ? "" : "now"}"><b>${n}</b><small>${a.toLocaleDateString("es-AR", { month: "long" })}</small></div>`; }).join("")}</div>
           ${logs.slice(0, 5).map((l) => `<div class="hrow"><span><b>${esc(l.dayName)} · ${esc(l.focus)}</b><small>${esc(relDay(l.at))} · ${l.min} min${l.sets.length ? ` · ${l.sets.length} series` : ""}</small></span></div>`).join("") || `<p class="muted">Sin entrenamientos registrados.</p>`}
         </section>
+        ${memberEntriesCard(m)}
         <section class="card"><div class="card-h"><h2>${icon("settings", "sm")} Cuenta</h2></div>
           ${field({ label: "Profe a cargo", name: "coach", value: m.coachId || "", options: [["", "Sin asignar"], ...S.coaches().map((c) => [c.id, c.name])], attrs: "data-coach" })}
           <button class="lrow" type="button" data-act="data">${icon("user", "sm")}<span>Editar datos personales${!m.gender || !m.birth ? ` <em class="pill warn">Faltan datos</em>` : ""}</span>${icon("right", "sm")}</button>

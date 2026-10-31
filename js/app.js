@@ -5,6 +5,7 @@ import { opinionView, opinionesView } from "./views/opinion.js";
 import { consentView } from "./views/privacy.js";
 import { recepcionView, resumeCamera } from "./views/recepcion.js";
 import { pantallaView } from "./views/pantalla.js";
+import { entradasView } from "./views/entradas.js";
 import { restore, me, refreshMe, logout } from "./core/auth.js";
 import { route, start, setShell, refresh, go } from "./core/router.js";
 import { shell, applyTheme, toast } from "./core/ui.js";
@@ -71,6 +72,7 @@ async function boot() {
   route("/panel/recaudacion", recaudacionView, { staff: true, admin: true });
   route("/panel/caja", cajaView, { staff: true, admin: true });
   route("/panel/recepcion", recepcionView, staff);
+  route("/panel/entradas", entradasView, staff);
   route("/pantalla", pantallaView, staff);
   route("/panel/opiniones", opinionesView, { staff: true, admin: true });
   route("/panel/avisos", noticesView, staff);

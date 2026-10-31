@@ -417,7 +417,7 @@ export function recepcionView() {
           <p class="muted tiny">La cámara corre en esta computadora: no se guardan fotos ni videos. Solo reconoce a los socios que aceptaron el reconocimiento facial y tienen su rostro registrado.</p>`}
         </section>
         <section class="card">
-          <div class="card-h"><h2>${icon("search", "sm")} Resultado</h2>${asistOff() ? "" : `<span class="pill" data-today>Hoy entraron ${todayCount()}</span>`}</div>
+          <div class="card-h"><h2>${icon("search", "sm")} Resultado</h2>${asistOff() ? "" : `<a class="pill" data-today href="#/panel/entradas">Hoy entraron ${todayCount()}</a>`}</div>
           <div data-result>${IDLE}</div>
           <label class="search rc-search">${icon("search", "sm")}<input type="search" data-q placeholder="Buscar por DNI o nombre" aria-label="Buscar socio" autocomplete="off"></label>
           <div data-found></div>

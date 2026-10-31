@@ -13,7 +13,7 @@ export function pantallaView() {
   const g = S.gymOf(), sp = S.spaceInfo(S.currentSpace());
   const logo = sp.logo || "img/logo-vientos-oscuro.svg";
   /* cómo ponerse para que la reconozca bien, siempre a la vista mientras espera */
-  const TIPS = `<span class="k-tips"><i>Tu cara dentro del óvalo</i><i>Sin gorra</i><i>Sin anteojos</i></span>`;
+  const TIPS = `<span class="k-tips"><i>Tu cara dentro del óvalo</i><i>Sin gorra</i><i>Sin anteojos</i><i>Sin auriculares</i></span>`;
   return {
     layout: "kiosk", title: "Pantalla para socios",
     html: `<div class="kiosk">
@@ -56,7 +56,7 @@ export function pantallaView() {
           if (d.kind === "ok") setMsg("ok", `¡Hola ${first}!`, `Bienvenido a ${d.gym || g.name}`, false, d.note);
           else if (d.kind === "warn") setMsg("ok", `¡Hola ${first}!`, "Cuando puedas, acercate a recepción", false, d.note);
           else if (d.kind === "bad") setMsg("warn", `Hola ${first}`, "Antes de entrar, acercate a recepción");
-          else setMsg("none", "No te reconozco", "Por favor, sacate la gorra y los anteojos y volvé a mirar. Si no, acercate a recepción.");
+          else setMsg("none", "No te reconozco", "Por favor, sacate la gorra, los anteojos y los auriculares y volvé a mirar. Si no, acercate a recepción.");
           idleT = setTimeout(() => setMsg(...IDLE), 6000);        /* por si Recepción se cierra */
         } else if (d.t === "enroll") setMsg("enroll", d.big || "Registrando tu rostro", d.small || "Mirá de frente a la cámara");
       });

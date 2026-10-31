@@ -36,6 +36,8 @@ const z = (i) => (i % 2 ? "zebra" : "plain");
 
 export async function downloadMaster() {
   const sp = S.currentSpace();
+  /* con servidor: el Excel lleva el año completo de entradas (al abrir solo se cargan las últimas semanas) */
+  if (S.MODE === "supabase") { try { await S.remote().ensureCheckinsSince(Date.now() - 400 * 86400000); } catch (err) { console.warn(err); } }
   const now = Date.now(), cur = mkey(now);
   const socios = [...S.activeMembers(), ...S.pending()].filter((u) => S.inSpace(u, sp)).sort((a, b) => a.name.localeCompare(b.name, "es"));
   const pays = S.paymentsOf(sp).slice().sort((a, b) => a.at - b.at);

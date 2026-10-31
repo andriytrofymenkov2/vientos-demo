@@ -1537,3 +1537,14 @@ button.col { background: none; border: 0; padding: 0; color: var(--text); font: 
 .rc-alert-acts { grid-column: 1 / -1; display: flex; gap: 6px; justify-content: flex-end; align-items: center; }
 @keyframes rcIn { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (max-width: 767px) { #rc-alerts { bottom: calc(76px + env(safe-area-inset-bottom)); } }
+/* Entradas */
+.ent-day { display: flex; align-items: center; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.ent-date { position: relative; display: flex; align-items: center; gap: 8px; padding: 8px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); cursor: pointer; }
+.ent-date input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.mrow.ent > span.ent-h { flex: 0 0 auto; display: block; min-width: 46px; font-variant-numeric: tabular-nums; font-weight: 700; font-size: 14px; color: var(--muted); line-height: 1.2; }
+.ent-stats { grid-template-columns: repeat(4, 1fr); margin: 0 0 14px; }
+@media (max-width: 600px) { .ent-stats { grid-template-columns: repeat(2, 1fr); } }
+.mrow.ent.frenado { box-shadow: inset 3px 0 0 var(--bad); }
+.mrow.ent.pasaron { box-shadow: inset 3px 0 0 var(--warn); }
+.statrow .warn b { color: var(--warn); }
+.statrow .bad b { color: var(--bad); }

@@ -591,6 +591,13 @@ export const api = {
     return u;
   },
 
+  /* quitar a un profe o administrador del equipo: no puede ingresar más, lo que hizo queda guardado.
+     Sus socios quedan sin profe asignado (para dárselos a otro) */
+  removeStaff(userId) {
+    db.users.filter((m) => m.role === "socio" && m.coachId === userId).forEach((m) => api.updateUser(m.id, { coachId: null }));
+    api.updateUser(userId, { status: "baja" });
+  },
+  restoreStaff(userId) { api.updateUser(userId, { status: "activo" }); },
   approve(userId, coachId, planId) {
     const u = user(userId);
     u.status = "activo";

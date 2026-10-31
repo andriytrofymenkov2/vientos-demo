@@ -1086,6 +1086,7 @@ const WDN = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "S
 export function gymView() {
   const sp = S.currentSpace(), fz = sp === "fitz", g = S.gymOf(sp);
   const team = S.db.users.filter((u) => u.role !== "socio" && u.status === "activo" && S.inSpace(u));
+  const exTeam = S.db.users.filter((u) => u.role !== "socio" && u.status === "baja" && S.inSpace(u));
   return {
     layout: "panel", nav: "gimnasio", title: "Gimnasio",
     html: `${pageHead({ title: fz ? "Datos de Fitz Club" : "Datos del gimnasio" })}
@@ -1104,7 +1105,8 @@ export function gymView() {
         <section class="card">
           <div class="card-h"><h2>${icon("users", "sm")} Equipo</h2></div>
           <div class="row-btns team-add"><button class="btn primary sm" type="button" data-act="admin">${icon("shield", "sm")} Sumar administrador</button><button class="btn ghost sm" type="button" data-act="coach">${icon("userplus", "sm")} Sumar profe</button></div>
-          ${team.sort((a, b) => (a.role === "admin" ? 0 : 1) - (b.role === "admin" ? 0 : 1)).map((c) => `<div class="mrow">${avatar(c, "sm")}<span><b>${esc(c.name)}</b><small>${c.role === "admin" ? "Administrador · acceso total" : `Profe · ${plural(S.membersOf(c.id).length, "socio", "socios")}`}</small></span></div>`).join("")}
+          ${team.sort((a, b) => (a.role === "admin" ? 0 : 1) - (b.role === "admin" ? 0 : 1)).map((c) => `<div class="mrow">${avatar(c, "sm")}<span><b>${esc(c.name)}${c.id === me().id ? " (vos)" : ""}</b><small>${c.role === "admin" ? "Administrador · acceso total" : `Profe · ${plural(S.membersOf(c.id).length, "socio", "socios")}`}</small></span>${c.id === me().id ? "" : `<button class="btn ghost sm" type="button" data-unstaff="${c.id}">${icon("trash", "sm")} Quitar</button>`}</div>`).join("")}
+          ${exTeam.length ? `<details class="rc-list"><summary>Dados de baja (${exTeam.length})</summary>${exTeam.map((c) => `<div class="mrow">${avatar(c, "sm")}<span><b>${esc(c.name)}</b><small>${c.role === "admin" ? "Administrador" : "Profe"} · ya no puede ingresar</small></span><button class="btn ghost sm" type="button" data-restaff="${c.id}">Volver a sumar</button></div>`).join("")}</details>` : ""}
         </section>
         ${S.MODE === "demo" ? `<section class="card"><div class="card-h"><h2>${icon("info", "sm")} Demostración</h2></div>
           <p class="muted">Vuelve todos los datos de ejemplo a como estaban al principio.</p>
@@ -1129,6 +1131,14 @@ export function gymView() {
         const a = e.target.closest("[data-act]")?.dataset.act;
         if (a === "coach") coachSheet("profe");
         if (a === "admin") coachSheet("admin");
+        const un = e.target.closest("[data-unstaff]");
+        if (un) {
+          const c = S.user(un.dataset.unstaff), n = S.membersOf(c.id).length;
+          const ok = await confirmDialog({ title: `¿Quitar a ${c.name} del equipo?`, text: `No va a poder ingresar más a la app. Lo que hizo (rutinas, cobros, entradas) queda guardado.${n ? ` Sus ${plural(n, "socio", "socios")} quedan sin profe asignado.` : ""} Si te equivocaste, lo podés volver a sumar.`, ok: "Quitar", danger: true });
+          if (ok) { S.api.removeStaff(c.id); toast(`${c.name} ya no está en el equipo`); refresh(); }
+        }
+        const rs = e.target.closest("[data-restaff]");
+        if (rs) { const c = S.user(rs.dataset.restaff); S.api.restoreStaff(c.id); toast(`${c.name} volvió al equipo`); refresh(); }
         if (a === "reset" && await confirmDialog({ title: "¿Reiniciar la demostración?", text: "Se pierden todos los cambios hechos en este navegador.", ok: "Reiniciar", danger: true })) {
           await S.resetDemo(); logout(); location.hash = "#/ingresar"; location.reload();
         }

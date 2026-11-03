@@ -33,7 +33,7 @@ export function pantallaView() {
       async function start() {
         if (stream) return;
         try {
-          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
           video.srcObject = stream; await video.play();
           keepAwake();
           stream.getVideoTracks()[0]?.addEventListener("ended", () => { stream = null; setTimeout(start, 2000); });

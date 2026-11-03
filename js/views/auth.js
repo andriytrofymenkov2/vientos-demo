@@ -161,7 +161,7 @@ export function firstPasswordView() {
         const btn = $("button[type=submit]", form);
         btn.disabled = true;
         try {
-          await S.api.changePassword(u.id, u.user, d.nw);
+          await S.api.setFirstPassword(u.id, d.nw);
           u.prefs = { ...u.prefs, tempPass: false };
           go(homeOf(), { replace: true });
         } catch (e2) { fail(e2.message); btn.disabled = false; }

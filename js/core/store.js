@@ -614,11 +614,20 @@ export const api = {
     save(); push("saveProfile", user(userId));
   },
 
+  /* la pantalla "Elegí tu contraseña" (sesión recién iniciada con la contraseña inicial, sea el DNI o una generada) */
+  async setFirstPassword(userId, newPass) {
+    if (R) { await R.setOwnPassword(newPass); api.updateUser(userId, { prefs: { ...user(userId).prefs, tempPass: false } }); return; }
+    const u = user(userId);
+    u.salt = uid("s");
+    u.hash = await hashPass(newPass, u.salt);
+    u.prefs = { ...u.prefs, tempPass: false };
+    save();
+  },
   async changePassword(userId, oldPass, newPass) {
     if (R) { await R.changePassword(oldPass, newPass); api.updateUser(userId, { prefs: { ...user(userId).prefs, tempPass: false } }); return; }
     const u = user(userId);
-    u.prefs = { ...u.prefs, tempPass: false };
     if ((await hashPass(oldPass, u.salt)) !== u.hash) throw new Error("La contraseña actual no es correcta.");
+    u.prefs = { ...u.prefs, tempPass: false };
     u.salt = uid("s");
     u.hash = await hashPass(newPass, u.salt);
     save();

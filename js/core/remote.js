@@ -465,6 +465,11 @@ export const remoteAdapter = {
     const r = await sb.auth.updateUser({ password: newPass });
     if (r.error) throw new Error(friendly(r.error));
   },
+  /* primera contraseña propia: recién inició sesión, no hace falta volver a pedir la inicial (puede no ser el DNI) */
+  async setOwnPassword(newPass) {
+    const r = await sb.auth.updateUser({ password: newPass });
+    if (r.error) throw new Error(friendly(r.error));
+  },
   async resetPassword(id, pass) { const { error } = await sb.rpc("staff_set_password", { p_user: id, p_pass: pass }); if (error) throw new Error(friendly(error)); },
   async deleteAccount() {
     const { error } = await sb.rpc("delete_my_account");

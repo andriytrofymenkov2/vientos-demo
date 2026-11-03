@@ -16,13 +16,19 @@ const MATCH = 0.6, STABLE = 2;
 /* si el segundo socio más parecido está a menos de esta distancia, no se elige a ninguno (evita confundir) */
 const MARGIN = 0.1;
 /* registrar: cuántas lecturas, qué tan parecidas entre sí y qué tan distinta a las ya registradas */
-const SAMPLES = 5, SAME = 0.6;
+const SAMPLES = 6, SAME = 0.6;
 /* al registrar, si la cara se parece al 45 % a otro socio ya registrado, no se guarda (más estricto que para entrar) */
 const DUP = 0.45;
 /* Óvalo guía en el centro de la imagen: solo cuenta una cara que esté adentro y cerca de la cámara
    (así no se activa con alguien que pasa por atrás o al costado). Coordenadas de 0 a 1 de la imagen. */
 /* la cara cuenta (y el óvalo se pone verde) solo si está centrada: el centro de la cara a poca distancia del centro
    del óvalo, y ni muy lejos (cara chica) ni pegada a la cámara */
+/* lecturas que no sirven y se descartan (no cuentan para reconocer ni para registrar): cara poco clara para el
+   detector, girada (grados), muy oscura o muy clara (brillo 0–255) o movida/borrosa (nitidez). Al registrar se exige más */
+const QUAL = { score: 0.7, yaw: 35, pitch: 30, dark: 40, bright: 230, sharp: 8 };
+const QUAL_ENROLL = { score: 0.8, yaw: 28, pitch: 22, dark: 55, bright: 220, sharp: 12 };
+/* para decidir se promedian las últimas lecturas buenas de la misma cara (una sola puede salir rara) */
+const READS = 3, BUF = 4;
 const OVAL = { cx: 0.5, cy: 0.47, rx: 0.14, ry: 0.17, minW: 0.2, maxW: 0.8 };
 const inOval = (f) => {
   const [x, y, w, h] = f.boxRaw || [];
@@ -108,7 +114,7 @@ async function loadHuman() {
   human = new Human({
     modelBasePath: new URL("../../vendor/human/models/", import.meta.url).href,
     backend: "webgl", debug: false, cacheSensitivity: 0, warmup: "none",
-    filter: { enabled: true, equalization: false },
+    filter: { enabled: true, equalization: true },
     face: { enabled: true, detector: { rotation: true, maxDetected: 2, minConfidence: 0.5 }, mesh: { enabled: true }, iris: { enabled: false },
       /* huella de la cara con InsightFace (ArcFace): distingue mucho mejor a parientes que el modelo de fábrica */
       description: { enabled: false }, insightface: { enabled: true, modelPath: "insightface-mobilenet-swish.json" }, emotion: { enabled: false }, antispoof: { enabled: true }, liveness: { enabled: true } },
@@ -265,11 +271,64 @@ function camShow(id, html, kind, name, note = "") {
 }
 function camExpire() { if (E.cam && Date.now() - E.cam.seen > HOLD) { if (!holding()) showResult(IDLE); E.cam = null; toScreen({ t: "idle" }); } }
 
+/* la cámara se pide en 1280×720 (más detalle de la cara). Esa imagen es más ancha que el recuadro 4:3 de Recepción:
+   se analiza solo el centro en 4:3 (lo mismo que se ve), así el detector no la aplasta y el óvalo coincide */
+/* Una lectura de cada dos se hace con la imagen espejada: la huella de la cara espejada es un poco distinta y,
+   al promediarlas, el resultado depende menos de la luz de costado o de cómo esté girada la cara.
+   El óvalo está en el centro, así que espejar no cambia si la cara está adentro */
+function frame() {
+  const v = E.video, vw = v.videoWidth, vh = v.videoHeight;
+  if (!vw || !vh) return v;
+  const cw = vw / vh > 4 / 3 + 0.01 ? Math.round(vh * 4 / 3) : vw;
+  const c = (E.crop ||= document.createElement("canvas"));
+  if (c.width !== cw || c.height !== vh) { c.width = cw; c.height = vh; }
+  const g = c.getContext("2d");
+  E.flip = !E.flip;
+  g.setTransform(E.flip ? -1 : 1, 0, 0, 1, E.flip ? cw : 0, 0);
+  g.drawImage(v, (vw - cw) / 2, 0, cw, vh, 0, 0, cw, vh);
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  return c;
+}
+/* brillo medio y nitidez de la cara: se achica a 48×48 en gris y se mide cuánto cambia de un píxel al vecino
+   (una imagen movida o fuera de foco casi no tiene bordes) */
+function looks(src, f) {
+  const [x, y, w, h] = f.boxRaw, W = src.width, H = src.height, N = 48;
+  const c = (E.probe ||= document.createElement("canvas")); c.width = c.height = N;
+  const g = c.getContext("2d", { willReadFrequently: true });
+  g.drawImage(src, x * W, y * H, w * W, h * H, 0, 0, N, N);
+  const d = g.getImageData(0, 0, N, N).data, gray = new Float32Array(N * N);
+  let lum = 0;
+  for (let i = 0; i < N * N; i++) { gray[i] = d[i * 4] * 0.299 + d[i * 4 + 1] * 0.587 + d[i * 4 + 2] * 0.114; lum += gray[i]; }
+  let sum = 0, sq = 0, n = 0;
+  for (let r = 1; r < N - 1; r++) for (let k = 1; k < N - 1; k++) {
+    const i = r * N + k, l = 4 * gray[i] - gray[i - 1] - gray[i + 1] - gray[i - N] - gray[i + N];
+    sum += l; sq += l * l; n++;
+  }
+  return { lum: lum / (N * N), sharp: Math.sqrt(sq / n - (sum / n) ** 2) };
+}
+/* por qué no sirve la lectura (o nada si sirve) */
+function badRead(f, src, q) {
+  if (!f.embedding?.length || (f.score ?? 1) < q.score) return "Mirá de frente a la cámara, con buena luz…";
+  const a = f.rotation?.angle, deg = (r) => Math.abs((r || 0) * 180 / Math.PI);
+  if (a && (deg(a.yaw) > q.yaw || deg(a.pitch) > q.pitch)) return "Que mire de frente a la cámara, sin girar la cabeza…";
+  const { lum, sharp } = looks(src, f);
+  E.look = { lum: Math.round(lum), sharp: Math.round(sharp * 10) / 10, yaw: Math.round(deg(a?.yaw)), pitch: Math.round(deg(a?.pitch)) };
+  if (lum < q.dark) return "Está muy oscuro: hace falta más luz de frente…";
+  if (lum > q.bright) return "Hay demasiada luz sobre la cara…";
+  if (sharp < q.sharp) return "La imagen sale movida: que se quede quieto/a un segundo…";
+  return "";
+}
+const mean = (list) => list[0].map((_, i) => list.reduce((a, x) => a + x[i], 0) / list.length);
+
+/* suma la lectura a las últimas de la misma cara; si es de otra persona (no se parece al promedio), empieza de cero */
+const addRead = (buf = [], emb) => (buf.length && sim(mean(buf), emb) < SAME ? [emb] : [...buf, emb].slice(-BUF));
+
 async function loop() {
   if (!E.stream) return;
   try {
     const t = performance.now();
-    const res = await human.detect(E.video);
+    const src = frame();
+    const res = await human.detect(src);
     E.ms = Math.round(performance.now() - t);
     /* si hay más de una cara, la más grande (la que está más cerca de la cámara) */
     const faces = (res.face || []).slice().sort((a, b) => (b.box?.[2] || 0) * (b.box?.[3] || 0) - (a.box?.[2] || 0) * (a.box?.[3] || 0));
@@ -283,21 +342,26 @@ async function loop() {
     if (E.scr && E.scr.t !== "idle" && Date.now() - E.scrAt > 2000) { E.scrAt = Date.now(); send(E.scr); }
     /* terminó de atender: el cartel de recepción vuelve a mostrar la cámara */
     if (E.holdUntil && !holding() && !E.enrollFor) { E.holdUntil = 0; E.cam = null; showResult(IDLE); }
-    if (E.enrollFor) { if (f) await enrollStep(f, faces.length); else if (E.capturing) say("Que ponga la cara dentro del óvalo, cerca de la cámara…"); }
+    if (!f) E.buf = [];
+    const bad = f && !E.enrollFor ? badRead(f, src, QUAL) : "";
+    if (E.enrollFor) { if (f) await enrollStep(f, faces.length, src); else if (E.capturing) say("Que ponga la cara dentro del óvalo, cerca de la cámara…"); }
     else if (!f) {
       say(faces.length ? "Poné la cara en el centro del óvalo, cerca de la cámara…" : "Esperando una cara frente a la cámara…"); E.count = 0; E.unknown = 0;
       if (E.scanning && !E.cam) { E.scanning = false; toScreen({ t: "idle" }); }
       camExpire();
     }
-    else if (f.embedding?.length) {
+    else if (bad) say(bad);
+    else if ((E.buf = addRead(E.buf, f.embedding)).length < READS) say("Mirando…");
+    else {
       /* sin ningún rostro registrado también se le avisa a la persona que no la reconoce */
       const list = known();
       {
         /* parecido con cada rostro registrado: el mejor tiene que superar el mínimo y sacarle ventaja al segundo */
-        const order = list.map((x, i) => [sim(f.embedding, S.faceOf(x.id).emb), i]).sort((a, b) => b[0] - a[0]);
+        const emb = mean(E.buf);
+        const order = list.map((x, i) => [sim(emb, S.faceOf(x.id).emb), i]).sort((a, b) => b[0] - a[0]);
         const [best = 0, bi = -1] = order[0] || [], second = order[1]?.[0] || 0;
         const clear = best - second >= MARGIN;
-        E.dbg = { best: Math.round(best * 100), second: Math.round(second * 100), who: list[bi]?.name || "", n: list.length };
+        E.dbg = { best: Math.round(best * 100), second: Math.round(second * 100), who: list[bi]?.name || "", n: list.length, look: E.look };
         const u = best >= MATCH && clear ? list[bi] : null;
         const fake = typeof f.real === "number" && f.real < 0.5;
         E.count = u && u.id === E.last ? E.count + 1 : 1; E.last = u?.id || null;
@@ -318,7 +382,7 @@ async function loop() {
           const fr = S.faceOf(u.id);
           if (!fake && best >= 0.7 && best - second >= 0.25 && fr && fr.upd !== new Date().toDateString()) {
             /* mismo promedio que al registrarla (90 % lo guardado + 10 % la lectura de hoy) */
-            S.api.saveFace(u.id, fr.emb.map((v, i) => v * 0.9 + f.embedding[i] * 0.1), { upd: new Date().toDateString(), since: fr.since || fr.at, model: FACE_MODEL });
+            S.api.saveFace(u.id, fr.emb.map((v, i) => v * 0.9 + emb[i] * 0.1), { upd: new Date().toDateString(), since: fr.since || fr.at, model: FACE_MODEL });
           }
           say(`Reconocido: <b>${esc(u.name)}</b> (${Math.round(best * 100)} %)`);
         } else if (!u && E.unknown >= STABLE && E.cam?.id !== "?" && Date.now() - (E.unknownSince || 0) < UNKNOWN_AFTER) {
@@ -366,16 +430,19 @@ async function countdown() {
   }
   E.samples = []; E.capturing = true;
 }
-async function enrollStep(f, n) {
+async function enrollStep(f, n, src) {
   if (!E.capturing) return;                                   /* esperando que toquen "Empezar" */
   if (n > 1) { say("Hay más de una persona en la imagen: que quede solo/a el socio."); E.samples = []; return; }
-  if (!f.embedding?.length || (f.score ?? 1) < 0.7) { say("Mirá de frente a la cámara, con buena luz…"); return; }
+  const bad = badRead(f, src, QUAL_ENROLL);
+  if (bad) { say(bad); return; }
   if (E.samples.length && sim(E.samples[0], f.embedding) < SAME) { say("Se movió o cambió la persona: empiezo de nuevo."); E.samples = []; return; }
   E.samples.push(f.embedding);
   say(`Registrando el rostro de <b>${esc(E.enrollFor.name)}</b>… ${E.samples.length} de ${SAMPLES}`);
   if (E.samples.length < SAMPLES) return;
   E.capturing = false;
-  const emb = E.samples[0].map((_, i) => E.samples.reduce((a, x) => a + x[i], 0) / E.samples.length);
+  const emb = mean(E.samples);
+  /* control de calidad: todas las lecturas tienen que parecerse bien al promedio; si una salió rara, se repite */
+  if (E.samples.some((x) => sim(x, emb) < 0.75)) { E.samples = []; E.capturing = true; say("Una lectura salió distinta: repito el registro, que no se mueva…"); return; }
   /* ¿esa cara ya es de otro socio? (por ejemplo, quedó quien atiende frente a la cámara) */
   const dup = known().filter((x) => x.id !== E.enrollFor.id).map((x) => [sim(emb, S.faceOf(x.id).emb), x]).sort((a, b) => b[0] - a[0])[0];
   if (dup && dup[0] >= DUP) {
@@ -403,7 +470,7 @@ export async function startCamera() {
   try {
     await loadHuman();
     if (S.MODE === "supabase") { try { await S.remote().reloadFaces(); ui?.list(); } catch (err) { console.warn(err); } }
-    E.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } }, audio: false });
+    E.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
     if (!E.video) { E.video = document.createElement("video"); E.video.muted = true; E.video.playsInline = true; }
     E.video.srcObject = E.stream; await E.video.play();
     ui?.attach();
